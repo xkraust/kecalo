@@ -1,6 +1,6 @@
 # Testovací otázky – VPP M-100/23 (pojištění majetku a odpovědnosti občanů, Kooperativa)
 
-Sada k ověření RAG chatbota nad dokumentem `VPP_M-100_23`. U každé otázky je
+Sada k ověření RAG chatbota nad dokumentem `VPP M-100_23`. U každé otázky je
 očekávaná odpověď a článek, ze kterého má chatbot čerpat.
 
 **Důležité pro kurz:** tento dokument je od stejné pojišťovny jako M-200/23
