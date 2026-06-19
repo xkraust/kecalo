@@ -1,5 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { processDocument } from "@/lib/rag/pipeline";
+
+export const maxDuration = 60;
 
 const ALLOWED_TYPES = new Set([
   "application/pdf",
@@ -82,9 +85,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Upload file to storage
+  // Upload file to storage (use sanitized path — original name is in DB)
   const buffer = new Uint8Array(await file.arrayBuffer());
-  const storagePath = `${doc.id}/${file.name}`;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
+  const storagePath = `${doc.id}/file.${ext}`;
   const { error: uploadErr } = await supabase.storage
     .from("documents")
     .upload(storagePath, buffer, { contentType: file.type });
@@ -96,6 +100,8 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  after(processDocument(doc.id));
 
   return NextResponse.json(
     { id: doc.id, filename: doc.filename, status: doc.status },

@@ -137,32 +137,46 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ### PDF extrakce (`lib/rag/extract.ts`)
 
-- [ ] Použít `unpdf` — extrahovat text po stránkách (kvůli citacím)
-- [ ] Pro `.txt`/`.md` přečíst přímo
-- [ ] Ošetřit chybu nečitelného PDF → stav `error` s důvodem
+- [x] Použít `unpdf` — extrahovat text po stránkách (kvůli citacím)
+- [x] Pro `.txt`/`.md` přečíst přímo (`TextDecoder`)
+- [x] Ošetřit chybu nečitelného PDF → stav `error` s důvodem
 
 ### Chunking (`lib/rag/chunk.ts`)
 
-- [ ] Splitter: ~900 tokenů (přibližně odhadnout z délky textu), overlap 150 tokenů
-- [ ] Metadata ke každému chunku: `document_id`, `page`, `chunk_index`
-- [ ] Exportovat funkci `chunkText(text: string, pageMap: PageMap): Chunk[]`
+- [x] Splitter: ~900 tokenů (~3600 znaků), overlap ~150 tokenů (~600 znaků)
+- [x] Metadata ke každému chunku: `document_id`, `page`, `chunk_index`
+- [x] Exportovaná funkce `chunkText(pages, documentId): ChunkInput[]`
 
 ### Embeddingy (`lib/rag/embed.ts`)
 
-- [ ] Inicializovat Voyage AI klienta s `VOYAGE_API_KEY`
-- [ ] Funkce `embedBatch(texts: string[]): Promise<number[][]>` — model `voyage-3.5`, dimenze 1024
-- [ ] Batchování po 128 textech (API limit)
-- [ ] Fallback při výpadku: logovat chybu, přejít na stav `error`
+- [x] Voyage AI klient s `VOYAGE_API_KEY`, model `voyage-3.5`, dimenze 1024
+- [x] `embedBatch(texts)` — batchování po 128, `inputType: "document"`
+- [x] `embedQuery(text)` — `inputType: "query"` pro retrieval
+- [x] Fallback: chyba propagovaná do pipeline → stav `error`
+
+### Processing pipeline (`lib/rag/pipeline.ts`)
+
+- [x] `processDocument(documentId)` — extract → chunk → embed → uložit → `ready`
+- [x] Error handling: try/catch → `documents.status = 'error'`, `error_message`
+- [x] Napojení na upload: `after(processDocument(doc.id))` v POST `/api/documents` (Next.js 16)
+- [x] Storage path sanitizace (bez diakritiky v klíči)
 
 ### Uložení do Supabase
 
-- [ ] Zapsat chunky včetně embeddingů do tabulky `chunks`
-- [ ] Po dokončení aktualizovat `documents.status = 'ready'` a `chunk_count`
+- [x] Zápis chunků + embeddingů do `chunks` (dávky po 100, embedding jako JSON string)
+- [x] Aktualizace `documents.status = 'ready'` a `chunk_count`
+- [x] Smazání starých chunků před re-processingem
 
-### Test retrievalu (`lib/rag/retrieve.ts`)
+### Retrieval (`lib/rag/retrieve.ts`)
 
-- [ ] Funkce `retrieve(query: string, topK = 5): Promise<Chunk[]>` — embedding dotazu → cosine similarity v pgvector → vrátit top-k chunků s `similarity` skóre
-- [ ] Konfigurovatelný `topK` a `SIMILARITY_THRESHOLD` z env (default 0.35)
+- [x] SQL migrace `002_match_chunks.sql` — RPC funkce pro cosine similarity v pgvector
+- [x] `retrieve(query, topK, threshold)` — embedding dotazu → `match_chunks` RPC → top-k výsledků
+- [x] Konfigurovatelný `topK` a `SIMILARITY_THRESHOLD` z env
+
+### E2E ověření
+
+- [x] Upload IPID.pdf (2 strany) → `processing` → `ready`, `chunk_count = 2`
+- [x] Dashboard zobrazuje aktualizované metriky
 
 ---
 

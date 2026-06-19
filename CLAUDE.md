@@ -8,7 +8,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0 a 1 hotovy. Fáze 2 (Admin sekce) hotova — auth middleware (HMAC session cookie), login stránka, sidebar layout s route group `(authenticated)`, dashboard s metrikami znalostní báze, upload dokumentů do Supabase Storage, tabulka dokumentů s pollingem. Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
+Fáze 0–2 hotovy. Fáze 3 (Chunking, embeddingy, pgvector) hotova — RAG pipeline: `extract.ts` (unpdf + txt/md), `chunk.ts` (~3600 znaků, overlap 600), `embed.ts` (Voyage AI voyage-3.5, batch/query), `pipeline.ts` (processDocument s `after()`), `retrieve.ts` (RPC `match_chunks` přes pgvector cosine similarity). Upload automaticky spouští indexaci na pozadí. Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
 
