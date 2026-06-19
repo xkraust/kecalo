@@ -78,9 +78,9 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ### Vercel propojení
 
-- [ ] Vercel → Import Git Repository → `xkraust/kecalo`
-- [ ] Nastavit env proměnné ve Vercel projektu (stejné jako `.env.local`)
-- [ ] Push do `main` → ověřit automatický deploy
+- [x] Vercel → Import Git Repository → `xkraust/kecalo`
+- [x] Nastavit env proměnné ve Vercel projektu (import z `.env.local`)
+- [x] Push do `main` → automatický deploy ověřen (placeholder stránka s Console tématem)
 
 ---
 
@@ -94,39 +94,40 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ### Auth admin sekce
 
-- [ ] Middleware `src/middleware.ts` — ochrana `/admin` rout pomocí `ADMIN_PASSWORD` z env
-- [ ] Stránka `/admin/login` — formulář s heslem, session cookie (simple, ne JWT)
-- [ ] Redirect po přihlášení na `/admin` (dashboard)
-- [ ] Sidebar layout `src/app/admin/layout.tsx` — navigace + aktivní položka (korálový podklad)
+- [x] Middleware `src/middleware.ts` — ochrana `/admin` rout pomocí HMAC session cookie (`src/lib/auth.ts`)
+- [x] Stránka `/admin/login` — formulář s heslem, bez sidebaru
+- [x] Redirect po přihlášení na `/admin` (dashboard)
+- [x] Sidebar layout `src/app/admin/(authenticated)/layout.tsx` + `AdminSidebar.tsx` — navigace s aktivní položkou
+- [x] Odhlášení — POST `/api/admin/logout`, smaže cookie, redirect na login
 
 ### Dashboard (`/admin`, úvodní strana)
 
-- [ ] `src/app/admin/page.tsx` — Server Component, agregace přes Supabase service-role klient
-- [ ] Metrické karty (`StatCard`): Dokumenty, Chunky (`SUM(chunk_count)`), Zaindexované strany (`COUNT(DISTINCT (document_id, page))`), Připraveno (X/N)
-- [ ] Graf „Chunky podle dokumentu" (`ChunksByDocChart`, CSS bary) — řazení sestupně
-- [ ] „Stavy dokumentů" — rozpad `GROUP BY status` s badge
-- [ ] Pozn.: metriky využití (dotazy, míra fallbacku, prům. skóre, latence) = úroveň 2, odložené na fázi 7 / produkční dluh (vyžadují logování dotazů)
+- [x] `src/app/admin/(authenticated)/page.tsx` — Server Component (`force-dynamic`), agregace přes Supabase
+- [x] Metrické karty (`StatCard`): Dokumenty, Chunky, Zaindexované strany, Připraveno (X/N)
+- [x] Graf „Chunky podle dokumentu" (`ChunksByDocChart`, CSS bary) — řazení sestupně
+- [x] „Stavy dokumentů" — rozpad `GROUP BY status` s `StatusBadge`
+- [x] Pozn.: metriky využití (dotazy, míra fallbacku, prům. skóre, latence) = úroveň 2, odložené na fázi 7 / produkční dluh
 
 ### Upload UI (`/admin/documents`)
 
-- [ ] Komponenta `UploadZone` — drag & drop + file picker
-- [ ] Validace: povolené typy `application/pdf`, `text/plain`, `text/markdown`; max 20 MB
-- [ ] Chybová hláška při špatném typu nebo velikosti
-- [ ] Progress indikátor během uploadu
+- [x] Komponenta `UploadZone` — drag & drop + file picker
+- [x] Validace: povolené typy `application/pdf`, `text/plain`, `text/markdown` + kontrola přípony; max 20 MB
+- [x] Chybová hláška při špatném typu nebo velikosti
+- [x] Progress indikátor během uploadu (spinner)
 
 ### API route `POST /api/documents`
 
-- [ ] Přijmout `multipart/form-data`
-- [ ] Uložit originál do Supabase Storage (nebo lokálně do `/uploads`)
-- [ ] Zapsat záznam do `documents` se stavem `uploaded`
-- [ ] Spustit indexaci asynchronně (nebo synchronně s UI feedbackem — viz fáze 3)
-- [ ] Vrátit `document_id`
+- [x] Přijmout `multipart/form-data`
+- [x] Uložit originál do Supabase Storage (bucket `documents`, programatická tvorba)
+- [x] Zapsat záznam do `documents` se stavem `uploaded`
+- [x] Indexaci zatím nespouštět (Fáze 3)
+- [x] Vrátit `document_id`
 
 ### Tabulka dokumentů
 
-- [ ] API route `GET /api/documents` — vrátí seznam (název, datum, chunk_count, status)
-- [ ] Komponenta `DocumentsTable` — polling stavu každé 3 s dokud není `ready`/`error`
-- [ ] Badge pro stavy: `uploaded` · `processing` · `ready` · `error`
+- [x] API route `GET /api/documents` — vrátí seznam (název, datum, chunk_count, status)
+- [x] Komponenta `DocumentsTable` — polling stavu každé 3 s dokud není `ready`/`error`
+- [x] Badge pro stavy: `uploaded` · `processing` · `ready` · `error` (`StatusBadge`)
 
 ---
 
