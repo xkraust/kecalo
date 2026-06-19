@@ -68,13 +68,13 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ### Supabase migrace — init
 
-- [ ] `supabase init` v kořeni projektu
-- [ ] Vytvořit migraci `supabase/migrations/001_init.sql`:
+- [x] `supabase init` v kořeni projektu
+- [x] Vytvořit migraci `supabase/migrations/001_init.sql`:
   - rozšíření `pgvector` (`CREATE EXTENSION IF NOT EXISTS vector`)
   - tabulka `documents` (id, filename, mime_type, status, error_message, chunk_count, created_at)
   - tabulka `chunks` (id, document_id FK→documents CASCADE, chunk_index, page, content, embedding vector(1024))
   - HNSW index nad `chunks.embedding`
-- [ ] `supabase db push` → ověřit schéma v Supabase Table Editor
+- [x] `supabase db push` → ověřeno přes REST API (documents ✓, chunks ✓)
 
 ### Vercel propojení
 
