@@ -8,7 +8,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0 (prerekvizity) hotova. Fáze 1 probíhá — projekt **scaffoldován** (Next.js 16 + React 19 + Tailwind v4, `src/` struktura). Zbývá: design téma (Inter + paleta), shadcn/ui, Supabase migrace, Vercel. Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
+Fáze 0 (prerekvizity) hotova. Fáze 1 probíhá — hotovo: scaffold (Next.js 16 + React 19 + Tailwind v4), shadcn/ui (komponenty v `src/components/ui/`, base-ui + lucide-react), runtime závislosti, **design téma** (Console paleta v `globals.css`, font Inter, světlý režim). Zbývá: Supabase migrace, Vercel. Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
 

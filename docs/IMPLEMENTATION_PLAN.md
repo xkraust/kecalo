@@ -54,9 +54,10 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 ### Scaffold projektu
 
 - [x] `create-next-app` (Next.js 16 + React 19 + Tailwind v4, `src/`, App Router) — scaffold do `scaffold-tmp` a přesun do kořene repa
-- [ ] Doinstalovat shadcn/ui: `npx shadcn@latest init`
-- [ ] Přidat komponenty: `npx shadcn@latest add button input textarea card badge dialog table`
-- [ ] Nainstalovat závislosti: `npm i ai @ai-sdk/anthropic @supabase/supabase-js voyageai unpdf react-markdown`
+- [x] Doinstalovat shadcn/ui: `npx shadcn@latest init -d` (base-ui, ne radix)
+- [x] Přidat komponenty: `button input textarea card badge dialog table` (v `src/components/ui/`)
+- [x] Nainstalovat závislosti: `ai @ai-sdk/anthropic @supabase/supabase-js voyageai unpdf react-markdown`
+- [x] Design téma: Console paleta v `globals.css` (`:root`, světlý režim only), font `Inter` (subset `latin-ext`) v `layout.tsx`, ověřeno screenshotem
 - [ ] **Design téma:** v `src/app/globals.css` nastavit CSS proměnné dle palety Console (viz „Vzhled a design" v `CLAUDE.md`); načíst font `Inter` přes `next/font` v `layout.tsx`; ověřit krémové pozadí + korálový akcent
 
 ### Konfigurace prostředí
