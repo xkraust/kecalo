@@ -4,7 +4,9 @@
 
 Tento dokument je prováděcí checklist pro stavbu Kecala podle PRD v1.0. Sleduj ho průběžně — zaškrtávej hotové položky a po každém milníku commitni do GitHubu. Kromě přípravné Fáze 0 (prerekvizity před kurzem) se projekt dělí na 7 fází odpovídajících harmonogramu kurzu (bloky 1–7 v PRD kap. 12); každá fáze má jasný výstup (milník), který otestuješ dříve, než přejdeš dál.
 
-**Stack:** Next.js 15 + TypeScript · Tailwind CSS + shadcn/ui · Vercel AI SDK · Claude API (claude-sonnet-4-6) · Voyage AI (voyage-3.5) · Supabase (Postgres + pgvector + Storage)
+**Stack:** Next.js 16 + React 19 + TypeScript · Tailwind CSS v4 + shadcn/ui · Vercel AI SDK · Claude API (claude-sonnet-4-6) · Voyage AI (voyage-3.5) · Supabase (Postgres + pgvector + Storage)
+
+**Design:** UI ve stylu Anthropic Console (světlý režim, krémové pozadí `#FAF9F5`, korálový akcent `#D85A30`, font Inter). Admin = přesně Console (sidebar), chat = odvozený brand „Pojišťovna Jistota". Úplné tokeny viz sekce „Vzhled a design" v `CLAUDE.md`.
 
 **Repozitář:** github.com/xkraust/kecalo | **Deploy:** Vercel (auto z `main`)
 
@@ -14,34 +16,34 @@ Tento dokument je prováděcí checklist pro stavbu Kecala podle PRD v1.0. Sledu
 
 ### Účty
 
-- [ ] GitHub účet (mám)
-- [ ] Anthropic Console — `ANTHROPIC_API_KEY` vygenerován, kredit ověřen ve Workbench
-- [ ] Voyage AI — `VOYAGE_API_KEY` vygenerován (free tier)
-- [ ] Supabase — nový projekt (region EU), DB heslo poznamenáno; pgvector **nevytvářet ručně** (vznikne migrací)
-- [ ] Vercel — přihlášen přes GitHub (propojení s repem proběhne ve fázi 1)
+- [x] GitHub účet (mám)
+- [x] Anthropic Console — `ANTHROPIC_API_KEY` vygenerován, kredit ověřen ve Workbench
+- [x] Voyage AI — `VOYAGE_API_KEY` vygenerován (free tier)
+- [x] Supabase — nový projekt (region EU), DB heslo poznamenáno; pgvector **nevytvářet ručně** (vznikne migrací)
+- [x] Vercel — přihlášen přes GitHub (propojení s repem proběhne ve fázi 1)
 
 ### Lokální nástroje
 
-- [ ] Node.js LTS 20+ (`node -v`)
-- [ ] Git (`git --version`)
-- [ ] Claude Code (`claude --version`, přihlášen)
-- [ ] Supabase CLI (`supabase --version`)
+- [x] Node.js LTS 20+ (`node -v`) — v24.14.1
+- [x] Git (`git --version`) — 2.53.0
+- [x] Claude Code (`claude --version`, přihlášen) — 2.1.177
+- [x] Supabase CLI (`supabase --version`) — 2.106.0
 
 ### Smoke test konektivity
 
-- [ ] Claude API odpovídá (curl / Workbench)
-- [ ] Voyage API odpovídá
-- [ ] Supabase DB dostupná přes `DATABASE_URL`
+- [x] Claude API odpovídá (curl / Workbench)
+- [x] Voyage API odpovídá — embedding 1024 dimenzí ✓
+- [x] Supabase DB dostupná přes `DATABASE_URL`
 
 ### Seed data (reálné dokumenty Kooperativy, již ve složce `docs/`)
 
 Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění majetku, odpovědnosti a bytových domů:
 
-- [ ] `docs/VPP M-100_23 pro pojištění majetku a odpovědnosti občanů.pdf` — Všeobecné pojistné podmínky (hlavní zdroj pravidel, výluk a limitů)
-- [ ] `docs/VPP M-200_23 pro pojištění bytových domů.pdf` — Všeobecné pojistné podmínky pro bytové domy
-- [ ] `docs/Informační dokument o pojistném produktu (IPID).pdf` — strukturovaný přehled produktu „Pojištění bytového domu" (2 strany)
-- [ ] `docs/Informace pro klienta.pdf` — předsmluvní informace + zpracování osobních údajů (11 stran)
-- [ ] `docs/testovaci_otazky.md` — 12 otázek (10 v bázi s citacemi konkrétních článků, 2 záměrně mimo → test fallbacku), vychází z reálných podmínek Kooperativy
+- [x] `docs/VPP M-100_23 pro pojištění majetku a odpovědnosti občanů.pdf` — Všeobecné pojistné podmínky (hlavní zdroj pravidel, výluk a limitů)
+- [x] `docs/VPP M-200_23 pro pojištění bytových domů.pdf` — Všeobecné pojistné podmínky pro bytové domy
+- [x] `docs/Informační dokument o pojistném produktu (IPID).pdf` — strukturovaný přehled produktu „Pojištění bytového domu" (2 strany)
+- [x] `docs/Informace pro klienta.pdf` — předsmluvní informace + zpracování osobních údajů (11 stran)
+- [x] `docs/testovaci_otazky.md` — 12 otázek (10 v bázi s citacemi konkrétních článků, 2 záměrně mimo → test fallbacku), vychází z reálných podmínek Kooperativy
 
 ---
 
@@ -51,10 +53,11 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ### Scaffold projektu
 
-- [ ] `npx create-next-app@latest kecalo --typescript --tailwind --app --src-dir`
+- [x] `create-next-app` (Next.js 16 + React 19 + Tailwind v4, `src/`, App Router) — scaffold do `scaffold-tmp` a přesun do kořene repa
 - [ ] Doinstalovat shadcn/ui: `npx shadcn@latest init`
 - [ ] Přidat komponenty: `npx shadcn@latest add button input textarea card badge dialog table`
 - [ ] Nainstalovat závislosti: `npm i ai @ai-sdk/anthropic @supabase/supabase-js voyageai unpdf react-markdown`
+- [ ] **Design téma:** v `src/app/globals.css` nastavit CSS proměnné dle palety Console (viz „Vzhled a design" v `CLAUDE.md`); načíst font `Inter` přes `next/font` v `layout.tsx`; ověřit krémové pozadí + korálový akcent
 
 ### Konfigurace prostředí
 
@@ -84,13 +87,26 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 **Milník:** Nahraný PDF se zobrazí v tabulce dokumentů se stavem `ready`.
 
+> **Design:** admin přesně ve stylu Console — levý sidebar (`src/app/admin/layout.tsx`), white karty, status badge dle palety. Viz „Vzhled a design" v `CLAUDE.md` a mockup z plánovací session.
+>
+> **Struktura rout:** `/admin` = dashboard (úvodní strana), `/admin/documents` = upload + tabulka, `/admin/retrieval-test` = test retrievalu. Sidebar: Přehled · Dokumenty · Test retrievalu · Chat · Odhlásit.
+
 ### Auth admin sekce
 
 - [ ] Middleware `src/middleware.ts` — ochrana `/admin` rout pomocí `ADMIN_PASSWORD` z env
 - [ ] Stránka `/admin/login` — formulář s heslem, session cookie (simple, ne JWT)
-- [ ] Redirect po přihlášení na `/admin`
+- [ ] Redirect po přihlášení na `/admin` (dashboard)
+- [ ] Sidebar layout `src/app/admin/layout.tsx` — navigace + aktivní položka (korálový podklad)
 
-### Upload UI (`/admin`)
+### Dashboard (`/admin`, úvodní strana)
+
+- [ ] `src/app/admin/page.tsx` — Server Component, agregace přes Supabase service-role klient
+- [ ] Metrické karty (`StatCard`): Dokumenty, Chunky (`SUM(chunk_count)`), Zaindexované strany (`COUNT(DISTINCT (document_id, page))`), Připraveno (X/N)
+- [ ] Graf „Chunky podle dokumentu" (`ChunksByDocChart`, CSS bary) — řazení sestupně
+- [ ] „Stavy dokumentů" — rozpad `GROUP BY status` s badge
+- [ ] Pozn.: metriky využití (dotazy, míra fallbacku, prům. skóre, latence) = úroveň 2, odložené na fázi 7 / produkční dluh (vyžadují logování dotazů)
+
+### Upload UI (`/admin/documents`)
 
 - [ ] Komponenta `UploadZone` — drag & drop + file picker
 - [ ] Validace: povolené typy `application/pdf`, `text/plain`, `text/markdown`; max 20 MB
@@ -176,6 +192,8 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 ## Fáze 5 — Chat UI (4:30–5:30)
 
 **Milník:** Kompletní end-to-end demo — otázka v UI → streamovaná odpověď → citace zdroje.
+
+> **Design:** chat používá stejnou paletu a typografii jako admin (Console styl), ale s vlastním brandem „Pojišťovna Jistota" v hlavičce. Korál pro akční prvky (odeslat, ukázkové chipy, „Nová konverzace"). Viz „Vzhled a design" v `CLAUDE.md`.
 
 ### Layout a komponenty
 
@@ -312,3 +330,4 @@ kecalo/
 - Podpora DOCX / HTML / skenovaných PDF (OCR)
 - Monitoring nákladů a latence
 - Eskalace na živého operátora
+- Dashboard — metriky využití (úroveň 2): logování dotazů → počet dotazů, míra fallbacku, prům. skóre podobnosti, latence; časové řady (zvážit `recharts`)
