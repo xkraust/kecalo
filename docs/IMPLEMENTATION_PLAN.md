@@ -184,24 +184,19 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 **Milník:** `curl POST /api/chat` vrátí streamovanou odpověď s citací zdroje.
 
-### API route `POST /api/chat` (`lib/rag/pipeline.ts`)
+### API route `POST /api/chat` (`src/app/api/chat/route.ts`)
 
-- [ ] Přijmout `{ messages: Message[] }` (Vercel AI SDK formát)
-- [ ] (Volitelně) query rewriting: přeformulovat navazující dotaz na samostatný pomocí LLM nebo jednoduché konkatenace kontextu
-- [ ] Spustit `retrieve(lastUserMessage)` — získat top-k chunků
-- [ ] Pokud `bestScore < SIMILARITY_THRESHOLD` → streamovat fallback hlášku, přidat metadata `{ sources: [] }`
-- [ ] Sestavit prompt:
-  - systémový prompt (viz PRD kap. 11)
-  - chunky jako `<context>` s označením zdroje
-  - posledních 8 zpráv z historie
-  - aktuální dotaz
-- [ ] Zavolat Claude API (`claude-sonnet-4-6`, teplota 0.2, max_tokens 1500) se streamováním
-- [ ] Do streamu přidat na konec metadata zdrojů (název dokumentu, strana, chunk_index, skóre)
+- [x] Přijmout `{ messages }` (Vercel AI SDK v6 formát)
+- [x] Query rewriting: odloženo na fázi 6 (ladění) — zatím se bere poslední user message
+- [x] Spustit `retrieve(lastUserMessage)` — top-k chunků
+- [x] Pokud retrieve vrátí prázdné pole → streamovat fallback hlášku, `X-Sources: []`
+- [x] Sestavit prompt: systémový prompt (PRD §11, `src/lib/rag/prompts.ts`) + `<context>` blok + posledních 8 zpráv
+- [x] Zavolat Claude API (`claude-sonnet-4-6`, teplota z config, maxOutputTokens 1500) přes `streamText` + `anthropic()` provider
+- [x] Metadata zdrojů v HTTP headeru `X-Sources` (JSON) — klient je parsuje při streamu
 
 ### Konfigurace (`lib/config.ts`)
 
-- [ ] Exportovat konstanty z env: `ANTHROPIC_API_KEY`, `TOP_K`, `SIMILARITY_THRESHOLD`, `MAX_CONTEXT_TOKENS`, `LLM_TEMPERATURE`
-- [ ] Default hodnoty pokud env není nastavena
+- [x] Již existuje z Fáze 2: `anthropicApiKey`, `topK`, `similarityThreshold`, `llmTemperature` — žádná změna nebyla potřeba
 
 ---
 

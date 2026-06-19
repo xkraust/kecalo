@@ -8,7 +8,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0–2 hotovy. Fáze 3 (Chunking, embeddingy, pgvector) hotova — RAG pipeline: `extract.ts` (unpdf + txt/md), `chunk.ts` (~3600 znaků, overlap 600), `embed.ts` (Voyage AI voyage-3.5, batch/query), `pipeline.ts` (processDocument s `after()`), `retrieve.ts` (RPC `match_chunks` přes pgvector cosine similarity). Upload automaticky spouští indexaci na pozadí. Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
+Fáze 0–3 hotovy. Fáze 4 (Chat API) hotova — `POST /api/chat` přes Vercel AI SDK v6 (`streamText` + `anthropic("claude-sonnet-4-6")`). Systémový prompt z PRD §11 (`src/lib/rag/prompts.ts`), fallback pro dotazy mimo bázi, metadata zdrojů v headeru `X-Sources`. Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
 
