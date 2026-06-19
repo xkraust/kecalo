@@ -255,9 +255,10 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ### Ladění RAG
 
-- [ ] Otestovat na seed dokumentech všech ~10 testovacích otázek
+- [ ] Otestovat na seed dokumentech všech ~10 testovacích otázek (viz `docs/testovaci_otazky*.md`) — po nahrání seed dokumentů přes admin UI
 - [ ] Doladit `SIMILARITY_THRESHOLD` a `TOP_K` pokud retrieval vrací irelevantní výsledky
 - [ ] Ověřit systémový prompt — bot nesmí odpovídat mimo kontext
+- [x] Retry logika pro Voyage AI 429 v `embed.ts` (exponenciální backoff, 3 pokusy)
 
 ---
 

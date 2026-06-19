@@ -8,7 +8,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0–5 hotovy. Fáze 6 probíhá — smazání dokumentů (DELETE endpoint + potvrzovací dialog), ošetření chyb (retrieval try/catch → 503, onError logging, error_message v tabulce, sjednocené chybové hlášky). Zbývá: ladění RAG na seed dokumentech. Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
+Fáze 0–5 hotovy. Fáze 6 hotova (kromě ladění RAG na seed dokumentech — odloženo na uživatele). Implementováno: DELETE endpoint + potvrzovací dialog, ošetření chyb (retrieval try/catch → 503, onError logging, error_message v tabulce, sjednocené hlášky), retry logika pro Voyage AI 429. Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
 
