@@ -10,6 +10,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { DocumentRecord } from "@/lib/types";
 
@@ -28,6 +37,8 @@ interface DocumentsTableProps {
 
 export function DocumentsTable({ documents, onRefresh }: DocumentsTableProps) {
   const [polling, setPolling] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DocumentRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const hasActive = documents.some(
@@ -42,6 +53,20 @@ export function DocumentsTable({ documents, onRefresh }: DocumentsTableProps) {
     const interval = setInterval(onRefresh, 3000);
     return () => clearInterval(interval);
   }, [documents, onRefresh]);
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await fetch(`/api/documents/${deleteTarget.id}`, { method: "DELETE" });
+      setDeleteTarget(null);
+      onRefresh();
+    } catch {
+      // ponecháme dialog otevřený, uživatel zkusí znovu
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   if (documents.length === 0) {
     return (
@@ -66,7 +91,14 @@ export function DocumentsTable({ documents, onRefresh }: DocumentsTableProps) {
         <TableBody>
           {documents.map((doc) => (
             <TableRow key={doc.id}>
-              <TableCell className="font-medium">{doc.filename}</TableCell>
+              <TableCell className="font-medium">
+                {doc.filename}
+                {doc.status === "error" && doc.error_message && (
+                  <p className="text-xs font-normal text-destructive mt-0.5">
+                    {doc.error_message}
+                  </p>
+                )}
+              </TableCell>
               <TableCell className="text-muted-foreground text-sm">
                 {dateFormat.format(new Date(doc.created_at))}
               </TableCell>
@@ -78,9 +110,9 @@ export function DocumentsTable({ documents, onRefresh }: DocumentsTableProps) {
               </TableCell>
               <TableCell>
                 <button
-                  disabled
-                  title="Smazání bude dostupné ve fázi 6"
-                  className="text-muted-foreground/40 cursor-not-allowed"
+                  onClick={() => setDeleteTarget(doc)}
+                  title="Smazat dokument"
+                  className="text-muted-foreground hover:text-destructive transition-colors"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -95,6 +127,39 @@ export function DocumentsTable({ documents, onRefresh }: DocumentsTableProps) {
           Aktualizuji stav…
         </p>
       )}
+
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Smazat dokument</DialogTitle>
+            <DialogDescription>
+              Opravdu smazat dokument „{deleteTarget?.filename}"? Tato akce je
+              nevratná — odstraní se i všechny indexované chunky.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+            >
+              Zrušit
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? "Mažu…" : "Smazat"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

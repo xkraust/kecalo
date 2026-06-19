@@ -1,5 +1,6 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { streamText } from "ai";
+import { NextResponse } from "next/server";
 import { config } from "@/lib/config";
 import { retrieve } from "@/lib/rag/retrieve";
 import {
@@ -28,7 +29,20 @@ export async function POST(request: Request) {
   }
 
   const query = lastUserMessage.content;
-  const chunks = await retrieve(query);
+
+  let chunks;
+  try {
+    chunks = await retrieve(query);
+  } catch (err) {
+    console.error("Retrieval selhal:", err);
+    return NextResponse.json(
+      {
+        error:
+          "Omlouváme se, služba je dočasně nedostupná. Zkuste to prosím za chvíli.",
+      },
+      { status: 503 }
+    );
+  }
 
   if (chunks.length === 0) {
     const result = streamText({
@@ -39,6 +53,9 @@ export async function POST(request: Request) {
         FALLBACK_MESSAGE,
       temperature: 0,
       maxOutputTokens: 300,
+      onError({ error }) {
+        console.error("Claude stream (fallback) selhal:", error);
+      },
     });
 
     return result.toTextStreamResponse({
@@ -66,6 +83,9 @@ export async function POST(request: Request) {
     messages: trimmedMessages,
     temperature: config.llmTemperature,
     maxOutputTokens: 1500,
+    onError({ error }) {
+      console.error("Claude stream selhal:", error);
+    },
   });
 
   return result.toTextStreamResponse({

@@ -1,0 +1,41 @@
+import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  const { data: doc, error: fetchErr } = await supabase
+    .from("documents")
+    .select("filename")
+    .eq("id", id)
+    .single();
+
+  if (fetchErr || !doc) {
+    return NextResponse.json({ error: "Dokument nenalezen" }, { status: 404 });
+  }
+
+  // Smazat soubor ze Storage (chyba není fatální — záznam smažeme tak jako tak)
+  const ext = doc.filename.split(".").pop()?.toLowerCase() ?? "bin";
+  await supabase.storage
+    .from("documents")
+    .remove([`${id}/file.${ext}`])
+    .catch(() => {});
+
+  // Smazat záznam — chunky se smažou přes ON DELETE CASCADE
+  const { error: deleteErr } = await supabase
+    .from("documents")
+    .delete()
+    .eq("id", id);
+
+  if (deleteErr) {
+    return NextResponse.json(
+      { error: `Smazání selhalo: ${deleteErr.message}` },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ ok: true });
+}

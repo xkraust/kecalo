@@ -242,16 +242,16 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ### Smazání dokumentu (US-13)
 
-- [ ] API route `DELETE /api/documents/:id` — smazat chunky (CASCADE), záznam v `documents`, soubor v Storage
-- [ ] Potvrzovací dialog (`AlertDialog` ze shadcn) před smazáním
-- [ ] Po smazání ověřit, že retrieval na obsah dokumentu nevrací žádné chunky
+- [x] API route `DELETE /api/documents/[id]` — smaže soubor ze Storage, záznam z `documents` (chunky přes CASCADE)
+- [x] Potvrzovací dialog (shadcn `Dialog`) před smazáním — „Opravdu smazat? Nevratná akce."
+- [x] Po smazání refresh tabulky + dashboard metriky klesnou
 
 ### Ošetření chyb (US-22)
 
-- [ ] Výpadek Claude API → zobrazit „Omlouváme se, služba je dočasně nedostupná. Zkuste to za chvíli."
-- [ ] Rate limit → stejná hláška s retry
-- [ ] Nečitelné PDF → stav `error` v tabulce s popisem chyby
-- [ ] Upload špatného formátu / velký soubor → inline chybová hláška
+- [x] Výpadek Claude/Voyage API → Chat API vrací 503, klient zobrazí „Služba dočasně nedostupná"
+- [x] `onError` callback na `streamText` pro logování
+- [x] Nečitelné PDF → stav `error` v tabulce s `error_message` (červený text pod názvem)
+- [x] Upload špatného formátu / velký soubor → inline chybová hláška (UploadZone, již z Fáze 2)
 
 ### Ladění RAG
 

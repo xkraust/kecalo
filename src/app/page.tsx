@@ -77,11 +77,13 @@ export default function ChatPage() {
         }
 
         if (!res.ok || !res.body) {
+          const data = await res.json().catch(() => null);
+          const errText =
+            data?.error ??
+            "Omlouváme se, služba je dočasně nedostupná. Zkuste to prosím za chvíli.";
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === assistantId
-                ? { ...m, content: "Omlouváme se, došlo k chybě. Zkuste to za chvíli." }
-                : m
+              m.id === assistantId ? { ...m, content: errText } : m
             )
           );
           return;
@@ -107,7 +109,11 @@ export default function ChatPage() {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
-              ? { ...m, content: "Chyba připojení. Zkuste to za chvíli." }
+              ? {
+                  ...m,
+                  content:
+                    "Omlouváme se, služba je dočasně nedostupná. Zkuste to prosím za chvíli.",
+                }
               : m
           )
         );
