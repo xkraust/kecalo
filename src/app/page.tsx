@@ -70,7 +70,7 @@ export default function ChatPage() {
         const sourcesHeader = res.headers.get("X-Sources");
         if (sourcesHeader) {
           try {
-            sources = JSON.parse(sourcesHeader);
+            sources = JSON.parse(decodeURIComponent(sourcesHeader));
           } catch {
             /* ignore */
           }

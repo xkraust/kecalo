@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     });
 
     return result.toTextStreamResponse({
-      headers: { "X-Sources": JSON.stringify([]) },
+      headers: { "X-Sources": encodeURIComponent(JSON.stringify([])) },
     });
   }
 
@@ -89,6 +89,6 @@ export async function POST(request: Request) {
   });
 
   return result.toTextStreamResponse({
-    headers: { "X-Sources": JSON.stringify(sources) },
+    headers: { "X-Sources": encodeURIComponent(JSON.stringify(sources)) },
   });
 }
