@@ -8,7 +8,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0–3 hotovy. Fáze 4 (Chat API) hotova — `POST /api/chat` přes Vercel AI SDK v6 (`streamText` + `anthropic("claude-sonnet-4-6")`). Systémový prompt z PRD §11 (`src/lib/rag/prompts.ts`), fallback pro dotazy mimo bázi, metadata zdrojů v headeru `X-Sources`. Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
+Fáze 0–4 hotovy. Fáze 5 (Chat UI) hotova — kompletní chat na `/` s custom streaming fetch, `MessageBubble` (markdown přes `react-markdown`), `SourcesBlock` (rozklikávací zdroje z `X-Sources` headeru), ukázkové otázky, tlačítko „Nová konverzace", loading indikátor, disclaimer. Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
 

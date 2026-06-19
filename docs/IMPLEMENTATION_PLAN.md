@@ -208,31 +208,31 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ### Layout a komponenty
 
-- [ ] Stránka `/` — chat interface (hlavička, vlákno, vstup, patička)
-- [ ] Hlavička: logo + název fiktivní pojišťovny „Pojišťovna Jistota" (pozn.: Kecalo = název projektu/repa, brand v UI je pojišťovna — sjednoceno se systémovým promptem v PRD kap. 11)
-- [ ] Patička: disclaimer text (statický)
+- [x] Stránka `/` — chat interface (hlavička, vlákno, vstup, patička)
+- [x] Hlavička: logo + „Pojišťovna Jistota" + tlačítko „Nová konverzace"
+- [x] Patička: disclaimer text (statický)
 
 ### Chat vlákno
 
-- [ ] Hook `useChat` z Vercel AI SDK napojený na `POST /api/chat`
-- [ ] Komponenta `MessageBubble` — uživatel vpravo, bot vlevo, čas
-- [ ] Renderovat Markdown v odpovědích bota (knihovna `react-markdown`)
-- [ ] Loading indikátor (tečky/spinner) během streamu
-- [ ] Input disabled během generování
+- [x] Custom streaming fetch (vlastní implementace místo `useChat` — AI SDK v6 změnilo API, přímý fetch je spolehlivější pro prototyp)
+- [x] Komponenta `MessageBubble` — uživatel vpravo (korálový), bot vlevo (bílý s borderem)
+- [x] Markdown rendering přes `react-markdown` v odpovědích bota
+- [x] Loading indikátor (animované tečky) během streamu
+- [x] Input disabled během generování
 
 ### Zdroje
 
-- [ ] Parsovat metadata zdrojů z konce streamu
-- [ ] Komponenta `SourcesBlock` — rozklikávací seznam pod odpovědí: název dokumentu, strana/chunk
+- [x] Parsování `X-Sources` HTTP headeru z response
+- [x] Komponenta `SourcesBlock` — rozklikávací `<details>` pod odpovědí: ikona + název + strana + skóre
 
 ### Ukázkové otázky (US-06)
 
-- [ ] 3–4 klikatelné chipy na úvodní (prázdné) obrazovce — natvrdo v konfiguraci
-- [ ] Klik odešle otázku jako by ji uživatel napsal
+- [x] 4 klikatelné chipy na úvodní obrazovce (pojištění majetku, výluky, spoluúčast, nahlášení události)
+- [x] Klik odešle otázku přímo
 
 ### Nová konverzace (US-05)
 
-- [ ] Tlačítko „Nová konverzace" — vymaže `messages` state i kontext
+- [x] Tlačítko „Nová konverzace" (ikona RotateCcw) — vymaže messages state, viditelné jen při existujících zprávách
 
 ---
 
