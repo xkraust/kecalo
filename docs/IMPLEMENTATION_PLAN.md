@@ -268,19 +268,20 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ### (S) Test retrievalu v adminu (US-14)
 
-- [ ] Panel v `/admin` — pole pro dotaz, výpis top-k chunků: text (zkrácený), zdroj, similarity skóre
-- [ ] API route `POST /api/retrieval-test`
+- [x] Panel v `/admin/retrieval-test` — pole pro dotaz, výpis top-k chunků: text (zkrácený ~300 znaků), zdroj, similarity skóre
+- [x] API route `POST /api/retrieval-test`
+- [x] Sidebar položka „Test retrievalu" aktivována
 
 ### Deploy na Vercel
 
-- [ ] Ověřit, že všechny env proměnné jsou nastaveny ve Vercel projektu
-- [ ] Push do `main` → zkontrolovat build log
-- [ ] Smoke test na produkční URL: nahrání dokumentu, dotaz, fallback, smazání
+- [x] Env proměnné nastaveny ve Vercel projektu (z Fáze 1)
+- [x] Push do `main` → auto-deploy
+- [ ] Smoke test na produkční URL: nahrání dokumentu, dotaz, fallback, smazání (odloženo — vyžaduje nahrané seed dokumenty)
 
 ### Závěrečný commit
 
-- [ ] `README.md` — postup spuštění lokálně (5 kroků max), seznam env proměnných
-- [ ] Commitnout a pushovat
+- [x] `README.md` — projektové README s 5 kroky spuštění, seznamem env proměnných a stackem
+- [x] Commitnout a pushovat
 
 ---
 

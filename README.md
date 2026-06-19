@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kecalo
 
-## Getting Started
+RAG chatbot pro pojišťovnu — prototyp jednodenního kurzu vibecodingu. V UI vystupuje jako „Pojišťovna Jistota", znalostní báze čerpá z reálných dokumentů Kooperativy.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · shadcn/ui · Claude API (`claude-sonnet-4-6`) · Voyage AI (`voyage-3.5`) · Supabase (Postgres + pgvector)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Spuštění lokálně
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Klonovat a nainstalovat:**
+   ```bash
+   git clone https://github.com/xkraust/kecalo.git
+   cd kecalo
+   npm install
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. **Nastavit env proměnné:** zkopírovat `.env.example` na `.env.local` a vyplnit hodnoty (viz tabulka níže).
 
-## Learn More
+3. **Aplikovat DB migrace:**
+   ```bash
+   supabase db push --db-url "$DATABASE_URL"
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+4. **Spustit dev server:**
+   ```bash
+   npm run dev
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+5. **Otevřít:** [http://localhost:3000](http://localhost:3000) (chat) · [http://localhost:3000/admin](http://localhost:3000/admin) (admin)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Proměnné prostředí
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Proměnná | Účel |
+|---|---|
+| `ANTHROPIC_API_KEY` | Claude API |
+| `VOYAGE_API_KEY` | Voyage AI embeddingy |
+| `NEXT_PUBLIC_SUPABASE_URL` | URL Supabase projektu |
+| `SUPABASE_SERVICE_ROLE_KEY` | Admin klíč Supabase |
+| `DATABASE_URL` | Postgres connection string (pro migrace) |
+| `ADMIN_PASSWORD` | Heslo pro admin sekci |
+| `TOP_K` | Počet výsledků retrievalu (výchozí: 5) |
+| `SIMILARITY_THRESHOLD` | Práh podobnosti (výchozí: 0.35) |
+| `LLM_TEMPERATURE` | Teplota Claude (výchozí: 0.2) |

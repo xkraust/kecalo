@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { label: "Přehled", href: "/admin", icon: LayoutDashboard },
   { label: "Dokumenty", href: "/admin/documents", icon: FileText },
-  { label: "Test retrievalu", href: "/admin/retrieval-test", icon: Search, disabled: true },
+  { label: "Test retrievalu", href: "/admin/retrieval-test", icon: Search },
   { label: "Chat", href: "/", icon: MessageSquare, external: true },
 ];
 
@@ -46,19 +46,7 @@ export function AdminSidebar() {
       <nav className="flex flex-1 flex-col gap-1 px-3">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const active = !item.disabled && !item.external && isActive(item.href);
-
-          if (item.disabled) {
-            return (
-              <span
-                key={item.href}
-                className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-sidebar-foreground/40 cursor-not-allowed"
-              >
-                <Icon size={18} />
-                {item.label}
-              </span>
-            );
-          }
+          const active = !("external" in item) && isActive(item.href);
 
           return (
             <Link
