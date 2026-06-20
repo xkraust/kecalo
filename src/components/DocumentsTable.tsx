@@ -94,8 +94,13 @@ export function DocumentsTable({ documents, onRefresh }: DocumentsTableProps) {
               <TableCell className="font-medium">
                 {doc.filename}
                 {doc.status === "error" && doc.error_message && (
-                  <p className="text-xs font-normal text-destructive mt-0.5">
-                    {doc.error_message}
+                  <p
+                    className="text-xs font-normal text-destructive mt-0.5 line-clamp-2 max-w-xs"
+                    title={doc.error_message}
+                  >
+                    {doc.error_message.length > 80
+                      ? doc.error_message.slice(0, 80) + "…"
+                      : doc.error_message}
                   </p>
                 )}
               </TableCell>
