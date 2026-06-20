@@ -95,7 +95,8 @@ npm i ai @ai-sdk/anthropic @supabase/supabase-js voyageai unpdf react-markdown
 | `NEXT_PUBLIC_SUPABASE_URL` | URL Supabase projektu (může být veřejná) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin klíč Supabase (pouze server, nikdy na klienta) |
 | `DATABASE_URL` | Postgres connection string pro migrace |
-| `ADMIN_PASSWORD` | Ochrana `/admin` rout |
+| `ADMIN_USERNAME` | Uživatelské jméno pro admin (výchozí: admin) |
+| `ADMIN_PASSWORD` | Heslo pro admin sekci |
 | `TOP_K` | Počet výsledků z retrievalu (výchozí: 5) |
 | `SIMILARITY_THRESHOLD` | Práh kosinové podobnosti (výchozí: 0.35) |
 | `LLM_TEMPERATURE` | Teplota Claude (výchozí: 0.2) |
