@@ -110,13 +110,15 @@ npm i ai @ai-sdk/anthropic @supabase/supabase-js voyageai unpdf react-markdown
 /admin                  → Dashboard (přehled znalostní báze — metrické karty + grafy)
 /admin/documents        → Upload + tabulka dokumentů
 /admin/retrieval-test   → Panel test retrievalu
-/admin/login            → Login heslem, nastaví session cookie
+/admin/login            → Login (uživatelské jméno + heslo), nastaví session cookie
 
 POST   /api/chat                → RAG pipeline → streamovaná odpověď + metadata zdrojů
 POST   /api/documents           → upload → extrakce → chunking → embeddingy → uložení
 GET    /api/documents           → seznam dokumentů se stavem
 DELETE /api/documents/[id]      → smazání dokumentu, chunků (CASCADE), souboru v Storage
 POST   /api/retrieval-test      → vrátí top-k chunků se skóre (pouze admin)
+POST   /api/auth/login          → ověření username + password, nastavení session cookie
+POST   /api/auth/logout         → smazání session cookie
 ```
 
 ### Cílová adresářová struktura
@@ -186,7 +188,7 @@ Hodnoty `status` dokumentu: `uploaded → processing → ready | error`
 
 ## Admin autentizace
 
-`/admin` je chráněno middlewarem (`src/middleware.ts`), který kontroluje session cookie nastavenou na `/admin/login`. Heslo pochází z env proměnné `ADMIN_PASSWORD`. Jde o autentizaci na úrovni prototypu — ne JWT, ne SSO.
+`/admin` je chráněno middlewarem (`src/middleware.ts`), který kontroluje session cookie nastavenou na `/admin/login`. Přihlášení vyžaduje uživatelské jméno (`ADMIN_USERNAME`, výchozí `admin`) a heslo (`ADMIN_PASSWORD`). Auth API routy jsou v `/api/auth/login` a `/api/auth/logout`. Jde o autentizaci na úrovni prototypu — ne JWT, ne SSO.
 
 ## Seed dokumenty
 
