@@ -58,13 +58,12 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 - [x] Přidat komponenty: `button input textarea card badge dialog table` (v `src/components/ui/`)
 - [x] Nainstalovat závislosti: `ai @ai-sdk/anthropic @supabase/supabase-js voyageai unpdf react-markdown`
 - [x] Design téma: Console paleta v `globals.css` (`:root`, světlý režim only), font `Inter` (subset `latin-ext`) v `layout.tsx`, ověřeno screenshotem
-- [ ] **Design téma:** v `src/app/globals.css` nastavit CSS proměnné dle palety Console (viz „Vzhled a design" v `CLAUDE.md`); načíst font `Inter` přes `next/font` v `layout.tsx`; ověřit krémové pozadí + korálový akcent
 
 ### Konfigurace prostředí
 
-- [ ] Vytvořit `.env.local` se všemi klíči (viz tabulka v PRD kap. 18.2)
-- [ ] Commitnout `.env.example` (prázdné hodnoty) — `.env.local` je v `.gitignore`
-- [ ] Ověřit, že `.gitignore` obsahuje `.env*` (kromě `.example`)
+- [x] Vytvořit `.env.local` se všemi klíči (viz tabulka v PRD kap. 18.2)
+- [x] Commitnout `.env.example` (prázdné hodnoty) — `.env.local` je v `.gitignore`
+- [x] Ověřit, že `.gitignore` obsahuje `.env*` (kromě `.example`)
 
 ### Supabase migrace — init
 
@@ -295,38 +294,55 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 | `DELETE` | `/api/documents/:id` | Smazání dokumentu, chunků, souboru |
 | `POST` | `/api/retrieval-test` | Top-k chunků pro dotaz (admin) |
 
-## Adresářová struktura (cíl)
+## Adresářová struktura (aktuální stav)
 
 ```
 kecalo/
 ├── src/
+│   ├── middleware.ts                 # ochrana /admin (session cookie)
 │   ├── app/
 │   │   ├── page.tsx                  # Chat UI
 │   │   ├── admin/
-│   │   │   ├── page.tsx              # Admin dashboard
-│   │   │   └── login/page.tsx        # Admin login
+│   │   │   ├── login/page.tsx        # Admin login (mimo route group)
+│   │   │   └── (authenticated)/     # route group chráněná middlewarem
+│   │   │       ├── layout.tsx        # Sidebar layout (Console styl)
+│   │   │       ├── page.tsx          # Admin dashboard
+│   │   │       ├── documents/page.tsx    # server část
+│   │   │       ├── documents/client.tsx  # klientská část (upload + tabulka)
+│   │   │       └── retrieval-test/page.tsx
 │   │   └── api/
 │   │       ├── chat/route.ts
 │   │       ├── documents/route.ts
 │   │       ├── documents/[id]/route.ts
-│   │       └── retrieval-test/route.ts
+│   │       ├── retrieval-test/route.ts
+│   │       └── auth/{login,logout}/route.ts
 │   ├── components/
 │   │   ├── MessageBubble.tsx
 │   │   ├── SourcesBlock.tsx
 │   │   ├── UploadZone.tsx
-│   │   └── DocumentsTable.tsx
+│   │   ├── DocumentsTable.tsx
+│   │   ├── AdminSidebar.tsx
+│   │   ├── StatusBadge.tsx
+│   │   ├── StatCard.tsx
+│   │   ├── ChunksByDocChart.tsx
+│   │   └── ui/                       # shadcn/ui primitiva
 │   └── lib/
 │       ├── config.ts
 │       ├── supabase.ts
+│       ├── auth.ts                   # podpis/ověření session cookie (HMAC)
+│       ├── types.ts
+│       ├── utils.ts
 │       └── rag/
 │           ├── extract.ts
 │           ├── chunk.ts
 │           ├── embed.ts
 │           ├── retrieve.ts
-│           └── pipeline.ts
+│           ├── prompts.ts            # systémový prompt, fallback, kontext blok
+│           └── pipeline.ts           # indexace dokumentu (processDocument)
 ├── supabase/
 │   └── migrations/
-│       └── 001_init.sql
+│       ├── 001_init.sql              # tabulky documents/chunks + HNSW index
+│       └── 002_match_chunks.sql      # RPC match_chunks (retrieval)
 ├── .env.example
 └── README.md
 ```

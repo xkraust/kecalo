@@ -73,7 +73,7 @@ supabase init                    # jednorázová inicializace Supabase projektu
 supabase db push                 # aplikuje migrace na Supabase (vyžaduje DATABASE_URL)
 ```
 
-Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase.
+Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index) a `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu).
 
 ### Scaffold projektu (fáze 1, jednorázové)
 
@@ -125,53 +125,78 @@ POST   /api/auth/logout         → smazání session cookie
 
 ```
 src/
+├── middleware.ts                     # ochrana /admin (kontrola session cookie)
 ├── app/
 │   ├── page.tsx                      # Chat UI
 │   ├── admin/
-│   │   ├── layout.tsx                # Sidebar layout (Console styl)
-│   │   ├── page.tsx                  # Dashboard (přehled znalostní báze)
-│   │   ├── documents/page.tsx        # Upload + tabulka dokumentů
-│   │   ├── retrieval-test/page.tsx   # Panel test retrievalu
-│   │   └── login/page.tsx
+│   │   ├── login/page.tsx            # Login (mimo route group — nechráněno)
+│   │   └── (authenticated)/         # route group chráněná middlewarem
+│   │       ├── layout.tsx            # Sidebar layout (Console styl)
+│   │       ├── page.tsx              # Dashboard (přehled znalostní báze)
+│   │       ├── documents/page.tsx    # server část (načtení dokumentů)
+│   │       ├── documents/client.tsx  # klientská část (upload + tabulka)
+│   │       └── retrieval-test/page.tsx
 │   └── api/
 │       ├── chat/route.ts
 │       ├── documents/route.ts
 │       ├── documents/[id]/route.ts
-│       └── retrieval-test/route.ts
+│       ├── retrieval-test/route.ts
+│       └── auth/{login,logout}/route.ts
 ├── components/
 │   ├── MessageBubble.tsx
 │   ├── SourcesBlock.tsx
 │   ├── UploadZone.tsx
 │   ├── DocumentsTable.tsx
+│   ├── AdminSidebar.tsx              # navigace admin sekce
+│   ├── StatusBadge.tsx               # badge stavu dokumentu
 │   ├── StatCard.tsx                  # metrická karta dashboardu
-│   └── ChunksByDocChart.tsx          # graf chunků (CSS bary)
+│   ├── ChunksByDocChart.tsx          # graf chunků (CSS bary)
+│   └── ui/                           # shadcn/ui primitiva
 └── lib/
     ├── config.ts                     # konstanty z env, default hodnoty
     ├── supabase.ts                   # Supabase client (service role)
+    ├── auth.ts                       # podpis/ověření session cookie (HMAC)
+    ├── types.ts                      # sdílené TS typy
+    ├── utils.ts                      # cn() helper (shadcn)
     └── rag/
         ├── extract.ts
         ├── chunk.ts
         ├── embed.ts
         ├── retrieve.ts
-        └── pipeline.ts
+        ├── prompts.ts                # systémový prompt, fallback, kontext blok
+        └── pipeline.ts               # indexace dokumentu (processDocument)
 supabase/
 └── migrations/
-    └── 001_init.sql
+    ├── 001_init.sql                  # tabulky documents/chunks + HNSW index
+    └── 002_match_chunks.sql          # RPC match_chunks (retrieval)
 ```
 
-### RAG pipeline (`src/lib/rag/`)
+### RAG — dvě oddělené pipeline
+
+**Pozor na rozdělení odpovědností:** `src/lib/rag/pipeline.ts` NENÍ dotazovací (chat) pipeline — je to **indexační (ingestion) pipeline**. Chat pipeline žije v `src/app/api/chat/route.ts` ve spojení s `prompts.ts`.
+
+#### Indexace dokumentu — `pipeline.ts` (`processDocument`)
+Spouští se z `POST /api/documents` po uploadu. Stáhne soubor ze Storage → `extract.ts` → `chunk.ts` → `embed.ts` → smaže staré chunky dokumentu → vloží nové po dávkách 100 → nastaví `status` dokumentu (`processing` → `ready` / `error`). Chyby se zachytí a uloží do `documents.error_message`.
+
+#### Dotaz / chat — `api/chat/route.ts` + `prompts.ts`
+`retrieve(query)` → pokud `chunks.length === 0` fallback (viz níže), jinak `buildContextBlock` vloží chunky do system promptu → `streamText` přes Claude. Metadata zdrojů (filename, page, zaokrouhlené `similarity`) jdou na klienta v hlavičce odpovědi `X-Sources` (URL-encoded JSON). Historie se ořezává na posledních 8 zpráv (`MAX_HISTORY`).
+
+#### Moduly `src/lib/rag/`
 
 | Soubor | Odpovědnost |
 |---|---|
 | `extract.ts` | PDF → text po stránkách přes `unpdf`; prostý text pro `.txt`/`.md` |
 | `chunk.ts` | Rozdělení na chunky ~900 tokenů s overlapem 150 tokenů; metadata `document_id`, `page`, `chunk_index` |
-| `embed.ts` | Dávkové embeddingy přes Voyage AI (`voyage-3.5`), dávky po 128; při chybě nastaví stav dokumentu na `error` |
-| `retrieve.ts` | Embedding dotazu → vyhledání kosinovou podobností v pgvector → vrátí top-k chunků se skóre `similarity` |
-| `pipeline.ts` | (volitelně) query rewriting → retrieve → kontrola prahu → sestavení promptu → stream Claude → metadata zdrojů |
+| `embed.ts` | Embeddingy přes Voyage AI (`voyage-3.5`): `embedQuery` pro jeden dotaz, `embedBatch` pro indexaci |
+| `retrieve.ts` | `embedQuery` → volá Postgres RPC `match_chunks` (viz `002_match_chunks.sql`) → vrátí chunky se skóre `similarity` a `filename` |
+| `prompts.ts` | `SYSTEM_PROMPT`, `FALLBACK_MESSAGE`, `buildContextBlock` (sestaví `<document>` bloky pro kontext) |
+| `pipeline.ts` | **Indexace** dokumentu (`processDocument`) — viz výše |
 
-**Fallback:** pokud nejlepší skóre podobnosti < `SIMILARITY_THRESHOLD`, streamuje se pevně daná česká odpověď „nevím / kontaktujte infolinku" bez volání Claude.
+**Práh podobnosti se uplatňuje v SQL**, ne v JS: funkce `match_chunks` vrací jen chunky z dokumentů ve stavu `ready` se `similarity > match_threshold`. Když nic neprojde, `retrieve` vrátí prázdné pole.
 
-**Systémový prompt** (PRD §11): bot odpovídá výhradně z poskytnutých chunků dokumentů, česky, v každé odpovědi cituje zdrojový dokument a nikdy si nic nevymýšlí.
+**Fallback:** pokud `retrieve` vrátí 0 chunků, route přesto volá Claude, ale s instrukcí vypsat doslovně `FALLBACK_MESSAGE` („nenacházím odpověď, kontaktujte infolinku 800 123 456") a s prázdným `X-Sources`.
+
+**Systémový prompt** (`prompts.ts`): bot odpovídá výhradně z poskytnutých chunků, česky, v každé odpovědi cituje zdrojový dokument, neposkytuje poradenství nad rámec citovaných podmínek a nesjednává produkty.
 
 ## Datový model
 
