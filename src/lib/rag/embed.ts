@@ -5,13 +5,26 @@ const BATCH_SIZE = 128;
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 5000;
 
+const PAYMENT_METHOD_ERROR =
+  "Voyage AI nemá nastavenou platební metodu — doplňte ji na " +
+  "https://dash.voyageai.com/billing/payment-methods. Bez ní platí limit free tieru " +
+  "(3 požadavky/min, 10 000 tokenů/min), který indexace dokumentu překračuje. " +
+  "Po přidání karty zůstává 200 milionů tokenů voyage-3.5 zdarma.";
+
 const voyage = new VoyageAIClient({ apiKey: config.voyageApiKey });
+
+// Voyage vrací 429 i pro účet bez platební metody (limit free tieru). Tato chyba je
+// trvalá — opakování nepomůže — a poznáme ji podle těla odpovědi „payment method".
+function isPaymentMethodError(err: unknown): boolean {
+  return err instanceof Error && err.message.toLowerCase().includes("payment method");
+}
 
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       return await fn();
     } catch (err) {
+      if (isPaymentMethodError(err)) throw new Error(PAYMENT_METHOD_ERROR);
       const is429 =
         err instanceof Error && err.message.includes("429");
       if (!is429 || attempt === MAX_RETRIES - 1) throw err;

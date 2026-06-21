@@ -187,7 +187,7 @@ Spouští se z `POST /api/documents` po uploadu. Stáhne soubor ze Storage → `
 |---|---|
 | `extract.ts` | PDF → text po stránkách přes `unpdf`; prostý text pro `.txt`/`.md` |
 | `chunk.ts` | Rozdělení na chunky ~900 tokenů s overlapem 150 tokenů; metadata `document_id`, `page`, `chunk_index` |
-| `embed.ts` | Embeddingy přes Voyage AI (`voyage-3.5`): `embedQuery` pro jeden dotaz, `embedBatch` pro indexaci |
+| `embed.ts` | Embeddingy přes Voyage AI (`voyage-3.5`): `embedQuery` pro jeden dotaz, `embedBatch` pro indexaci. 429 kvůli chybějící platební metodě (limit free tieru) neopakuje a mapuje na srozumitelnou hlášku do `error_message` |
 | `retrieve.ts` | `embedQuery` → volá Postgres RPC `match_chunks` (viz `002_match_chunks.sql`) → vrátí chunky se skóre `similarity` a `filename` |
 | `prompts.ts` | `SYSTEM_PROMPT`, `FALLBACK_MESSAGE`, `buildContextBlock` (sestaví `<document>` bloky pro kontext) |
 | `pipeline.ts` | **Indexace** dokumentu (`processDocument`) — viz výše |
