@@ -284,6 +284,70 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ---
 
+## Fáze 8 — Admin: globální parametry RAG (po kurzu)
+
+**Milník:** V `/admin/parameters` lze slidery nastavit `TOP_K`, `SIMILARITY_THRESHOLD` a `LLM_TEMPERATURE`; uložené hodnoty se okamžitě projeví v chatu i v testu retrievalu. Env proměnné slouží jako výchozí hodnoty / fallback.
+
+> **Pozn.:** Jde nad rámec kurzových fází 0–7. DB změny jen přes migrace. Slider stavím na Base UI (`@base-ui/react/slider`) ve stylu stávajících `ui/` primitiv. Middleware chrání jen stránky `/admin/*`, ne `/api/*` — nová `/api/settings` zůstává konzistentní s ostatními API routami (známé omezení prototypu, viz Produkční dluh).
+
+### Úložiště — migrace `supabase/migrations/003_app_settings.sql`
+
+- [ ] Jednořádková tabulka `app_settings` (`id smallint PK default 1 check (id = 1)`) se sloupci `top_k`, `similarity_threshold`, `llm_temperature`, `updated_at` + CHECK rozsahy
+- [ ] Seed výchozího řádku (`insert ... values (1) on conflict (id) do nothing`) s defaulty 5 / 0.35 / 0.2
+- [ ] `supabase db push` (vyžaduje `DATABASE_URL`)
+- **Dílčí milník:** řádek `app_settings (id = 1)` existuje s výchozími hodnotami
+
+### Sdílená metadata + validace — `src/lib/settings-meta.ts` (bez server importů)
+
+- [ ] `SETTINGS_FIELDS` — pro každý parametr `{ key, column, label, description, min, max, step, default, format }`
+- [ ] Rozsahy: `topK` 1–20 (krok 1), `similarityThreshold` 0–1 (krok 0,01, zobrazení v %), `llmTemperature` 0–1 (krok 0,05)
+- [ ] Helpery `clampField()` / `parseSettingsInput()` — sdílí klient (render), API (validace) i server
+
+### Server přístup — `src/lib/settings.ts` (server-only)
+
+- [ ] `getSettings()` — čte `app_settings` (id = 1) přes service-role klienta; fallback na `config` defaulty při chybě / chybějící tabulce (try/catch)
+- [ ] `saveSettings(input)` — validace/clamp přes `settings-meta`, `update ... where id = 1` + `updated_at = now()`, vrací uložené hodnoty
+
+### API route `POST /api/settings`
+
+- [ ] `src/app/api/settings/route.ts` — `saveSettings()` → 200 s uloženými hodnotami; 400 nevalidní vstup; 500 chyba DB (styl jako retrieval-test route)
+
+### Napojení runtime (aby se nastavení projevilo)
+
+- [ ] `chat/route.ts` — `getSettings()` → `retrieve(query, s.topK, s.similarityThreshold)`; hlavní větev `temperature: s.llmTemperature` (fallback větev nechat `temperature: 0`)
+- [ ] `retrieval-test/route.ts` — `getSettings()` → `retrieve(body.query, s.topK, s.similarityThreshold)`
+- [ ] `retrieve()` signaturu neměnit (overridy už podporuje)
+- **Dílčí milník:** změna hodnot v DB mění chování chatu i testu retrievalu bez restartu serveru
+
+### UI slider — `src/components/ui/slider.tsx`
+
+- [ ] Wrapper nad `@base-ui/react/slider` ve stylu `ui/dialog.tsx`: `Slider.Root → Control → Track → Indicator → Thumb` (+ `Slider.Value`), `data-slot`, `cn()`, tokeny `secondary` (podklad) / `primary` (výplň) / `ring` (thumb)
+
+### Stránka — `src/app/admin/(authenticated)/parameters/`
+
+- [ ] `page.tsx` (server, `force-dynamic`) — `getSettings()` → `<ParametersClient initial={...} />`, hlavička „Parametry" + podtitul (styl ostatních stránek)
+- [ ] `client.tsx` (`"use client"`) — pro každý parametr karta (`rounded-lg border`): nadpis + popis, slider s popiskem **min vlevo / max vpravo** a aktuální hodnotou, tlačítka **„Uložit"** a **„Obnovit výchozí"**
+- [ ] `POST /api/settings`, feedback „Uloženo / chyba" (styl retrieval-test / documents), po uložení sync stavu s vrácenými (clampnutými) hodnotami
+- **Dílčí milník:** posun slideru → Uložit → po reloadu hodnoty drží; „Obnovit výchozí" vrátí defaulty
+
+### Navigace — `src/components/AdminSidebar.tsx`
+
+- [ ] Položka `{ label: "Parametry", href: "/admin/parameters", icon: SlidersHorizontal }` mezi „Test retrievalu" a „Chat"
+
+### Dokumentace
+
+- [ ] `CLAUDE.md` — env tabulka (3 parametry = nyní výchozí hodnoty; runtime z `app_settings`, editovatelné v `/admin/parameters`), architektura (routa, `/api/settings`, `lib/settings.ts` + `settings-meta.ts`, migrace `003`), seznam admin sekcí, datový model (+ `app_settings`)
+- [ ] `docs/IMPLEMENTATION_PLAN.md` — „Přehled API rout" (+ `POST /api/settings`), adresářová struktura (nové soubory), seznam migrací (+ `003_app_settings.sql`)
+
+### E2E ověření
+
+- [ ] `npm run lint` + `npm run build` (typy, import Base UI slideru)
+- [ ] `/admin/parameters` — slidery, Uložit, „Obnovit výchozí", reload drží hodnoty z DB
+- [ ] Test retrievalu — změna `TOP_K` / threshold mění počet a filtraci výsledků
+- [ ] Chat — vysoká vs. nízká temperature znatelný rozdíl; vysoký threshold → snazší fallback
+
+---
+
 ## Přehled API rout
 
 | Metoda | Route | Účel |
