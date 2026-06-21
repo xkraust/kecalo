@@ -95,7 +95,7 @@ npm i ai @ai-sdk/anthropic @supabase/supabase-js voyageai unpdf react-markdown
 | `NEXT_PUBLIC_SUPABASE_URL` | URL Supabase projektu (může být veřejná) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin klíč Supabase (pouze server, nikdy na klienta) |
 | `DATABASE_URL` | Postgres connection string pro migrace |
-| `ADMIN_USERNAME` | Uživatelské jméno pro admin (výchozí: admin) |
+| `ADMIN_USERNAME` | Uživatelské jméno pro admin (povinné) |
 | `ADMIN_PASSWORD` | Heslo pro admin sekci |
 | `TOP_K` | Počet výsledků z retrievalu (výchozí: 5) |
 | `SIMILARITY_THRESHOLD` | Práh kosinové podobnosti (výchozí: 0.35) |
@@ -213,7 +213,7 @@ Hodnoty `status` dokumentu: `uploaded → processing → ready | error`
 
 ## Admin autentizace
 
-`/admin` je chráněno middlewarem (`src/middleware.ts`), který kontroluje session cookie nastavenou na `/admin/login`. Přihlášení vyžaduje uživatelské jméno (`ADMIN_USERNAME`, výchozí `admin`) a heslo (`ADMIN_PASSWORD`). Auth API routy jsou v `/api/auth/login` a `/api/auth/logout`. Jde o autentizaci na úrovni prototypu — ne JWT, ne SSO.
+`/admin` je chráněno middlewarem (`src/middleware.ts`), který kontroluje session cookie nastavenou na `/admin/login`. Přihlášení vyžaduje uživatelské jméno (`ADMIN_USERNAME`, povinné) a heslo (`ADMIN_PASSWORD`). Auth API routy jsou v `/api/auth/login` a `/api/auth/logout`. Jde o autentizaci na úrovni prototypu — ne JWT, ne SSO.
 
 ## Seed dokumenty
 

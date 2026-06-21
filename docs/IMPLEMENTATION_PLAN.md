@@ -352,6 +352,7 @@ kecalo/
 ## Produkční dluh (po MVP)
 
 - Autentizace a role (SSO, admin/editor)
+- Samostatný `SESSION_SECRET` pro podpis session cookie (dnes se podepisuje heslem `ADMIN_PASSWORD` v `api/auth/login`), aby byl podpisový klíč oddělen od přihlašovacího tajemství a rotace hesla automaticky neměnila platnost session
 - Rate limiting a ochrana proti prompt injection z dokumentů
 - GDPR: retence konverzací, mazání dat
 - RAG evaluace — golden dataset, evals pipeline
