@@ -36,23 +36,19 @@ interface DocumentsTableProps {
 }
 
 export function DocumentsTable({ documents, onRefresh }: DocumentsTableProps) {
-  const [polling, setPolling] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DocumentRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    const hasActive = documents.some(
-      (d) => d.status === "uploaded" || d.status === "processing"
-    );
-    if (!hasActive) {
-      setPolling(false);
-      return;
-    }
+  // Polling je odvozený stav — běží, jen když je nějaký dokument rozpracovaný.
+  const hasActive = documents.some(
+    (d) => d.status === "uploaded" || d.status === "processing"
+  );
 
-    setPolling(true);
+  useEffect(() => {
+    if (!hasActive) return;
     const interval = setInterval(onRefresh, 3000);
     return () => clearInterval(interval);
-  }, [documents, onRefresh]);
+  }, [hasActive, onRefresh]);
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -127,7 +123,7 @@ export function DocumentsTable({ documents, onRefresh }: DocumentsTableProps) {
         </TableBody>
       </Table>
 
-      {polling && (
+      {hasActive && (
         <p className="text-xs text-muted-foreground text-center py-2">
           Aktualizuji stav…
         </p>
@@ -143,7 +139,7 @@ export function DocumentsTable({ documents, onRefresh }: DocumentsTableProps) {
           <DialogHeader>
             <DialogTitle>Smazat dokument</DialogTitle>
             <DialogDescription>
-              Opravdu smazat dokument „{deleteTarget?.filename}"? Tato akce je
+              Opravdu smazat dokument „{deleteTarget?.filename}&ldquo;? Tato akce je
               nevratná — odstraní se i všechny indexované chunky.
             </DialogDescription>
           </DialogHeader>
