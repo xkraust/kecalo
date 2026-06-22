@@ -2,7 +2,7 @@
 
 ## Resume
 
-Tento dokument je prováděcí checklist pro stavbu Kecala podle PRD v1.0. Sleduj ho průběžně — zaškrtávej hotové položky a po každém milníku commitni do GitHubu. Kromě přípravné Fáze 0 (prerekvizity před kurzem) se projekt dělí na 7 fází odpovídajících harmonogramu kurzu (bloky 1–7 v PRD kap. 12); každá fáze má jasný výstup (milník), který otestuješ dříve, než přejdeš dál.
+Tento dokument je prováděcí checklist pro stavbu Kecala podle PRD v1.0. Sleduj ho průběžně — zaškrtávej hotové položky a po každém milníku commitni do GitHubu. Kromě přípravné Fáze 0 (prerekvizity před kurzem) se projekt dělí na 7 fází odpovídajících harmonogramu kurzu (bloky 1–7 v PRD kap. 12); každá fáze má jasný výstup (milník), který otestuješ dříve, než přejdeš dál. Fáze 8 je doplňková — vznikla po kurzu nad rámec původního harmonogramu.
 
 **Stack:** Next.js 16 + React 19 + TypeScript · Tailwind CSS v4 + shadcn/ui · Vercel AI SDK · Claude API (claude-sonnet-4-6) · Voyage AI (voyage-3.5) · Supabase (Postgres + pgvector + Storage)
 
@@ -292,7 +292,7 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ### Úložiště — migrace `supabase/migrations/003_app_settings.sql`
 
-- [ ] Jednořádková tabulka `app_settings` (`id smallint PK default 1 check (id = 1)`) se sloupci `top_k`, `similarity_threshold`, `llm_temperature`, `updated_at` + CHECK rozsahy
+- [ ] Jednořádková tabulka `app_settings` (`id smallint PK default 1 check (id = 1)`) se sloupci `top_k`, `similarity_threshold`, `llm_temperature`, `updated_at` + CHECK rozsahy (musí odpovídat `min`/`max` v `settings-meta.ts` — to je jediný zdroj pravdy o rozsazích, CHECK je jen druhá obranná linie na úrovni DB; změna rozsahu vyžaduje novou migraci)
 - [ ] Seed výchozího řádku (`insert ... values (1) on conflict (id) do nothing`) s defaulty 5 / 0.35 / 0.2
 - [ ] `supabase db push` (vyžaduje `DATABASE_URL`)
 - **Dílčí milník:** řádek `app_settings (id = 1)` existuje s výchozími hodnotami
@@ -313,6 +313,8 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 - [ ] `src/app/api/settings/route.ts` — `saveSettings()` → 200 s uloženými hodnotami; 400 nevalidní vstup; 500 chyba DB (styl jako retrieval-test route)
 
 ### Napojení runtime (aby se nastavení projevilo)
+
+> **Pozn.:** `getSettings()` se volá při každém requestu (jeden DB roundtrip navíc) — vědomý kompromis. Záměrně bez cache, aby se změna parametrů projevila okamžitě; cachování by šlo proti tomuto požadavku.
 
 - [ ] `chat/route.ts` — `getSettings()` → `retrieve(query, s.topK, s.similarityThreshold)`; hlavní větev `temperature: s.llmTemperature` (fallback větev nechat `temperature: 0`)
 - [ ] `retrieval-test/route.ts` — `getSettings()` → `retrieve(body.query, s.topK, s.similarityThreshold)`
