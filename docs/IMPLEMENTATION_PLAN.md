@@ -292,61 +292,61 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ### Úložiště — migrace `supabase/migrations/003_app_settings.sql`
 
-- [ ] Jednořádková tabulka `app_settings` (`id smallint PK default 1 check (id = 1)`) se sloupci `top_k`, `similarity_threshold`, `llm_temperature`, `updated_at` + CHECK rozsahy (musí odpovídat `min`/`max` v `settings-meta.ts` — to je jediný zdroj pravdy o rozsazích, CHECK je jen druhá obranná linie na úrovni DB; změna rozsahu vyžaduje novou migraci)
-- [ ] Seed výchozího řádku (`insert ... values (1) on conflict (id) do nothing`) s defaulty 5 / 0.35 / 0.2
-- [ ] `supabase db push` (vyžaduje `DATABASE_URL`)
+- [x] Jednořádková tabulka `app_settings` (`id smallint PK default 1 check (id = 1)`) se sloupci `top_k`, `similarity_threshold`, `llm_temperature`, `updated_at` + CHECK rozsahy (musí odpovídat `min`/`max` v `settings-meta.ts` — to je jediný zdroj pravdy o rozsazích, CHECK je jen druhá obranná linie na úrovni DB; změna rozsahu vyžaduje novou migraci)
+- [x] Seed výchozího řádku (`insert ... values (1) on conflict (id) do nothing`) s defaulty 5 / 0.35 / 0.2
+- [x] `supabase db push` (vyžaduje `DATABASE_URL`) — migrace `003` aplikována na Supabase
 - **Dílčí milník:** řádek `app_settings (id = 1)` existuje s výchozími hodnotami
 
 ### Sdílená metadata + validace — `src/lib/settings-meta.ts` (bez server importů)
 
-- [ ] `SETTINGS_FIELDS` — pro každý parametr `{ key, column, label, description, min, max, step, default, format }`
-- [ ] Rozsahy: `topK` 1–20 (krok 1), `similarityThreshold` 0–1 (krok 0,01, zobrazení v %), `llmTemperature` 0–1 (krok 0,05)
-- [ ] Helpery `clampField()` / `parseSettingsInput()` — sdílí klient (render), API (validace) i server
+- [x] `SETTINGS_FIELDS` — pro každý parametr `{ key, column, label, description, min, max, step, default, format }`
+- [x] Rozsahy: `topK` 1–20 (krok 1), `similarityThreshold` 0–1 (krok 0,01, zobrazení v %), `llmTemperature` 0–1 (krok 0,05)
+- [x] Helpery `clampField()` / `parseSettingsInput()` — sdílí klient (render), API (validace) i server
 
 ### Server přístup — `src/lib/settings.ts` (server-only)
 
-- [ ] `getSettings()` — čte `app_settings` (id = 1) přes service-role klienta; fallback na `config` defaulty při chybě / chybějící tabulce (try/catch)
-- [ ] `saveSettings(input)` — validace/clamp přes `settings-meta`, `update ... where id = 1` + `updated_at = now()`, vrací uložené hodnoty
+- [x] `getSettings()` — čte `app_settings` (id = 1) přes service-role klienta; fallback na `config` defaulty při chybě / chybějící tabulce (try/catch)
+- [x] `saveSettings(input)` — validace/clamp přes `settings-meta`, `update ... where id = 1` + `updated_at = now()`, vrací uložené hodnoty
 
 ### API route `POST /api/settings`
 
-- [ ] `src/app/api/settings/route.ts` — `saveSettings()` → 200 s uloženými hodnotami; 400 nevalidní vstup; 500 chyba DB (styl jako retrieval-test route)
+- [x] `src/app/api/settings/route.ts` — `saveSettings()` → 200 s uloženými hodnotami; 400 nevalidní vstup; 500 chyba DB (styl jako retrieval-test route)
 
 ### Napojení runtime (aby se nastavení projevilo)
 
 > **Pozn.:** `getSettings()` se volá při každém requestu (jeden DB roundtrip navíc) — vědomý kompromis. Záměrně bez cache, aby se změna parametrů projevila okamžitě; cachování by šlo proti tomuto požadavku.
 
-- [ ] `chat/route.ts` — `getSettings()` → `retrieve(query, s.topK, s.similarityThreshold)`; hlavní větev `temperature: s.llmTemperature` (fallback větev nechat `temperature: 0`)
-- [ ] `retrieval-test/route.ts` — `getSettings()` → `retrieve(body.query, s.topK, s.similarityThreshold)`
-- [ ] `retrieve()` signaturu neměnit (overridy už podporuje)
+- [x] `chat/route.ts` — `getSettings()` → `retrieve(query, s.topK, s.similarityThreshold)`; hlavní větev `temperature: s.llmTemperature` (fallback větev nechat `temperature: 0`)
+- [x] `retrieval-test/route.ts` — `getSettings()` → `retrieve(body.query, s.topK, s.similarityThreshold)`
+- [x] `retrieve()` signaturu neměnit (overridy už podporuje)
 - **Dílčí milník:** změna hodnot v DB mění chování chatu i testu retrievalu bez restartu serveru
 
 ### UI slider — `src/components/ui/slider.tsx`
 
-- [ ] Wrapper nad `@base-ui/react/slider` ve stylu `ui/dialog.tsx`: `Slider.Root → Control → Track → Indicator → Thumb` (+ `Slider.Value`), `data-slot`, `cn()`, tokeny `secondary` (podklad) / `primary` (výplň) / `ring` (thumb)
+- [x] Wrapper nad `@base-ui/react/slider` ve stylu `ui/dialog.tsx`: `Slider.Root → Control → Track → Indicator → Thumb`, `data-slot`, `cn()`, tokeny `secondary` (podklad) / `primary` (výplň) / `ring` (thumb). Pozn.: hodnota se zobrazuje z React stavu přes `format` (ne `Slider.Value`) — plná kontrola layoutu (min vlevo / hodnota / max vpravo)
 
 ### Stránka — `src/app/admin/(authenticated)/parameters/`
 
-- [ ] `page.tsx` (server, `force-dynamic`) — `getSettings()` → `<ParametersClient initial={...} />`, hlavička „Parametry" + podtitul (styl ostatních stránek)
-- [ ] `client.tsx` (`"use client"`) — pro každý parametr karta (`rounded-lg border`): nadpis + popis, slider s popiskem **min vlevo / max vpravo** a aktuální hodnotou, tlačítka **„Uložit"** a **„Obnovit výchozí"**
-- [ ] `POST /api/settings`, feedback „Uloženo / chyba" (styl retrieval-test / documents), po uložení sync stavu s vrácenými (clampnutými) hodnotami
+- [x] `page.tsx` (server, `force-dynamic`) — `getSettings()` → `<ParametersClient initial={...} />`, hlavička „Parametry" + podtitul (styl ostatních stránek)
+- [x] `client.tsx` (`"use client"`) — pro každý parametr karta (`rounded-lg border`): nadpis + popis, slider s popiskem **min vlevo / max vpravo** a aktuální hodnotou, tlačítka **„Uložit"** a **„Obnovit výchozí"**
+- [x] `POST /api/settings`, feedback „Uloženo / chyba" (styl retrieval-test / documents), po uložení sync stavu s vrácenými (clampnutými) hodnotami
 - **Dílčí milník:** posun slideru → Uložit → po reloadu hodnoty drží; „Obnovit výchozí" vrátí defaulty
 
 ### Navigace — `src/components/AdminSidebar.tsx`
 
-- [ ] Položka `{ label: "Parametry", href: "/admin/parameters", icon: SlidersHorizontal }` mezi „Test retrievalu" a „Chat"
+- [x] Položka `{ label: "Parametry", href: "/admin/parameters", icon: SlidersHorizontal }` mezi „Test retrievalu" a „Chat"
 
 ### Dokumentace
 
-- [ ] `CLAUDE.md` — env tabulka (3 parametry = nyní výchozí hodnoty; runtime z `app_settings`, editovatelné v `/admin/parameters`), architektura (routa, `/api/settings`, `lib/settings.ts` + `settings-meta.ts`, migrace `003`), seznam admin sekcí, datový model (+ `app_settings`)
-- [ ] `docs/IMPLEMENTATION_PLAN.md` — „Přehled API rout" (+ `POST /api/settings`), adresářová struktura (nové soubory), seznam migrací (+ `003_app_settings.sql`)
+- [x] `CLAUDE.md` — env tabulka (3 parametry = nyní výchozí hodnoty; runtime z `app_settings`, editovatelné v `/admin/parameters`), architektura (routa, `/api/settings`, `lib/settings.ts` + `settings-meta.ts`, migrace `003`), seznam admin sekcí, datový model (+ `app_settings`)
+- [x] `docs/IMPLEMENTATION_PLAN.md` — „Přehled API rout" (+ `POST /api/settings`), adresářová struktura (nové soubory), seznam migrací (+ `003_app_settings.sql`)
 
 ### E2E ověření
 
-- [ ] `npm run lint` + `npm run build` (typy, import Base UI slideru)
-- [ ] `/admin/parameters` — slidery, Uložit, „Obnovit výchozí", reload drží hodnoty z DB
-- [ ] Test retrievalu — změna `TOP_K` / threshold mění počet a filtraci výsledků
-- [ ] Chat — vysoká vs. nízká temperature znatelný rozdíl; vysoký threshold → snazší fallback
+- [x] `npm run lint` + `npm run build` (typy, import Base UI slideru) — bez chyb
+- [x] `/admin/parameters` — slidery, „Obnovit výchozí" a validace ověřeny v preview (klik na track přepočítá hodnotu i badge). Po aplikaci migrace `003` potvrzena perzistence: `POST /api/settings` zapíše a vrátí hodnoty z DB (read-after-write)
+- [ ] Test retrievalu — změna `TOP_K` / threshold mění počet a filtraci výsledků (čeká na migraci `003` + nahrané dokumenty)
+- [ ] Chat — vysoká vs. nízká temperature znatelný rozdíl; vysoký threshold → snazší fallback (čeká na migraci `003` + nahrané dokumenty)
 
 ---
 
@@ -359,6 +359,7 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 | `GET` | `/api/documents` | Seznam dokumentů + stav |
 | `DELETE` | `/api/documents/:id` | Smazání dokumentu, chunků, souboru |
 | `POST` | `/api/retrieval-test` | Top-k chunků pro dotaz (admin) |
+| `POST` | `/api/settings` | Uložení globálních runtime parametrů RAG (admin) |
 
 ## Adresářová struktura (aktuální stav)
 
@@ -375,12 +376,15 @@ kecalo/
 │   │   │       ├── page.tsx          # Admin dashboard
 │   │   │       ├── documents/page.tsx    # server část
 │   │   │       ├── documents/client.tsx  # klientská část (upload + tabulka)
-│   │   │       └── retrieval-test/page.tsx
+│   │   │       ├── retrieval-test/page.tsx
+│   │   │       ├── parameters/page.tsx    # server část (getSettings)
+│   │   │       └── parameters/client.tsx  # klient (slidery + uložení)
 │   │   └── api/
 │   │       ├── chat/route.ts
 │   │       ├── documents/route.ts
 │   │       ├── documents/[id]/route.ts
 │   │       ├── retrieval-test/route.ts
+│   │       ├── settings/route.ts
 │   │       └── auth/{login,logout}/route.ts
 │   ├── components/
 │   │   ├── MessageBubble.tsx
@@ -396,6 +400,8 @@ kecalo/
 │       ├── config.ts
 │       ├── supabase.ts
 │       ├── auth.ts                   # podpis/ověření session cookie (HMAC)
+│       ├── settings.ts               # server: getSettings/saveSettings
+│       ├── settings-meta.ts          # sdílená metadata + validace parametrů
 │       ├── types.ts
 │       ├── utils.ts
 │       └── rag/
@@ -408,7 +414,8 @@ kecalo/
 ├── supabase/
 │   └── migrations/
 │       ├── 001_init.sql              # tabulky documents/chunks + HNSW index
-│       └── 002_match_chunks.sql      # RPC match_chunks (retrieval)
+│       ├── 002_match_chunks.sql      # RPC match_chunks (retrieval)
+│       └── 003_app_settings.sql      # app_settings (runtime parametry RAG)
 ├── .env.example
 └── README.md
 ```

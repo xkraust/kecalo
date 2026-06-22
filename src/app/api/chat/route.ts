@@ -1,7 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { streamText } from "ai";
 import { NextResponse } from "next/server";
-import { config } from "@/lib/config";
+import { getSettings } from "@/lib/settings";
 import { retrieve } from "@/lib/rag/retrieve";
 import {
   SYSTEM_PROMPT,
@@ -30,9 +30,11 @@ export async function POST(request: Request) {
 
   const query = lastUserMessage.content;
 
+  const settings = await getSettings();
+
   let chunks;
   try {
-    chunks = await retrieve(query);
+    chunks = await retrieve(query, settings.topK, settings.similarityThreshold);
   } catch (err) {
     console.error("Retrieval selhal:", err);
     return NextResponse.json(
@@ -81,7 +83,7 @@ export async function POST(request: Request) {
     model: anthropic("claude-sonnet-4-6"),
     system: systemWithContext,
     messages: trimmedMessages,
-    temperature: config.llmTemperature,
+    temperature: settings.llmTemperature,
     maxOutputTokens: 1500,
     onError({ error }) {
       console.error("Claude stream selhal:", error);

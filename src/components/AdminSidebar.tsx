@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   FileText,
   Search,
+  SlidersHorizontal,
   MessageSquare,
   LogOut,
 } from "lucide-react";
@@ -15,6 +16,7 @@ const navItems = [
   { label: "Přehled", href: "/admin", icon: LayoutDashboard },
   { label: "Dokumenty", href: "/admin/documents", icon: FileText },
   { label: "Test retrievalu", href: "/admin/retrieval-test", icon: Search },
+  { label: "Parametry", href: "/admin/parameters", icon: SlidersHorizontal },
   { label: "Chat", href: "/", icon: MessageSquare, external: true },
 ];
 

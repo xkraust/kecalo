@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { retrieve } from "@/lib/rag/retrieve";
+import { getSettings } from "@/lib/settings";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -8,7 +9,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const results = await retrieve(body.query);
+    const settings = await getSettings();
+    const results = await retrieve(
+      body.query,
+      settings.topK,
+      settings.similarityThreshold
+    );
     return NextResponse.json(results);
   } catch (err) {
     const message =
