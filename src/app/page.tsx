@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { Send, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MessageBubble } from "@/components/MessageBubble";
@@ -22,11 +22,29 @@ interface ChatMessage {
 
 let nextId = 0;
 
+function getSessionId(): string {
+  const key = "kecalo_session_id";
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [feedbackMap, setFeedbackMap] = useState<
+    Record<number, "up" | "down">
+  >({});
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const sessionId = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    return getSessionId();
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -134,9 +152,33 @@ export default function ChatPage() {
     [sendMessage, input]
   );
 
+  const handleFeedback = useCallback(
+    (messageIndex: number, rating: "up" | "down") => {
+      if (feedbackMap[messageIndex] === rating) return;
+      setFeedbackMap((prev) => ({ ...prev, [messageIndex]: rating }));
+
+      const userQuery = messages
+        .filter((m) => m.role === "user")
+        .at(-1)?.content;
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          messageIndex,
+          rating,
+          query: userQuery,
+        }),
+      }).catch(() => {});
+    },
+    [feedbackMap, messages, sessionId]
+  );
+
   const handleNewConversation = useCallback(() => {
     setMessages([]);
     setInput("");
+    setFeedbackMap({});
   }, []);
 
   return (
@@ -188,12 +230,15 @@ export default function ChatPage() {
               </div>
             </div>
           ) : (
-            messages.map((m) => (
+            messages.map((m, i) => (
               <MessageBubble
                 key={m.id}
                 role={m.role}
                 content={m.content}
                 sources={m.sources}
+                messageIndex={i}
+                feedbackRating={feedbackMap[i] ?? null}
+                onFeedback={handleFeedback}
               />
             ))
           )}

@@ -1,15 +1,26 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { SourcesBlock, type Source } from "./SourcesBlock";
 
 interface MessageBubbleProps {
   role: "user" | "assistant";
   content: string;
   sources?: Source[];
+  messageIndex?: number;
+  feedbackRating?: "up" | "down" | null;
+  onFeedback?: (messageIndex: number, rating: "up" | "down") => void;
 }
 
-export function MessageBubble({ role, content, sources }: MessageBubbleProps) {
+export function MessageBubble({
+  role,
+  content,
+  sources,
+  messageIndex,
+  feedbackRating,
+  onFeedback,
+}: MessageBubbleProps) {
   if (role === "user") {
     return (
       <div className="flex justify-end">
@@ -19,6 +30,9 @@ export function MessageBubble({ role, content, sources }: MessageBubbleProps) {
       </div>
     );
   }
+
+  const showFeedback =
+    content.length > 0 && messageIndex !== undefined && onFeedback;
 
   return (
     <div className="flex justify-start">
@@ -31,6 +45,34 @@ export function MessageBubble({ role, content, sources }: MessageBubbleProps) {
         {sources && sources.length > 0 && (
           <div className="px-1">
             <SourcesBlock sources={sources} />
+          </div>
+        )}
+        {showFeedback && (
+          <div className="mt-1.5 flex items-center gap-1 px-1">
+            <button
+              type="button"
+              aria-label="Palec nahoru"
+              onClick={() => onFeedback(messageIndex, "up")}
+              className={`rounded-md p-1 transition-colors ${
+                feedbackRating === "up"
+                  ? "text-primary"
+                  : "text-muted-foreground/50 hover:text-foreground"
+              }`}
+            >
+              <ThumbsUp size={14} />
+            </button>
+            <button
+              type="button"
+              aria-label="Palec dolů"
+              onClick={() => onFeedback(messageIndex, "down")}
+              className={`rounded-md p-1 transition-colors ${
+                feedbackRating === "down"
+                  ? "text-primary"
+                  : "text-muted-foreground/50 hover:text-foreground"
+              }`}
+            >
+              <ThumbsDown size={14} />
+            </button>
           </div>
         )}
       </div>

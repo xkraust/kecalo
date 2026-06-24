@@ -364,55 +364,55 @@ Podrobný plán viz [`docs/LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
 
 ### DB — migrace `supabase/migrations/005_feedback.sql`
 
-- [ ] Tabulka `feedback`:
+- [x] Tabulka `feedback`:
   - `id uuid PK DEFAULT gen_random_uuid()`
   - `session_id text NOT NULL` — anonymní UUID z localStorage (deduplikace)
   - `message_index int NOT NULL` — pořadí zprávy v konverzaci (0-based)
   - `rating text NOT NULL CHECK (rating IN ('up', 'down'))`
   - `query text` — dotaz uživatele (volitelné, pro kontext při ladění)
   - `created_at timestamptz DEFAULT now()`
-- [ ] UNIQUE constraint `(session_id, message_index)` — jeden hlas na zprávu v rámci session
-- [ ] `ALTER TABLE feedback ENABLE ROW LEVEL SECURITY;` (bez policy — service role bypass)
+- [x] UNIQUE constraint `(session_id, message_index)` — jeden hlas na zprávu v rámci session
+- [x] `ALTER TABLE feedback ENABLE ROW LEVEL SECURITY;` (bez policy — service role bypass)
 - [ ] `supabase db push`
 - **Dílčí milník:** tabulka `feedback` existuje v Supabase
 
 ### API — `POST /api/feedback` (`src/app/api/feedback/route.ts`)
 
-- [ ] Vstup JSON: `{ sessionId: string, messageIndex: number, rating: "up" | "down", query?: string }`
-- [ ] Validace: `sessionId` neprázdný, `messageIndex` >= 0, `rating` jen `"up"` nebo `"down"`
-- [ ] `supabase.from("feedback").upsert(...)` s `onConflict: "session_id,message_index"` — umožní změnu hlasu
-- [ ] Návratové kódy: 200 (uloženo), 400 (nevalidní vstup), 500 (DB chyba)
+- [x] Vstup JSON: `{ sessionId: string, messageIndex: number, rating: "up" | "down", query?: string }`
+- [x] Validace: `sessionId` neprázdný, `messageIndex` >= 0, `rating` jen `"up"` nebo `"down"`
+- [x] `supabase.from("feedback").upsert(...)` s `onConflict: "session_id,message_index"` — umožní změnu hlasu
+- [x] Návratové kódy: 200 (uloženo), 400 (nevalidní vstup), 500 (DB chyba)
 
 ### Chat UI — `src/components/MessageBubble.tsx`
 
-- [ ] Nové props: `messageIndex?: number`, `feedbackRating?: "up" | "down" | null`, `onFeedback?: (messageIndex: number, rating: "up" | "down") => void`
-- [ ] Tlačítka se zobrazují jen pro `role === "assistant"` a jen když je zpráva neprázdná (hotově nastreamovaná)
-- [ ] Dva icon buttony (`ThumbsUp`, `ThumbsDown` z `lucide-react`, size 14) pod `SourcesBlock`
-- [ ] Styl: ghost / transparentní, barva `text-secondary` → po hoveru `text-primary`; vybraný hlas má korálový akcent (`text-coral`)
-- [ ] Po kliknutí: callback `onFeedback` → parent odešle `POST /api/feedback`
+- [x] Nové props: `messageIndex?: number`, `feedbackRating?: "up" | "down" | null`, `onFeedback?: (messageIndex: number, rating: "up" | "down") => void`
+- [x] Tlačítka se zobrazují jen pro `role === "assistant"` a jen když je zpráva neprázdná (hotově nastreamovaná)
+- [x] Dva icon buttony (`ThumbsUp`, `ThumbsDown` z `lucide-react`, size 14) pod `SourcesBlock`
+- [x] Styl: ghost / transparentní, barva `text-secondary` → po hoveru `text-primary`; vybraný hlas má korálový akcent (`text-coral`)
+- [x] Po kliknutí: callback `onFeedback` → parent odešle `POST /api/feedback`
 
 ### Stav feedbacku — `src/app/page.tsx`
 
-- [ ] `sessionId` (UUID v4) — vygenerovat při prvním loadu a uložit do `localStorage` (klíč `kecalo_session_id`)
-- [ ] `feedbackMap: Record<number, "up" | "down">` — klientský stav, mapuje `messageIndex` na rating
-- [ ] `handleFeedback(messageIndex, rating)` — `POST /api/feedback`, aktualizuje `feedbackMap`
-- [ ] Předat `messageIndex`, `feedbackRating`, `onFeedback` do `MessageBubble`
+- [x] `sessionId` (UUID v4) — vygenerovat při prvním loadu a uložit do `localStorage` (klíč `kecalo_session_id`)
+- [x] `feedbackMap: Record<number, "up" | "down">` — klientský stav, mapuje `messageIndex` na rating
+- [x] `handleFeedback(messageIndex, rating)` — `POST /api/feedback`, aktualizuje `feedbackMap`
+- [x] Předat `messageIndex`, `feedbackRating`, `onFeedback` do `MessageBubble`
 
 ### Admin dashboard — `src/app/admin/(authenticated)/page.tsx`
 
-- [ ] Nový dotaz: `supabase.from("feedback").select("rating")` → spočítat `up` / `down` / celkem
-- [ ] Nová `StatCard` v gridu: „Zpětná vazba" s hodnotou např. „👍 12 / 👎 3" nebo poměrem „80 % pozitivní"
+- [x] Nový dotaz: `supabase.from("feedback").select("rating")` → spočítat `up` / `down` / celkem
+- [x] Nová `StatCard` v gridu: „Zpětná vazba" s hodnotou např. „👍 12 / 👎 3" nebo poměrem „80 % pozitivní"
 - **Dílčí milník:** dashboard zobrazuje agregát feedbacku
 
 ### Dokumentace
 
-- [ ] `CLAUDE.md` — sekce architektura (nová API ruta, tabulka), adresářová struktura (nové soubory), datový model (`feedback`)
-- [ ] `docs/IMPLEMENTATION_PLAN.md` — zaškrtnutí kroků, „Přehled API rout" (+ `POST /api/feedback`), adresářová struktura (nové soubory), seznam migrací (+ `005_feedback.sql`)
+- [x] `CLAUDE.md` — sekce architektura (nová API ruta, tabulka), adresářová struktura (nové soubory), datový model (`feedback`)
+- [x] `docs/IMPLEMENTATION_PLAN.md` — zaškrtnutí kroků, „Přehled API rout" (+ `POST /api/feedback`), adresářová struktura (nové soubory), seznam migrací (+ `005_feedback.sql`)
 
 ### E2E ověření
 
-- [ ] `npm run lint` + `npm run build` — bez chyb
-- [ ] Chat — klik na 👍 → tlačítko se zvýrazní, opakovaný klik nemá efekt, klik na 👎 přepne hlas
+- [x] `npm run lint` + `npm run build` — bez chyb
+- [x] Chat — klik na 👍 → tlačítko se zvýrazní, opakovaný klik nemá efekt, klik na 👎 přepne hlas
 - [ ] Admin dashboard — StatCard „Zpětná vazba" ukazuje správné počty
 - [ ] DB — `select * from feedback` potvrzuje záznamy s upsert (změna hlasu = update, ne duplikát)
 
@@ -428,6 +428,7 @@ Podrobný plán viz [`docs/LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
 | `DELETE` | `/api/documents/:id` | Smazání dokumentu, chunků, souboru |
 | `POST` | `/api/retrieval-test` | Top-k chunků pro dotaz (admin) |
 | `POST` | `/api/settings` | Uložení globálních runtime parametrů RAG (admin) |
+| `POST` | `/api/feedback` | Uložení zpětné vazby (thumbs up/down) |
 
 ## Adresářová struktura (aktuální stav)
 
@@ -453,6 +454,7 @@ kecalo/
 │   │       ├── documents/[id]/route.ts
 │   │       ├── retrieval-test/route.ts
 │   │       ├── settings/route.ts
+│   │       ├── feedback/route.ts
 │   │       └── auth/{login,logout}/route.ts
 │   ├── components/
 │   │   ├── MessageBubble.tsx
@@ -483,7 +485,8 @@ kecalo/
 │   └── migrations/
 │       ├── 001_init.sql              # tabulky documents/chunks + HNSW index
 │       ├── 002_match_chunks.sql      # RPC match_chunks (retrieval)
-│       └── 003_app_settings.sql      # app_settings (runtime parametry RAG)
+│       ├── 003_app_settings.sql      # app_settings (runtime parametry RAG)
+│       └── 005_feedback.sql          # feedback (zpětná vazba thumbs up/down)
 ├── .env.example
 └── README.md
 ```

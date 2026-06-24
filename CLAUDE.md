@@ -8,7 +8,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0–7 hotovy. Fáze 8 (admin sekce **Parametry** — globální runtime parametry RAG) je hotová a ověřená (lint, build, E2E v prohlížeči, perzistence přes `/api/settings`); migrace `003_app_settings.sql` je aplikovaná na Supabase. Zbývá už jen ladění RAG na seed dokumentech (odloženo — uživatel nahraje dokumenty ručně přes admin UI). Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
+Fáze 0–7 hotovy. Fáze 8 (admin sekce **Parametry** — globální runtime parametry RAG) je hotová a ověřená (lint, build, E2E v prohlížeči, perzistence přes `/api/settings`); migrace `003_app_settings.sql` je aplikovaná na Supabase. Fáze 10 (zpětná vazba uživatelů — thumbs up/down) implementována (lint, build OK, E2E v prohlížeči); migrace `005_feedback.sql` čeká na `supabase db push`. Zbývá už jen ladění RAG na seed dokumentech (odloženo — uživatel nahraje dokumenty ručně přes admin UI). Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
 
@@ -121,6 +121,7 @@ GET    /api/documents           → seznam dokumentů se stavem
 DELETE /api/documents/[id]      → smazání dokumentu, chunků (CASCADE), souboru v Storage
 POST   /api/retrieval-test      → vrátí top-k chunků se skóre (pouze admin)
 POST   /api/settings            → uloží globální runtime parametry RAG do app_settings
+POST   /api/feedback            → uloží zpětnou vazbu (thumbs up/down) do tabulky feedback
 POST   /api/auth/login          → ověření username + password, nastavení session cookie
 POST   /api/auth/logout         → smazání session cookie
 ```
@@ -148,6 +149,7 @@ src/
 │       ├── documents/[id]/route.ts
 │       ├── retrieval-test/route.ts
 │       ├── settings/route.ts
+│       ├── feedback/route.ts
 │       └── auth/{login,logout}/route.ts
 ├── components/
 │   ├── MessageBubble.tsx
@@ -178,7 +180,8 @@ supabase/
 └── migrations/
     ├── 001_init.sql                  # tabulky documents/chunks + HNSW index
     ├── 002_match_chunks.sql          # RPC match_chunks (retrieval)
-    └── 003_app_settings.sql          # tabulka app_settings (runtime parametry RAG)
+    ├── 003_app_settings.sql          # tabulka app_settings (runtime parametry RAG)
+    └── 005_feedback.sql              # tabulka feedback (zpětná vazba thumbs up/down)
 ```
 
 ### RAG — dvě oddělené pipeline
@@ -222,6 +225,10 @@ app_settings (id smallint PK CHECK (id = 1), top_k int, similarity_threshold dou
               llm_temperature double precision, updated_at timestamptz)
 -- jednořádková konfigurace (id = 1) s runtime parametry RAG;
 -- CHECK rozsahy musí odpovídat min/max v src/lib/settings-meta.ts
+
+feedback (id uuid PK, session_id text, message_index int, rating text CHECK ('up'/'down'),
+          query text NULL, created_at timestamptz)
+-- UNIQUE (session_id, message_index) — jeden hlas na zprávu v rámci session
 ```
 
 Hodnoty `status` dokumentu: `uploaded → processing → ready | error`

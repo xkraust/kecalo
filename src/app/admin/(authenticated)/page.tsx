@@ -29,6 +29,13 @@ export default async function DashboardPage() {
     }
   }
 
+  const { data: feedbackRows } = await supabase
+    .from("feedback")
+    .select("rating");
+  const fbUp = (feedbackRows ?? []).filter((r) => r.rating === "up").length;
+  const fbDown = (feedbackRows ?? []).filter((r) => r.rating === "down").length;
+  const fbTotal = fbUp + fbDown;
+
   const statusCounts: Record<string, number> = {};
   for (const d of docs) {
     statusCounts[d.status] = (statusCounts[d.status] ?? 0) + 1;
@@ -49,7 +56,7 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <StatCard label="Dokumenty" value={totalDocs} />
         <StatCard label="Chunky" value={totalChunks} />
         <StatCard label="Zaindexované strany" value={distinctPages} />
@@ -63,6 +70,20 @@ export default async function DashboardPage() {
                 / {totalDocs}
               </span>
             </>
+          }
+        />
+        <StatCard
+          label="Zpětná vazba"
+          value={
+            fbTotal === 0 ? (
+              <span className="text-muted-foreground">—</span>
+            ) : (
+              <>
+                <span title="Pozitivní">{"👍"} {fbUp}</span>
+                <span className="text-[15px] text-muted-foreground mx-1">/</span>
+                <span title="Negativní">{"👎"} {fbDown}</span>
+              </>
+            )
           }
         />
       </div>
