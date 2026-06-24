@@ -373,7 +373,7 @@ Podrobný plán viz [`docs/LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
   - `created_at timestamptz DEFAULT now()`
 - [x] UNIQUE constraint `(session_id, message_index)` — jeden hlas na zprávu v rámci session
 - [x] `ALTER TABLE feedback ENABLE ROW LEVEL SECURITY;` (bez policy — service role bypass)
-- [ ] `supabase db push`
+- [x] `supabase db push`
 - **Dílčí milník:** tabulka `feedback` existuje v Supabase
 
 ### API — `POST /api/feedback` (`src/app/api/feedback/route.ts`)
