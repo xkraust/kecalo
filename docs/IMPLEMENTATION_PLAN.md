@@ -356,6 +356,68 @@ Podrobný plán viz [`docs/LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
 
 ---
 
+## Fáze 10 — Zpětná vazba uživatelů (po kurzu)
+
+**Milník:** Pod každou odpovědí bota v chatu se zobrazí tlačítka 👍/👎; kliknutí uloží hodnocení do DB; admin dashboard zobrazuje souhrnné statistiky zpětné vazby.
+
+> **Pozn.:** Jde o jednoduchou agregovanou zpětnou vazbu — neukládáme obsah zpráv ani konverzační historii (GDPR). Session ID z localStorage slouží pouze k deduplikaci hlasů.
+
+### DB — migrace `supabase/migrations/005_feedback.sql`
+
+- [ ] Tabulka `feedback`:
+  - `id uuid PK DEFAULT gen_random_uuid()`
+  - `session_id text NOT NULL` — anonymní UUID z localStorage (deduplikace)
+  - `message_index int NOT NULL` — pořadí zprávy v konverzaci (0-based)
+  - `rating text NOT NULL CHECK (rating IN ('up', 'down'))`
+  - `query text` — dotaz uživatele (volitelné, pro kontext při ladění)
+  - `created_at timestamptz DEFAULT now()`
+- [ ] UNIQUE constraint `(session_id, message_index)` — jeden hlas na zprávu v rámci session
+- [ ] `ALTER TABLE feedback ENABLE ROW LEVEL SECURITY;` (bez policy — service role bypass)
+- [ ] `supabase db push`
+- **Dílčí milník:** tabulka `feedback` existuje v Supabase
+
+### API — `POST /api/feedback` (`src/app/api/feedback/route.ts`)
+
+- [ ] Vstup JSON: `{ sessionId: string, messageIndex: number, rating: "up" | "down", query?: string }`
+- [ ] Validace: `sessionId` neprázdný, `messageIndex` >= 0, `rating` jen `"up"` nebo `"down"`
+- [ ] `supabase.from("feedback").upsert(...)` s `onConflict: "session_id,message_index"` — umožní změnu hlasu
+- [ ] Návratové kódy: 200 (uloženo), 400 (nevalidní vstup), 500 (DB chyba)
+
+### Chat UI — `src/components/MessageBubble.tsx`
+
+- [ ] Nové props: `messageIndex?: number`, `feedbackRating?: "up" | "down" | null`, `onFeedback?: (messageIndex: number, rating: "up" | "down") => void`
+- [ ] Tlačítka se zobrazují jen pro `role === "assistant"` a jen když je zpráva neprázdná (hotově nastreamovaná)
+- [ ] Dva icon buttony (`ThumbsUp`, `ThumbsDown` z `lucide-react`, size 14) pod `SourcesBlock`
+- [ ] Styl: ghost / transparentní, barva `text-secondary` → po hoveru `text-primary`; vybraný hlas má korálový akcent (`text-coral`)
+- [ ] Po kliknutí: callback `onFeedback` → parent odešle `POST /api/feedback`
+
+### Stav feedbacku — `src/app/page.tsx`
+
+- [ ] `sessionId` (UUID v4) — vygenerovat při prvním loadu a uložit do `localStorage` (klíč `kecalo_session_id`)
+- [ ] `feedbackMap: Record<number, "up" | "down">` — klientský stav, mapuje `messageIndex` na rating
+- [ ] `handleFeedback(messageIndex, rating)` — `POST /api/feedback`, aktualizuje `feedbackMap`
+- [ ] Předat `messageIndex`, `feedbackRating`, `onFeedback` do `MessageBubble`
+
+### Admin dashboard — `src/app/admin/(authenticated)/page.tsx`
+
+- [ ] Nový dotaz: `supabase.from("feedback").select("rating")` → spočítat `up` / `down` / celkem
+- [ ] Nová `StatCard` v gridu: „Zpětná vazba" s hodnotou např. „👍 12 / 👎 3" nebo poměrem „80 % pozitivní"
+- **Dílčí milník:** dashboard zobrazuje agregát feedbacku
+
+### Dokumentace
+
+- [ ] `CLAUDE.md` — sekce architektura (nová API ruta, tabulka), adresářová struktura (nové soubory), datový model (`feedback`)
+- [ ] `docs/IMPLEMENTATION_PLAN.md` — zaškrtnutí kroků, „Přehled API rout" (+ `POST /api/feedback`), adresářová struktura (nové soubory), seznam migrací (+ `005_feedback.sql`)
+
+### E2E ověření
+
+- [ ] `npm run lint` + `npm run build` — bez chyb
+- [ ] Chat — klik na 👍 → tlačítko se zvýrazní, opakovaný klik nemá efekt, klik na 👎 přepne hlas
+- [ ] Admin dashboard — StatCard „Zpětná vazba" ukazuje správné počty
+- [ ] DB — `select * from feedback` potvrzuje záznamy s upsert (změna hlasu = update, ne duplikát)
+
+---
+
 ## Přehled API rout
 
 | Metoda | Route | Účel |
