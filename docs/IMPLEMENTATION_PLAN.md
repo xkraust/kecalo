@@ -350,6 +350,12 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ---
 
+## Fáze 9 — Langfuse: observabilita RAG pipeline (po kurzu)
+
+Podrobný plán viz [`docs/LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
+
+---
+
 ## Přehled API rout
 
 | Metoda | Route | Účel |
