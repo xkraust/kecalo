@@ -3,11 +3,15 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import {
   SETTINGS_FIELDS,
+  TELEMETRY_FIELDS,
   DEFAULT_SETTINGS,
   clampField,
   type SettingsValues,
+  type NumericSettingKey,
+  type ToggleSettingKey,
 } from "@/lib/settings-meta";
 
 interface Props {
@@ -20,8 +24,13 @@ export function ParametersClient({ initial }: Props) {
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
   const [error, setError] = useState("");
 
-  function update(key: keyof SettingsValues, raw: number) {
+  function update(key: NumericSettingKey, raw: number) {
     setValues((prev) => ({ ...prev, [key]: clampField(key, raw) }));
+    setStatus("idle");
+  }
+
+  function updateToggle(key: ToggleSettingKey, checked: boolean) {
+    setValues((prev) => ({ ...prev, [key]: checked }));
     setStatus("idle");
   }
 
@@ -97,6 +106,45 @@ export function ParametersClient({ initial }: Props) {
                   <span>{field.format(field.max)}</span>
                 </div>
               </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-sm font-medium">Telemetrie</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Observabilita RAG pipeline přes Langfuse. Změny se po uložení projeví
+            okamžitě.
+          </p>
+        </div>
+
+        {TELEMETRY_FIELDS.map((field) => {
+          const checked = values[field.key];
+          return (
+            <div
+              key={field.key}
+              className="rounded-lg border border-border bg-card p-5"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-medium">{field.label}</h3>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {field.description}
+                  </p>
+                </div>
+                <Switch
+                  checked={checked}
+                  onCheckedChange={(value) => updateToggle(field.key, value)}
+                />
+              </div>
+
+              {field.warning && (
+                <div className="mt-3 flex items-center gap-2 rounded-md bg-[#FAEEDA] px-2.5 py-1.5 text-xs text-[#854F0B]">
+                  <span>{field.warning}</span>
+                </div>
+              )}
             </div>
           );
         })}

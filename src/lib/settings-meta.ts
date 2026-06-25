@@ -5,11 +5,18 @@ export interface SettingsValues {
   topK: number;
   similarityThreshold: number;
   llmTemperature: number;
+  telemetryEnabled: boolean;
+  recordContent: boolean;
 }
+
+/** Klíče číselných parametrů (slidery). */
+export type NumericSettingKey = "topK" | "similarityThreshold" | "llmTemperature";
+/** Klíče přepínačů telemetrie (Fáze 11). */
+export type ToggleSettingKey = "telemetryEnabled" | "recordContent";
 
 export interface SettingField {
   /** Klíč v SettingsValues i v JSON payloadu API. */
-  key: keyof SettingsValues;
+  key: NumericSettingKey;
   /** Název sloupce v tabulce app_settings. */
   column: "top_k" | "similarity_threshold" | "llm_temperature";
   label: string;
@@ -20,6 +27,18 @@ export interface SettingField {
   default: number;
   /** Formátování hodnoty pro zobrazení (popisek u slideru). */
   format: (value: number) => string;
+}
+
+export interface ToggleField {
+  /** Klíč v SettingsValues i v JSON payloadu API. */
+  key: ToggleSettingKey;
+  /** Název sloupce v tabulce app_settings. */
+  column: "telemetry_enabled" | "record_content";
+  label: string;
+  description: string;
+  default: boolean;
+  /** Volitelná varovná hláška (např. soukromí u záznamu obsahu). */
+  warning?: string;
 }
 
 // Rozsahy musí odpovídat CHECK v supabase/migrations/003_app_settings.sql.
@@ -62,14 +81,36 @@ export const SETTINGS_FIELDS: readonly SettingField[] = [
   },
 ];
 
-function fieldFor(key: keyof SettingsValues): SettingField {
+// Přepínače telemetrie (Fáze 11). Defaulty musí odpovídat 006_telemetry_settings.sql.
+export const TELEMETRY_FIELDS: readonly ToggleField[] = [
+  {
+    key: "telemetryEnabled",
+    column: "telemetry_enabled",
+    label: "Telemetrie zapnutá",
+    description:
+      "Hlavní vypínač. Když je vypnutá, neodesílají se žádné traces do Langfuse (app běží dál).",
+    default: true,
+  },
+  {
+    key: "recordContent",
+    column: "record_content",
+    label: "Zaznamenávat obsah promptů a odpovědí",
+    description:
+      "Posílá do Langfuse plný text dotazu, kontext z dokumentů a odpověď modelu.",
+    default: false,
+    warning:
+      "Obsahuje reálná data dokumentů i dotazy uživatelů — zapínat jen pro ladění.",
+  },
+];
+
+function fieldFor(key: NumericSettingKey): SettingField {
   const field = SETTINGS_FIELDS.find((f) => f.key === key);
   if (!field) throw new Error(`Neznámý parametr: ${key}`);
   return field;
 }
 
 /** Ošetří NaN, ořízne do rozsahu a přichytí na krok (kvůli celočíselnému topK i DB CHECK). */
-export function clampField(key: keyof SettingsValues, value: number): number {
+export function clampField(key: NumericSettingKey, value: number): number {
   const field = fieldFor(key);
   if (!Number.isFinite(value)) return field.default;
   const bounded = Math.min(field.max, Math.max(field.min, value));
@@ -78,6 +119,18 @@ export function clampField(key: keyof SettingsValues, value: number): number {
   // odstranění chyby plovoucí čárky (např. 0.35000000000000003)
   const rounded = Math.round(snapped * 1000) / 1000;
   return Math.min(field.max, Math.max(field.min, rounded));
+}
+
+/** Tolerantní převod na boolean (přijme bool, "true"/"false", 1/0). Jinak default. */
+function parseBool(raw: unknown, fallback: boolean): boolean {
+  if (typeof raw === "boolean") return raw;
+  if (typeof raw === "number") return raw === 1;
+  if (typeof raw === "string") {
+    const v = raw.trim().toLowerCase();
+    if (v === "true" || v === "1") return true;
+    if (v === "false" || v === "0") return false;
+  }
+  return fallback;
 }
 
 /** Z libovolného vstupu (JSON body) sestaví validní, clampnuté hodnoty všech parametrů. */
@@ -92,6 +145,9 @@ export function parseSettingsInput(input: unknown): SettingsValues {
     const num = typeof raw === "number" ? raw : Number(raw);
     result[field.key] = clampField(field.key, num);
   }
+  for (const field of TELEMETRY_FIELDS) {
+    result[field.key] = parseBool(obj[field.key], field.default);
+  }
   return result;
 }
 
@@ -100,4 +156,6 @@ export const DEFAULT_SETTINGS: SettingsValues = {
   topK: fieldFor("topK").default,
   similarityThreshold: fieldFor("similarityThreshold").default,
   llmTemperature: fieldFor("llmTemperature").default,
+  telemetryEnabled: true,
+  recordContent: false,
 };

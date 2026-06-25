@@ -97,11 +97,11 @@ export async function POST(request: Request) {
         temperature: 0,
         maxOutputTokens: 300,
         experimental_telemetry: {
-          isEnabled: true,
+          isEnabled: settings.telemetryEnabled,
           functionId: "chat-fallback",
-          // Soukromí: do Langfuse neposíláme obsah dotazů ani odpovědí (krok 9.4).
-          recordInputs: false,
-          recordOutputs: false,
+          // Obsah dotazů/odpovědí jen když je zapnut runtime přepínač (Fáze 11).
+          recordInputs: settings.recordContent,
+          recordOutputs: settings.recordContent,
           metadata: {
             topK: settings.topK,
             similarityThreshold: settings.similarityThreshold,
@@ -150,11 +150,11 @@ export async function POST(request: Request) {
       temperature: settings.llmTemperature,
       maxOutputTokens: 1500,
       experimental_telemetry: {
-        isEnabled: true,
+        isEnabled: settings.telemetryEnabled,
         functionId: "chat-rag",
-        // Soukromí: do Langfuse neposíláme obsah dotazů ani odpovědí (krok 9.4).
-        recordInputs: false,
-        recordOutputs: false,
+        // Obsah dotazů/odpovědí jen když je zapnut runtime přepínač (Fáze 11).
+        recordInputs: settings.recordContent,
+        recordOutputs: settings.recordContent,
         metadata: {
           topK: settings.topK,
           similarityThreshold: settings.similarityThreshold,

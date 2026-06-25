@@ -432,50 +432,50 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ### DB — migrace `supabase/migrations/006_telemetry_settings.sql`
 
-- [ ] `ALTER TABLE app_settings ADD COLUMN telemetry_enabled boolean NOT NULL DEFAULT true, ADD COLUMN record_content boolean NOT NULL DEFAULT false;`
-- [ ] `supabase db push`
+- [x] `ALTER TABLE app_settings ADD COLUMN telemetry_enabled boolean NOT NULL DEFAULT true, ADD COLUMN record_content boolean NOT NULL DEFAULT false;`
+- [ ] `supabase db push` (čeká na uživatele — dokud neproběhne, `getSettings` selektuje neexistující sloupce a spadne na fallback, ukládání parametrů nejde)
 - **Dílčí milník:** `app_settings` má nové sloupce
 
 ### Sdílená metadata — `src/lib/settings-meta.ts`
 
-- [ ] Rozšířit `SettingsValues` o `telemetryEnabled: boolean`, `recordContent: boolean`
-- [ ] Přidat `ToggleField` typ + `TELEMETRY_FIELDS` (paralelně k `SETTINGS_FIELDS`, beze změny stávajících sliderů); pole nese `label`, `description`, `default`, volitelný `warning`
-- [ ] `parseSettingsInput` — doplnit smyčku přes `TELEMETRY_FIELDS` s `parseBool` helperem
-- [ ] `DEFAULT_SETTINGS` — `telemetryEnabled: true`, `recordContent: false`
+- [x] Rozšířit `SettingsValues` o `telemetryEnabled: boolean`, `recordContent: boolean`
+- [x] Přidat `ToggleField` typ + `TELEMETRY_FIELDS` (paralelně k `SETTINGS_FIELDS`, beze změny stávajících sliderů); pole nese `label`, `description`, `default`, volitelný `warning`. Přidány typy `NumericSettingKey`/`ToggleSettingKey`.
+- [x] `parseSettingsInput` — doplnit smyčku přes `TELEMETRY_FIELDS` s `parseBool` helperem
+- [x] `DEFAULT_SETTINGS` — `telemetryEnabled: true`, `recordContent: false`
 
 ### Server — `src/lib/settings.ts`
 
-- [ ] `getSettings()` — select + mapování nových sloupců; po načtení `setTelemetryExport(telemetryEnabled)`
-- [ ] `saveSettings()` — uložit nové sloupce (z `TELEMETRY_FIELDS`); po uložení `setTelemetryExport(telemetryEnabled)`
-- [ ] `configFallback()` — doplnit oba booleany
+- [x] `getSettings()` — select + mapování nových sloupců; po načtení `setTelemetryExport(telemetryEnabled)`
+- [x] `saveSettings()` — uložit nové sloupce (z `TELEMETRY_FIELDS`); po uložení `setTelemetryExport(telemetryEnabled)`
+- [x] `configFallback()` — doplnit oba booleany
 
 ### Telemetry runtime flag — `src/lib/telemetry.ts`
 
-- [ ] Modul-level `let exportEnabled = true` + `setTelemetryExport(enabled)`
-- [ ] `shouldExportSpan` rozšířit: `({ otelSpan }) => exportEnabled && otelSpan.instrumentationScope.name !== "next.js"`
+- [x] Modul-level `let exportEnabled = true` + `setTelemetryExport(enabled)`
+- [x] `shouldExportSpan` rozšířit: `({ otelSpan }) => exportEnabled && otelSpan.instrumentationScope.name !== "next.js"`
 
 ### Chat route — `src/app/api/chat/route.ts`
 
-- [ ] V obou `experimental_telemetry`: `isEnabled: settings.telemetryEnabled`, `recordInputs/recordOutputs: settings.recordContent`
+- [x] V obou `experimental_telemetry`: `isEnabled: settings.telemetryEnabled`, `recordInputs/recordOutputs: settings.recordContent`
 
 ### UI — Switch komponenta + parametry
 
-- [ ] Nová `src/components/ui/switch.tsx` — stejný vzor jako `slider.tsx`, nad Base UI `@base-ui/react/switch` (Root + Thumb), korálový akcent `data-[checked]:bg-primary`
-- [ ] `parameters/client.tsx` — druhá skupina „Telemetrie" mapující `TELEMETRY_FIELDS` na karty s přepínačem (u `recordContent` žlutý varovný pruh); boolean update handler; `handleReset` využije rozšířený `DEFAULT_SETTINGS`
-- [ ] `parameters/page.tsx` — beze změny (`initial` z `getSettings` ponese nové klíče)
+- [x] Nová `src/components/ui/switch.tsx` — stejný vzor jako `slider.tsx`, nad Base UI `@base-ui/react/switch` (Root + Thumb), korálový akcent `data-[checked]:bg-primary`
+- [x] `parameters/client.tsx` — druhá skupina „Telemetrie" mapující `TELEMETRY_FIELDS` na karty s přepínačem (u `recordContent` žlutý varovný pruh); boolean update handler; `handleReset` využije rozšířený `DEFAULT_SETTINGS`
+- [x] `parameters/page.tsx` — beze změny (`initial` z `getSettings` ponese nové klíče)
 
 ### Dokumentace
 
-- [ ] `CLAUDE.md` — sekce „Observabilita" + „Runtime parametry RAG", datový model `app_settings` (+ 2 sloupce), migrace `006`
-- [ ] `docs/IMPLEMENTATION_PLAN.md` — zaškrtnutí kroků, seznam migrací (+ `006`)
+- [x] `CLAUDE.md` — sekce „Observabilita" + „Runtime parametry RAG", datový model `app_settings` (+ 2 sloupce), migrace `006`
+- [x] `docs/IMPLEMENTATION_PLAN.md` — zaškrtnutí kroků, seznam migrací (+ `006`)
 
 ### E2E ověření
 
-- [ ] `npm run lint` + `npm run build` — bez chyb
-- [ ] Restart dev serveru (načtení `telemetry.ts`)
-- [ ] #2 — zapnout „Zaznamenávat obsah" → Uložit → chat dotaz → v Langfuse `Input`/`Output` obsahují text
-- [ ] #1 — vypnout „Telemetrie zapnutá" → Uložit → chat dotaz → v Langfuse nepřibude trace; zapnout zpět → traces se obnoví
-- [ ] Persistence (reload drží stav z DB) a „Obnovit výchozí" (telemetrie zap., obsah vyp.)
+- [x] `npm run lint` + `npm run build` — bez chyb
+- [x] Restart dev serveru (načtení `telemetry.ts`) — OTel provider zaregistrován, chat OK (getSettings na fallbacku bez migrace)
+- [ ] #2 — zapnout „Zaznamenávat obsah" → Uložit → chat dotaz → v Langfuse `Input`/`Output` obsahují text (čeká na migraci)
+- [ ] #1 — vypnout „Telemetrie zapnutá" → Uložit → chat dotaz → v Langfuse nepřibude trace; zapnout zpět → traces se obnoví (čeká na migraci)
+- [ ] Persistence (reload drží stav z DB) a „Obnovit výchozí" (telemetrie zap., obsah vyp.) (čeká na migraci)
 
 > **Omezení:** `document.process`/`document.upload` nevolají `getSettings()`, takže master flag tam má hodnotu z posledního chat/retrieval-test requestu nebo z posledního uložení (po `saveSettings()` okamžitě aktuální) — pro prototyp dostačující.
 

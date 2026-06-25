@@ -14,6 +14,17 @@ import { LangfuseSpanProcessor } from "@langfuse/otel";
 export const langfuseEnabled =
   !!process.env.LANGFUSE_PUBLIC_KEY && !!process.env.LANGFUSE_SECRET_KEY;
 
+// Runtime master vypínač telemetrie (Fáze 11). Čte ho shouldExportSpan při exportu
+// každého spanu — spany se vždy vytvoří (levné), ale když je false, neexportují se do
+// Langfuse. Hodnotu obnovuje settings.ts ze sloupce app_settings.telemetry_enabled
+// (v getSettings() per request a okamžitě v saveSettings()).
+let exportEnabled = true;
+
+/** Zapne/vypne export traces do Langfuse za běhu (bez restartu). Volá settings.ts. */
+export function setTelemetryExport(enabled: boolean): void {
+  exportEnabled = enabled;
+}
+
 /**
  * Sdílený singleton span processoru — jediný zdroj pravdy. Drží se zde, aby na tutéž
  * instanci dosáhl `instrumentation.ts` (registrace provideru) i `flushTelemetry()`
@@ -25,7 +36,7 @@ export const langfuseSpanProcessor = langfuseEnabled
       // instrumentorů — naše vlastní 'kecalo' spany by zahodil. Propustíme proto vše
       // kromě interního šumu Next.js: projdou naše spany i LLM (gen_ai) spany z AI SDK.
       shouldExportSpan: ({ otelSpan }) =>
-        otelSpan.instrumentationScope.name !== "next.js",
+        exportEnabled && otelSpan.instrumentationScope.name !== "next.js",
     })
   : undefined;
 
