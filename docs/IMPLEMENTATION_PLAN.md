@@ -463,7 +463,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 - [x] Nová `src/components/ui/switch.tsx` — stejný vzor jako `slider.tsx`, nad Base UI `@base-ui/react/switch` (Root + Thumb), korálový akcent `data-[checked]:bg-primary`
 - [x] `parameters/client.tsx` — druhá skupina „Telemetrie" mapující `TELEMETRY_FIELDS` na karty s přepínačem (u `recordContent` žlutý varovný pruh); boolean update handler; `handleReset` využije rozšířený `DEFAULT_SETTINGS`
-- [x] Provázání přepínačů (`ToggleField.dependsOn`): `recordContent` závisí na `telemetryEnabled` — když je telemetrie vypnutá, přepínač se zašedne, tváří se vypnutý a nejde měnit; uložená hodnota se zachová a po zapnutí telemetrie se obnoví
+- [x] Provázání přepínačů (`ToggleField.dependsOn`): `recordContent` závisí na `telemetryEnabled` — když je telemetrie vypnutá, přepínač se jen zašedne a nejde měnit (hodnotu nemění, zobrazuje skutečnou uloženou hodnotu)
 - [x] `parameters/page.tsx` — beze změny (`initial` z `getSettings` ponese nové klíče)
 
 ### Dokumentace

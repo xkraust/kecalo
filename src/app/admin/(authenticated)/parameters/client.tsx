@@ -121,11 +121,11 @@ export function ParametersClient({ initial }: Props) {
         </div>
 
         {TELEMETRY_FIELDS.map((field) => {
-          // Závislé pole (např. záznam obsahu) zašedne a tváří se vypnuté, když je
-          // jeho závislost (telemetrie) vypnutá. Uložená hodnota zůstává — po
-          // opětovném zapnutí závislosti se přepínač vrátí do předchozího stavu.
+          // Závislé pole (např. záznam obsahu) se jen zašedne a znemožní změnu, když
+          // je jeho závislost (telemetrie) vypnutá. Hodnota se nemění — přepínač
+          // zobrazuje skutečnou uloženou hodnotu, jen je disabled.
           const gatedOff = field.dependsOn ? !values[field.dependsOn] : false;
-          const checked = values[field.key] && !gatedOff;
+          const checked = values[field.key];
           return (
             <div
               key={field.key}

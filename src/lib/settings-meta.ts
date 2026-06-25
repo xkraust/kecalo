@@ -40,9 +40,9 @@ export interface ToggleField {
   /** Volitelná varovná hláška (např. soukromí u záznamu obsahu). */
   warning?: string;
   /**
-   * Pole dává smysl jen když je zapnutý tento jiný přepínač. UI ho jinak zašedne,
-   * zobrazí jako vypnuté a znemožní změnu (uložená hodnota se ale zachová a po
-   * opětovném zapnutí závislosti se obnoví).
+   * Pole dává smysl jen když je zapnutý tento jiný přepínač. UI ho jinak zašedne
+   * a znemožní změnu — hodnotu ale nemění (přepínač zobrazuje skutečnou uloženou
+   * hodnotu, jen je disabled).
    */
   dependsOn?: ToggleSettingKey;
 }
