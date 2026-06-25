@@ -318,7 +318,7 @@ Tento modul je **jediný zdroj pravdy** pro OTel: vytváří a drží sdílenou 
 - **Next.js interní spany** filtrovat přes `shouldExportSpan`, jinak šum + zbytečná spotřeba kvóty
 - **Soukromí** — AI SDK `recordInputs/recordOutputs` jsou defaultně zapnuté; pro prototyp vypnuté (krok 9.4), jinak by do Langfuse šel plný obsah dotazů i dokumentů
 - **Voyage AI náklady** se nepočítají automaticky — nutné přidat custom model v Langfuse dashboardu (a posílat `embed.total_tokens`, krok 9.5)
-- **Vercel Hobby plán** nemusí podporovat OTel export v produkci
+- **Vercel serverless** — default `exportMode: "batched"` ztrácí pozdní spany (`chat-pipeline` + LLM končí v `onFinish`, funkce zmrzne dřív, než se batch odešle → useknutý trace na samotný `retrieval`). Řešení: `exportMode: "immediate"` na Vercelu (`process.env.VERCEL`). Navíc `LANGFUSE_*` musí být v **Project** env proměnných (ne jen Shared/team) + redeploy.
 
 ---
 
@@ -329,6 +329,6 @@ Tento modul je **jediný zdroj pravdy** pro OTel: vytváří a drží sdílenou 
 - Langfuse evaluace — automatické skórování odpovědí (relevance, faithfulness)
 - Session tracking — sdružení více dotazů do jedné konverzace přes `sessionId`
 - User ID propagace — identifikace uživatelů v traces
-- Logování obsahu promptů/odpovědí (`recordInputs/recordOutputs`) s ošetřením GDPR/retence — teď vypnuté kvůli soukromí
+- Logování obsahu promptů/odpovědí (`recordInputs/recordOutputs`) — ve Fázi 11 přidán runtime přepínač v `/admin/parameters` (default vypnuto); zbývá ošetření GDPR/retence pro produkci
 - Nákladové reporty — Voyage AI custom model definition v Langfuse pro přesné kalkulace
 - Dashboard metriky z Langfuse API (průměrná latence, fallback rate, token spotřeba)

@@ -453,6 +453,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 - [x] Modul-level `let exportEnabled = true` + `setTelemetryExport(enabled)`
 - [x] `shouldExportSpan` rozšířit: `({ otelSpan }) => exportEnabled && otelSpan.instrumentationScope.name !== "next.js"`
+- [x] `exportMode: process.env.VERCEL ? "immediate" : "batched"` — na Vercel serverless default `batched` ztrácel pozdní spany (`chat-pipeline` + LLM končí v `onFinish` po dostreamování, funkce zmrzne dřív, než se batch odešle → useknutý trace na samotný `retrieval`). `immediate` je odesílá hned, jak skončí. Lokálně `batched`.
 
 ### Chat route — `src/app/api/chat/route.ts`
 
@@ -472,12 +473,16 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 ### E2E ověření
 
 - [x] `npm run lint` + `npm run build` — bez chyb
-- [x] Restart dev serveru (načtení `telemetry.ts`) — OTel provider zaregistrován, chat OK (getSettings na fallbacku bez migrace)
-- [ ] #2 — zapnout „Zaznamenávat obsah" → Uložit → chat dotaz → v Langfuse `Input`/`Output` obsahují text (čeká na migraci)
-- [ ] #1 — vypnout „Telemetrie zapnutá" → Uložit → chat dotaz → v Langfuse nepřibude trace; zapnout zpět → traces se obnoví (čeká na migraci)
-- [ ] Persistence (reload drží stav z DB) a „Obnovit výchozí" (telemetrie zap., obsah vyp.) (čeká na migraci)
+- [x] Migrace `006` aplikována (`supabase db push`) — sloupce ověřeny přes REST
+- [x] Restart dev serveru — OTel provider zaregistrován, chat OK
+- [x] #2 — zapnout „Zaznamenávat obsah" → Uložit → chat dotaz → v Langfuse `Input`/`Output` obsahují text (ověřeno na nasazené app)
+- [x] Persistence — nastavení se čte z DB i v nasazené app (sdílí stejnou Supabase)
+- [x] Nasazení (Vercel) loguje kompletní traces — po opravě env proměnných (Shared → Project) + `exportMode: immediate`
+- [ ] #1 — vypnout „Telemetrie zapnutá" → Uložit → chat dotaz → v Langfuse nepřibude trace (volitelné — mechanismus implementován a ověřen build/runtime, izolovaný klik-test neproveden)
 
 > **Omezení:** `document.process`/`document.upload` nevolají `getSettings()`, takže master flag tam má hodnotu z posledního chat/retrieval-test requestu nebo z posledního uložení (po `saveSettings()` okamžitě aktuální) — pro prototyp dostačující.
+
+> **Nasazení (Vercel) — poznatky:** (1) `LANGFUSE_*` musí být v **Project** env proměnných (ne jen Shared/team — ty se k projektu nepřipojí automaticky) + redeploy. (2) Serverless vyžaduje `exportMode: "immediate"`, jinak se ztrácí pozdní spany.
 
 ---
 
