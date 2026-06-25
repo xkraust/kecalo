@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback, useState, useMemo } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import { Send, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MessageBubble } from "@/components/MessageBubble";
@@ -41,10 +41,10 @@ export default function ChatPage() {
   >({});
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const sessionId = useMemo(() => {
+  const [sessionId, setSessionId] = useState(() => {
     if (typeof window === "undefined") return "";
     return getSessionId();
-  }, []);
+  });
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -179,6 +179,9 @@ export default function ChatPage() {
     setMessages([]);
     setInput("");
     setFeedbackMap({});
+    const newId = crypto.randomUUID();
+    localStorage.setItem("kecalo_session_id", newId);
+    setSessionId(newId);
   }, []);
 
   return (

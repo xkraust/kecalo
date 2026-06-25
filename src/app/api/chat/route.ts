@@ -1,4 +1,8 @@
-import { anthropic } from "@ai-sdk/anthropic";
+import { createAnthropic } from "@ai-sdk/anthropic";
+
+const anthropic = createAnthropic({
+  baseURL: "https://api.anthropic.com/v1",
+});
 import { streamText } from "ai";
 import { NextResponse } from "next/server";
 import { getSettings } from "@/lib/settings";
