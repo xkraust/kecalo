@@ -1,6 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { retrieve } from "@/lib/rag/retrieve";
 import { getSettings } from "@/lib/settings";
+import { withSpan, flushTelemetry } from "@/lib/telemetry";
+
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -10,15 +13,25 @@ export async function POST(request: Request) {
 
   try {
     const settings = await getSettings();
-    const results = await retrieve(
-      body.query,
-      settings.topK,
-      settings.similarityThreshold
+    // vector-search span z retrieve() se vnoří automaticky pod retrieval-test.
+    const results = await withSpan(
+      "retrieval-test",
+      async (span) => {
+        const r = await retrieve(
+          body.query,
+          settings.topK,
+          settings.similarityThreshold
+        );
+        span.setAttribute("test.result_count", r.length);
+        return r;
+      },
+      { "test.query_length": String(body.query).length }
     );
     return NextResponse.json(results);
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Retrieval selhal";
+    const message = err instanceof Error ? err.message : "Retrieval selhal";
     return NextResponse.json({ error: message }, { status: 500 });
+  } finally {
+    after(() => flushTelemetry());
   }
 }

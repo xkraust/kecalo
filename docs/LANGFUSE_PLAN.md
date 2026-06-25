@@ -1,5 +1,8 @@
 # Fáze 9 — Langfuse: observabilita RAG pipeline (po kurzu)
 
+> **Stav implementace:** ✅ Kód, konfigurace, instalace balíčků a dokumentace hotové; `npm run lint` i `npm run build` procházejí; chat ověřen v runtime (graceful fallback bez registrovaného provideru). Balíčky: `@langfuse/otel@5.7.0`, `@opentelemetry/sdk-trace-node@2.8.0`, `@opentelemetry/api@1.9.1` (deduplikované).
+> **Zbývá (uživatel):** restartovat dev server, aby se načetl `src/instrumentation.ts` a provider se zaregistroval → poté ověřit traces v Langfuse dashboardu (kroky „Ověření" níže) a volitelně nadefinovat custom model `voyage-3.5` pro náklady.
+
 **Milník:** Každý chat dotaz, retrieval a indexace dokumentu generují trace v Langfuse dashboardu s vnořenou strukturou (retrieval → embedding → vector search → LLM generování). App funguje i bez Langfuse klíčů (graceful degradace).
 
 > **Pozn.:** Jde o základní prototypovou integraci přes OpenTelemetry — cíl je vidět traces, latence a token usage v Langfuse Cloud (free tier, 50k eventů/měsíc). Pokročilé funkce (user feedback, prompt management, evaluace) jsou odložené — viz „Produkční dluh" na konci.

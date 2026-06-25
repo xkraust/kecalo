@@ -350,9 +350,11 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ---
 
-## Fáze 9 — Langfuse: observabilita RAG pipeline (po kurzu)
+## Fáze 9 — Langfuse: observabilita RAG pipeline (po kurzu) ✅
 
 Podrobný plán viz [`docs/LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
+
+**Stav:** implementováno (lint, build OK; chat ověřen v runtime — graceful fallback). Instrumentace přes OpenTelemetry + `@langfuse/otel`: `src/instrumentation.ts` (registrace provideru), `src/lib/telemetry.ts` (singleton span processoru + `withSpan`/`getTracer`/`flushTelemetry`). Trasovány jsou chat (`chat-pipeline` → `retrieval` → `embed.query`/`vector-search` + LLM span z AI SDK), indexace (`document.process`), upload a retrieval-test. App běží i bez Langfuse klíčů (no-op). Export traces do Langfuse Cloud vyžaduje restart serveru (načtení `instrumentation.ts`).
 
 ---
 
@@ -502,6 +504,6 @@ kecalo/
 - RAG evaluace — golden dataset, evals pipeline
 - Verzování dokumentů a platnost podmínek v čase
 - Podpora DOCX / HTML / skenovaných PDF (OCR)
-- Monitoring nákladů a latence
+- Monitoring nákladů a latence — základ hotov ve Fázi 9 (Langfuse traces); zbývá custom Voyage model pro přesné náklady a dashboard metriky z Langfuse API
 - Eskalace na živého operátora
 - Dashboard — metriky využití (úroveň 2): logování dotazů → počet dotazů, míra fallbacku, prům. skóre podobnosti, latence; časové řady (zvážit `recharts`)

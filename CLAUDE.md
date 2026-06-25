@@ -8,7 +8,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0–7 hotovy. Fáze 8 (admin sekce **Parametry** — globální runtime parametry RAG) je hotová a ověřená (lint, build, E2E v prohlížeči, perzistence přes `/api/settings`); migrace `003_app_settings.sql` je aplikovaná na Supabase. Fáze 10 (zpětná vazba uživatelů — thumbs up/down) implementována (lint, build OK, E2E v prohlížeči); migrace `005_feedback.sql` čeká na `supabase db push`. Zbývá už jen ladění RAG na seed dokumentech (odloženo — uživatel nahraje dokumenty ručně přes admin UI). Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
+Fáze 0–7 hotovy. Fáze 8 (admin sekce **Parametry** — globální runtime parametry RAG) je hotová a ověřená (lint, build, E2E v prohlížeči, perzistence přes `/api/settings`); migrace `003_app_settings.sql` je aplikovaná na Supabase. Fáze 9 (Langfuse — observabilita přes OpenTelemetry) implementována (lint, build OK, chat ověřen v runtime); export traces do Langfuse Cloud vyžaduje restart serveru (načtení `instrumentation.ts`). Fáze 10 (zpětná vazba uživatelů — thumbs up/down) implementována (lint, build OK, E2E v prohlížeči); migrace `005_feedback.sql` čeká na `supabase db push`. Zbývá už jen ladění RAG na seed dokumentech (odloženo — uživatel nahraje dokumenty ručně přes admin UI). Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
 
@@ -100,6 +100,9 @@ npm i ai @ai-sdk/anthropic @supabase/supabase-js voyageai unpdf react-markdown
 | `TOP_K` | Výchozí počet výsledků z retrievalu (5) |
 | `SIMILARITY_THRESHOLD` | Výchozí práh kosinové podobnosti (0.35) |
 | `LLM_TEMPERATURE` | Výchozí teplota Claude (0.2) |
+| `LANGFUSE_SECRET_KEY` | Langfuse server klíč (volitelný — bez něj app funguje, jen se neloguje) |
+| `LANGFUSE_PUBLIC_KEY` | Langfuse veřejný klíč (volitelný) |
+| `LANGFUSE_BASE_URL` | URL Langfuse instance (default `https://cloud.langfuse.com`) |
 
 `TOP_K`, `SIMILARITY_THRESHOLD` a `LLM_TEMPERATURE` jsou jen **výchozí / fallback** hodnoty: runtime hodnoty se čtou z tabulky `app_settings` (editovatelné v `/admin/parameters`). Když tabulka chybí nebo je DB nedostupná, použijí se tyto env defaulty (viz `lib/settings.ts`).
 
@@ -131,6 +134,7 @@ POST   /api/auth/logout         → smazání session cookie
 ```
 src/
 ├── middleware.ts                     # ochrana /admin (kontrola session cookie)
+├── instrumentation.ts                # registrace OTel provideru + Langfuse processoru (Node.js runtime)
 ├── app/
 │   ├── page.tsx                      # Chat UI
 │   ├── admin/
@@ -163,6 +167,7 @@ src/
 │   └── ui/                           # shadcn/ui primitiva
 └── lib/
     ├── config.ts                     # konstanty z env, default hodnoty
+    ├── telemetry.ts                  # OTel: singleton span processoru + withSpan/getTracer/flushTelemetry
     ├── supabase.ts                   # Supabase client (service role)
     ├── auth.ts                       # podpis/ověření session cookie (HMAC)
     ├── settings.ts                   # server: getSettings/saveSettings (app_settings)
@@ -253,6 +258,18 @@ Tři parametry retrievalu/generování jsou laditelné za běhu bez redeploye:
 - **Napojení:** `chat/route.ts` i `retrieval-test/route.ts` volají `getSettings()` při každém requestu (záměrně bez cache → změny se projeví okamžitě) a předávají hodnoty do `retrieve()` / `streamText`.
 - **UI:** `/admin/parameters` (server `page.tsx` + klient `client.tsx`) se slidery (`components/ui/slider.tsx` nad Base UI), tlačítky **Uložit** a **Obnovit výchozí**.
 - **Pozor:** `POST /api/settings` (jako ostatní `/api/*`) není chráněna middlewarem — známé omezení prototypu (viz produkční dluh v plánu).
+
+## Observabilita (Langfuse)
+
+RAG pipeline je trasována přes OpenTelemetry s exportem do Langfuse Cloud. Podrobný plán a gotchas viz [`docs/LANGFUSE_PLAN.md`](docs/LANGFUSE_PLAN.md).
+
+- **`src/instrumentation.ts`** — Next.js hook `register()`: jednou při startu (Node.js runtime) zaregistruje `NodeTracerProvider` se sdíleným `LangfuseSpanProcessor`. Guard přes `globalThis` proti dvojí registraci (HMR). Bez Langfuse klíčů se neregistruje nic (warning + app běží dál).
+- **`src/lib/telemetry.ts`** — jediný zdroj pravdy pro OTel: singleton `langfuseSpanProcessor` (drží se zde, aby na něj dosáhl i flush), `getTracer()`, `withSpan(name, fn, attrs)` (přes **`startActiveSpan`** — nutné pro vnořování spanů a zařazení AI SDK LLM spanu) a `flushTelemetry()` (`forceFlush` pro `after()` callbacky). Bez klíčů jsou všechny helpery no-op.
+- **Span filtr:** `shouldExportSpan` propustí vše kromě interního šumu `next.js` — výchozí smart-filtr Langfuse by zahodil naše vlastní `kecalo` spany (nemají `gen_ai.` atributy).
+- **Instrumentované cesty:** chat (`chat-pipeline` → `retrieval` → `embed.query`/`vector-search`; LLM span automaticky z AI SDK přes `experimental_telemetry`), indexace (`document.process` → download/extract/chunk/embed-batch/insert-chunks), upload (`document.upload`), retrieval-test (`retrieval-test`).
+- **Streaming:** v `chat/route.ts` se rodičovský span ukončí až v `onFinish`/`onError` streamu (ne při návratu Response), aby latence zahrnula generování a LLM span se nestal osiřelým.
+- **Soukromí:** AI SDK `recordInputs/recordOutputs` jsou vypnuté — do Langfuse nejde obsah dotazů ani dokumentů, jen metadata (tokeny, latence, topK/threshold/temperature, počty chunků).
+- **Voyage náklady:** posíláme `embed.total_tokens`; pro přesnou kalkulaci nákladů je nutné v Langfuse dashboardu nadefinovat custom model `voyage-3.5`.
 
 ## Seed dokumenty
 

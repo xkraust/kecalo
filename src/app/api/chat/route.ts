@@ -4,9 +4,11 @@ const anthropic = createAnthropic({
   baseURL: "https://api.anthropic.com/v1",
 });
 import { streamText } from "ai";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { SpanStatusCode } from "@opentelemetry/api";
 import { getSettings } from "@/lib/settings";
 import { retrieve } from "@/lib/rag/retrieve";
+import { getTracer, withSpan, flushTelemetry } from "@/lib/telemetry";
 import {
   SYSTEM_PROMPT,
   FALLBACK_MESSAGE,
@@ -36,65 +38,147 @@ export async function POST(request: Request) {
 
   const settings = await getSettings();
 
-  let chunks;
-  try {
-    chunks = await retrieve(query, settings.topK, settings.similarityThreshold);
-  } catch (err) {
-    console.error("Retrieval selhal:", err);
-    return NextResponse.json(
-      {
-        error:
-          "Omlouváme se, služba je dočasně nedostupná. Zkuste to prosím za chvíli.",
-      },
-      { status: 503 }
-    );
-  }
+  // Rodičovský span držíme otevřený přes celý request. Kvůli streamování ho NEukončíme
+  // při návratu Response, ale až v onFinish/onError streamu — jinak by latence nezahrnula
+  // generování a LLM span od AI SDK by skončil až po rodiči (osiřelý span).
+  return getTracer().startActiveSpan("chat-pipeline", async (span) => {
+    span.setAttributes({
+      "chat.message_count": messages.length,
+      "chat.query_length": query.length,
+    });
 
-  if (chunks.length === 0) {
+    // Jednorázové ukončení spanu — onFinish a onError se navzájem vylučují, guard je
+    // pojistka proti dvojímu end().
+    let spanEnded = false;
+    const endSpan = (ok: boolean, err?: unknown) => {
+      if (spanEnded) return;
+      spanEnded = true;
+      if (err) span.recordException(err as Error);
+      span.setStatus({ code: ok ? SpanStatusCode.OK : SpanStatusCode.ERROR });
+      span.end();
+    };
+
+    let chunks;
+    try {
+      chunks = await withSpan("retrieval", async (rspan) => {
+        const result = await retrieve(
+          query,
+          settings.topK,
+          settings.similarityThreshold
+        );
+        const topSimilarity =
+          result.length > 0 ? Math.max(...result.map((c) => c.similarity)) : 0;
+        rspan.setAttributes({
+          "retrieval.chunk_count": result.length,
+          "retrieval.top_similarity": topSimilarity,
+          "retrieval.is_fallback": result.length === 0,
+        });
+        return result;
+      });
+    } catch (err) {
+      console.error("Retrieval selhal:", err);
+      endSpan(false, err);
+      return NextResponse.json(
+        {
+          error:
+            "Omlouváme se, služba je dočasně nedostupná. Zkuste to prosím za chvíli.",
+        },
+        { status: 503 }
+      );
+    }
+
+    if (chunks.length === 0) {
+      const result = streamText({
+        model: anthropic("claude-sonnet-4-6"),
+        messages: [{ role: "user" as const, content: query }],
+        system:
+          "Odpověz přesně touto zprávou, nic jiného nepřidávej: " +
+          FALLBACK_MESSAGE,
+        temperature: 0,
+        maxOutputTokens: 300,
+        experimental_telemetry: {
+          isEnabled: true,
+          functionId: "chat-fallback",
+          // Soukromí: do Langfuse neposíláme obsah dotazů ani odpovědí (krok 9.4).
+          recordInputs: false,
+          recordOutputs: false,
+          metadata: {
+            topK: settings.topK,
+            similarityThreshold: settings.similarityThreshold,
+            llmTemperature: 0,
+            chunkCount: 0,
+          },
+        },
+        onError({ error }) {
+          console.error("Claude stream (fallback) selhal:", error);
+          endSpan(false, error);
+        },
+        onFinish({ usage }) {
+          span.setAttributes({
+            "llm.input_tokens": usage?.inputTokens ?? 0,
+            "llm.output_tokens": usage?.outputTokens ?? 0,
+          });
+          endSpan(true);
+        },
+      });
+
+      after(() => flushTelemetry());
+
+      return result.toTextStreamResponse({
+        headers: { "X-Sources": encodeURIComponent(JSON.stringify([])) },
+      });
+    }
+
+    const contextBlock = buildContextBlock(chunks);
+    const systemWithContext = `${SYSTEM_PROMPT}\n\n<context>\n${contextBlock}\n</context>`;
+
+    const trimmedMessages = messages.slice(-MAX_HISTORY).map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
+
+    const sources = chunks.map((c) => ({
+      filename: c.filename,
+      page: c.page,
+      similarity: Math.round(c.similarity * 100) / 100,
+    }));
+
     const result = streamText({
       model: anthropic("claude-sonnet-4-6"),
-      messages: [{ role: "user" as const, content: query }],
-      system:
-        "Odpověz přesně touto zprávou, nic jiného nepřidávej: " +
-        FALLBACK_MESSAGE,
-      temperature: 0,
-      maxOutputTokens: 300,
+      system: systemWithContext,
+      messages: trimmedMessages,
+      temperature: settings.llmTemperature,
+      maxOutputTokens: 1500,
+      experimental_telemetry: {
+        isEnabled: true,
+        functionId: "chat-rag",
+        // Soukromí: do Langfuse neposíláme obsah dotazů ani odpovědí (krok 9.4).
+        recordInputs: false,
+        recordOutputs: false,
+        metadata: {
+          topK: settings.topK,
+          similarityThreshold: settings.similarityThreshold,
+          llmTemperature: settings.llmTemperature,
+          chunkCount: chunks.length,
+        },
+      },
       onError({ error }) {
-        console.error("Claude stream (fallback) selhal:", error);
+        console.error("Claude stream selhal:", error);
+        endSpan(false, error);
+      },
+      onFinish({ usage }) {
+        span.setAttributes({
+          "llm.input_tokens": usage?.inputTokens ?? 0,
+          "llm.output_tokens": usage?.outputTokens ?? 0,
+        });
+        endSpan(true);
       },
     });
 
+    after(() => flushTelemetry());
+
     return result.toTextStreamResponse({
-      headers: { "X-Sources": encodeURIComponent(JSON.stringify([])) },
+      headers: { "X-Sources": encodeURIComponent(JSON.stringify(sources)) },
     });
-  }
-
-  const contextBlock = buildContextBlock(chunks);
-  const systemWithContext = `${SYSTEM_PROMPT}\n\n<context>\n${contextBlock}\n</context>`;
-
-  const trimmedMessages = messages.slice(-MAX_HISTORY).map((m) => ({
-    role: m.role as "user" | "assistant",
-    content: m.content,
-  }));
-
-  const sources = chunks.map((c) => ({
-    filename: c.filename,
-    page: c.page,
-    similarity: Math.round(c.similarity * 100) / 100,
-  }));
-
-  const result = streamText({
-    model: anthropic("claude-sonnet-4-6"),
-    system: systemWithContext,
-    messages: trimmedMessages,
-    temperature: settings.llmTemperature,
-    maxOutputTokens: 1500,
-    onError({ error }) {
-      console.error("Claude stream selhal:", error);
-    },
-  });
-
-  return result.toTextStreamResponse({
-    headers: { "X-Sources": encodeURIComponent(JSON.stringify(sources)) },
   });
 }

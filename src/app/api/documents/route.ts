@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { processDocument } from "@/lib/rag/pipeline";
+import { withSpan, flushTelemetry } from "@/lib/telemetry";
 
 export const maxDuration = 60;
 
@@ -67,44 +68,72 @@ export async function POST(request: NextRequest) {
     .createBucket("documents", { public: false })
     .catch(() => {});
 
-  // Insert document record
-  const { data: doc, error: insertErr } = await supabase
-    .from("documents")
-    .insert({
-      filename: file.name,
-      mime_type: file.type || "application/octet-stream",
-      status: "uploaded",
-    })
-    .select()
-    .single();
+  type UploadOutcome =
+    | { ok: true; id: string; filename: string; status: string }
+    | { ok: false; status: number; error: string };
 
-  if (insertErr || !doc) {
+  const uploaded = await withSpan(
+    "document.upload",
+    async (span): Promise<UploadOutcome> => {
+      // Insert document record
+      const { data: doc, error: insertErr } = await supabase
+        .from("documents")
+        .insert({
+          filename: file.name,
+          mime_type: file.type || "application/octet-stream",
+          status: "uploaded",
+        })
+        .select()
+        .single();
+
+      if (insertErr || !doc) {
+        return {
+          ok: false,
+          status: 500,
+          error: insertErr?.message ?? "Chyba při ukládání",
+        };
+      }
+
+      span.setAttributes({
+        "document.id": doc.id,
+        "document.filename": doc.filename,
+      });
+
+      // Upload file to storage (use sanitized path — original name is in DB)
+      const buffer = new Uint8Array(await file.arrayBuffer());
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
+      const storagePath = `${doc.id}/file.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("documents")
+        .upload(storagePath, buffer, { contentType: file.type });
+
+      if (uploadErr) {
+        await supabase.from("documents").delete().eq("id", doc.id);
+        return {
+          ok: false,
+          status: 500,
+          error: `Upload selhal: ${uploadErr.message}`,
+        };
+      }
+
+      return { ok: true, id: doc.id, filename: doc.filename, status: doc.status };
+    }
+  );
+
+  // Flush proběhne po odeslání response (document.upload span + případný error span).
+  after(() => flushTelemetry());
+
+  if (!uploaded.ok) {
     return NextResponse.json(
-      { error: insertErr?.message ?? "Chyba při ukládání" },
-      { status: 500 }
+      { error: uploaded.error },
+      { status: uploaded.status }
     );
   }
 
-  // Upload file to storage (use sanitized path — original name is in DB)
-  const buffer = new Uint8Array(await file.arrayBuffer());
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
-  const storagePath = `${doc.id}/file.${ext}`;
-  const { error: uploadErr } = await supabase.storage
-    .from("documents")
-    .upload(storagePath, buffer, { contentType: file.type });
-
-  if (uploadErr) {
-    await supabase.from("documents").delete().eq("id", doc.id);
-    return NextResponse.json(
-      { error: `Upload selhal: ${uploadErr.message}` },
-      { status: 500 }
-    );
-  }
-
-  after(processDocument(doc.id));
+  after(processDocument(uploaded.id));
 
   return NextResponse.json(
-    { id: doc.id, filename: doc.filename, status: doc.status },
+    { id: uploaded.id, filename: uploaded.filename, status: uploaded.status },
     { status: 201 }
   );
 }
