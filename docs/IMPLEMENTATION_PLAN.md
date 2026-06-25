@@ -420,6 +420,67 @@ Podrobný plán viz [`docs/LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
 
 ---
 
+## Fáze 11 — Telemetrie: runtime přepínače observability (po kurzu)
+
+**Milník:** Na stránce `/admin/parameters` přibude druhá podsekce **„Telemetrie"** se dvěma přepínači (master vypínač telemetrie + zaznamenávání obsahu promptů/odpovědí), napojená na stávající `app_settings`. Změny se projeví okamžitě bez restartu/redeploye.
+
+> **Pozn.:** Dnes jsou `recordInputs`/`recordOutputs` v `chat/route.ts` natvrdo `false` (soukromí) — v Langfuse je `Input: null`. Tato fáze to zpřístupní jako runtime přepínač pro ladění RAG. Rozsah: #1 master vypínač + #2 obsah promptů (jeden společný přepínač pro vstupy i výstupy). Vzorkování dotazů odloženo.
+
+### Klíčové designové rozhodnutí — master vypínač přes `shouldExportSpan`
+
+Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i hluboké vlastní spany (`retrieval`, `embed.query`, `vector-search`, `document.process`), které `getSettings()` nevolají. Místo threadování flagu přes každý `withSpan` se využije proměnný modul-level flag v `telemetry.ts`, který čte `shouldExportSpan`: spany se vytvoří (levné), ale při vypnuté telemetrii se **neexportují**. Flag se obnoví v `getSettings()` (per request) a okamžitě v `saveSettings()`. Žádný cyklus importů (`settings.ts → telemetry.ts`; telemetry.ts neimportuje settings.ts).
+
+### DB — migrace `supabase/migrations/006_telemetry_settings.sql`
+
+- [ ] `ALTER TABLE app_settings ADD COLUMN telemetry_enabled boolean NOT NULL DEFAULT true, ADD COLUMN record_content boolean NOT NULL DEFAULT false;`
+- [ ] `supabase db push`
+- **Dílčí milník:** `app_settings` má nové sloupce
+
+### Sdílená metadata — `src/lib/settings-meta.ts`
+
+- [ ] Rozšířit `SettingsValues` o `telemetryEnabled: boolean`, `recordContent: boolean`
+- [ ] Přidat `ToggleField` typ + `TELEMETRY_FIELDS` (paralelně k `SETTINGS_FIELDS`, beze změny stávajících sliderů); pole nese `label`, `description`, `default`, volitelný `warning`
+- [ ] `parseSettingsInput` — doplnit smyčku přes `TELEMETRY_FIELDS` s `parseBool` helperem
+- [ ] `DEFAULT_SETTINGS` — `telemetryEnabled: true`, `recordContent: false`
+
+### Server — `src/lib/settings.ts`
+
+- [ ] `getSettings()` — select + mapování nových sloupců; po načtení `setTelemetryExport(telemetryEnabled)`
+- [ ] `saveSettings()` — uložit nové sloupce (z `TELEMETRY_FIELDS`); po uložení `setTelemetryExport(telemetryEnabled)`
+- [ ] `configFallback()` — doplnit oba booleany
+
+### Telemetry runtime flag — `src/lib/telemetry.ts`
+
+- [ ] Modul-level `let exportEnabled = true` + `setTelemetryExport(enabled)`
+- [ ] `shouldExportSpan` rozšířit: `({ otelSpan }) => exportEnabled && otelSpan.instrumentationScope.name !== "next.js"`
+
+### Chat route — `src/app/api/chat/route.ts`
+
+- [ ] V obou `experimental_telemetry`: `isEnabled: settings.telemetryEnabled`, `recordInputs/recordOutputs: settings.recordContent`
+
+### UI — Switch komponenta + parametry
+
+- [ ] Nová `src/components/ui/switch.tsx` — stejný vzor jako `slider.tsx`, nad Base UI `@base-ui/react/switch` (Root + Thumb), korálový akcent `data-[checked]:bg-primary`
+- [ ] `parameters/client.tsx` — druhá skupina „Telemetrie" mapující `TELEMETRY_FIELDS` na karty s přepínačem (u `recordContent` žlutý varovný pruh); boolean update handler; `handleReset` využije rozšířený `DEFAULT_SETTINGS`
+- [ ] `parameters/page.tsx` — beze změny (`initial` z `getSettings` ponese nové klíče)
+
+### Dokumentace
+
+- [ ] `CLAUDE.md` — sekce „Observabilita" + „Runtime parametry RAG", datový model `app_settings` (+ 2 sloupce), migrace `006`
+- [ ] `docs/IMPLEMENTATION_PLAN.md` — zaškrtnutí kroků, seznam migrací (+ `006`)
+
+### E2E ověření
+
+- [ ] `npm run lint` + `npm run build` — bez chyb
+- [ ] Restart dev serveru (načtení `telemetry.ts`)
+- [ ] #2 — zapnout „Zaznamenávat obsah" → Uložit → chat dotaz → v Langfuse `Input`/`Output` obsahují text
+- [ ] #1 — vypnout „Telemetrie zapnutá" → Uložit → chat dotaz → v Langfuse nepřibude trace; zapnout zpět → traces se obnoví
+- [ ] Persistence (reload drží stav z DB) a „Obnovit výchozí" (telemetrie zap., obsah vyp.)
+
+> **Omezení:** `document.process`/`document.upload` nevolají `getSettings()`, takže master flag tam má hodnotu z posledního chat/retrieval-test requestu nebo z posledního uložení (po `saveSettings()` okamžitě aktuální) — pro prototyp dostačující.
+
+---
+
 ## Přehled API rout
 
 | Metoda | Route | Účel |
@@ -488,7 +549,8 @@ kecalo/
 │       ├── 001_init.sql              # tabulky documents/chunks + HNSW index
 │       ├── 002_match_chunks.sql      # RPC match_chunks (retrieval)
 │       ├── 003_app_settings.sql      # app_settings (runtime parametry RAG)
-│       └── 005_feedback.sql          # feedback (zpětná vazba thumbs up/down)
+│       ├── 005_feedback.sql          # feedback (zpětná vazba thumbs up/down)
+│       └── 006_telemetry_settings.sql # app_settings += telemetry_enabled, record_content
 ├── .env.example
 └── README.md
 ```
