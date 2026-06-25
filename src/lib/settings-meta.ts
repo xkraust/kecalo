@@ -39,6 +39,12 @@ export interface ToggleField {
   default: boolean;
   /** Volitelná varovná hláška (např. soukromí u záznamu obsahu). */
   warning?: string;
+  /**
+   * Pole dává smysl jen když je zapnutý tento jiný přepínač. UI ho jinak zašedne,
+   * zobrazí jako vypnuté a znemožní změnu (uložená hodnota se ale zachová a po
+   * opětovném zapnutí závislosti se obnoví).
+   */
+  dependsOn?: ToggleSettingKey;
 }
 
 // Rozsahy musí odpovídat CHECK v supabase/migrations/003_app_settings.sql.
@@ -100,6 +106,7 @@ export const TELEMETRY_FIELDS: readonly ToggleField[] = [
     default: false,
     warning:
       "Obsahuje reálná data dokumentů i dotazy uživatelů — zapínat jen pro ladění.",
+    dependsOn: "telemetryEnabled",
   },
 ];
 

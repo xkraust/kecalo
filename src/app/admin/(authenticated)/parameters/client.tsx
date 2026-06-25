@@ -121,11 +121,17 @@ export function ParametersClient({ initial }: Props) {
         </div>
 
         {TELEMETRY_FIELDS.map((field) => {
-          const checked = values[field.key];
+          // Závislé pole (např. záznam obsahu) zašedne a tváří se vypnuté, když je
+          // jeho závislost (telemetrie) vypnutá. Uložená hodnota zůstává — po
+          // opětovném zapnutí závislosti se přepínač vrátí do předchozího stavu.
+          const gatedOff = field.dependsOn ? !values[field.dependsOn] : false;
+          const checked = values[field.key] && !gatedOff;
           return (
             <div
               key={field.key}
-              className="rounded-lg border border-border bg-card p-5"
+              className={`rounded-lg border border-border bg-card p-5 ${
+                gatedOff ? "opacity-60" : ""
+              }`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -136,14 +142,21 @@ export function ParametersClient({ initial }: Props) {
                 </div>
                 <Switch
                   checked={checked}
+                  disabled={gatedOff}
                   onCheckedChange={(value) => updateToggle(field.key, value)}
                 />
               </div>
 
-              {field.warning && (
-                <div className="mt-3 flex items-center gap-2 rounded-md bg-[#FAEEDA] px-2.5 py-1.5 text-xs text-[#854F0B]">
-                  <span>{field.warning}</span>
-                </div>
+              {gatedOff ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Vyžaduje zapnutou telemetrii.
+                </p>
+              ) : (
+                field.warning && (
+                  <div className="mt-3 flex items-center gap-2 rounded-md bg-[#FAEEDA] px-2.5 py-1.5 text-xs text-[#854F0B]">
+                    <span>{field.warning}</span>
+                  </div>
+                )
               )}
             </div>
           );
