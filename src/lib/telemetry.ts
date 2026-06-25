@@ -32,6 +32,11 @@ export function setTelemetryExport(enabled: boolean): void {
  */
 export const langfuseSpanProcessor = langfuseEnabled
   ? new LangfuseSpanProcessor({
+      // Na Vercel serverless exportujeme každý span hned, jak skončí ('immediate').
+      // Default 'batched' tam ztrácí pozdní spany (chat-pipeline a LLM span končí až
+      // v onFinish po dostreamování — funkce může zmrznout dřív, než se batch odešle).
+      // Lokálně/long-running necháme 'batched' (efektivnější).
+      exportMode: process.env.VERCEL ? "immediate" : "batched",
       // Výchozí smart-filtr Langfuse exportuje jen gen_ai spany a spany od známých LLM
       // instrumentorů — naše vlastní 'kecalo' spany by zahodil. Propustíme proto vše
       // kromě interního šumu Next.js: projdou naše spany i LLM (gen_ai) spany z AI SDK.
