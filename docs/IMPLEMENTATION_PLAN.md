@@ -403,7 +403,7 @@ Podrobný plán viz [`docs/LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
 ### Admin dashboard — `src/app/admin/(authenticated)/page.tsx`
 
 - [x] Nový dotaz: `supabase.from("feedback").select("rating")` → spočítat `up` / `down` / celkem
-- [x] Nová `StatCard` v gridu: „Zpětná vazba" s hodnotou např. „👍 12 / 👎 3" nebo poměrem „80 % pozitivní"
+- [x] Karta zpětné vazby v gridu — `components/FeedbackCard.tsx`: míra spokojenosti (% kladných) + zeleno-červený poměrový pruh + rozpad počtů (nahradilo emoji palce)
 - **Dílčí milník:** dashboard zobrazuje agregát feedbacku
 
 ### Dokumentace
@@ -415,7 +415,7 @@ Podrobný plán viz [`docs/LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
 
 - [x] `npm run lint` + `npm run build` — bez chyb
 - [x] Chat — klik na 👍 → tlačítko se zvýrazní, opakovaný klik nemá efekt, klik na 👎 přepne hlas
-- [ ] Admin dashboard — StatCard „Zpětná vazba" ukazuje správné počty
+- [ ] Admin dashboard — `FeedbackCard` ukazuje správnou míru spokojenosti + poměrový pruh
 - [ ] DB — `select * from feedback` potvrzuje záznamy s upsert (změna hlasu = update, ne duplikát)
 
 ---

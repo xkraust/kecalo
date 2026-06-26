@@ -164,6 +164,7 @@ src/
 │   ├── AdminSidebar.tsx              # navigace admin sekce
 │   ├── StatusBadge.tsx               # badge stavu dokumentu
 │   ├── StatCard.tsx                  # metrická karta dashboardu
+│   ├── FeedbackCard.tsx              # karta spokojenosti (% + poměrový pruh)
 │   ├── ChunksByDocChart.tsx          # graf chunků (CSS bary)
 │   └── ui/                           # shadcn/ui primitiva
 └── lib/

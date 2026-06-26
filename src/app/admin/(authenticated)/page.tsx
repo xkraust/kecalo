@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import type { DocumentRecord, DocumentStatus } from "@/lib/types";
 import { StatCard } from "@/components/StatCard";
+import { FeedbackCard } from "@/components/FeedbackCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ChunksByDocChart } from "@/components/ChunksByDocChart";
 
@@ -34,7 +35,6 @@ export default async function DashboardPage() {
     .select("rating");
   const fbUp = (feedbackRows ?? []).filter((r) => r.rating === "up").length;
   const fbDown = (feedbackRows ?? []).filter((r) => r.rating === "down").length;
-  const fbTotal = fbUp + fbDown;
 
   const statusCounts: Record<string, number> = {};
   for (const d of docs) {
@@ -72,20 +72,7 @@ export default async function DashboardPage() {
             </>
           }
         />
-        <StatCard
-          label="Zpětná vazba"
-          value={
-            fbTotal === 0 ? (
-              <span className="text-muted-foreground">—</span>
-            ) : (
-              <>
-                <span title="Pozitivní">{"👍"} {fbUp}</span>
-                <span className="text-[15px] text-muted-foreground mx-1">/</span>
-                <span title="Negativní">{"👎"} {fbDown}</span>
-              </>
-            )
-          }
-        />
+        <FeedbackCard up={fbUp} down={fbDown} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
