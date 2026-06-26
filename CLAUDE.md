@@ -123,6 +123,7 @@ POST   /api/documents           → upload → extrakce → chunking → embeddi
 GET    /api/documents           → seznam dokumentů se stavem
 DELETE /api/documents/[id]      → smazání dokumentu, chunků (CASCADE), souboru v Storage
 POST   /api/retrieval-test      → vrátí top-k chunků se skóre (pouze admin)
+GET    /api/settings            → vrátí aktuální runtime parametry + přepínače telemetrie z DB
 POST   /api/settings            → uloží globální runtime parametry RAG do app_settings
 POST   /api/feedback            → uloží zpětnou vazbu (thumbs up/down) do tabulky feedback
 POST   /api/auth/login          → ověření username + password, nastavení session cookie
@@ -273,7 +274,7 @@ RAG pipeline je trasována přes OpenTelemetry s exportem do Langfuse Cloud. Pod
 - **Streaming:** v `chat/route.ts` se rodičovský span ukončí až v `onFinish`/`onError` streamu (ne při návratu Response), aby latence zahrnula generování a LLM span se nestal osiřelým.
 - **Runtime přepínače (Fáze 11):** podsekce **Telemetrie** v `/admin/parameters` (sloupce `app_settings.telemetry_enabled`, `record_content`):
   - **Telemetrie zapnutá** — master vypínač. Promítá se do proměnného flagu v `telemetry.ts` (`setTelemetryExport`), který čte `shouldExportSpan`: spany se vždy vytvoří, ale při vypnutí se neexportují. Flag obnovuje `getSettings()` (per request) a `saveSettings()` (okamžitě). V chat route navíc gateuje `experimental_telemetry.isEnabled`.
-  - **Zaznamenávat obsah promptů a odpovědí** — řídí `recordInputs`/`recordOutputs` v chat route (per request). Default vypnuto (soukromí); zapnout jen pro ladění. Závisí na master vypínači (`ToggleField.dependsOn`): když je telemetrie vypnutá, přepínač se v adminu jen zašedne a nejde měnit — hodnotu nemění (zobrazuje skutečnou uloženou hodnotu, jen je disabled).
+  - **Zaznamenávat obsah promptů a odpovědí** — řídí `recordInputs`/`recordOutputs` v chat route (per request). Default vypnuto (soukromí); zapnout jen pro ladění. Závisí na master vypínači (`ToggleField.dependsOn`): když je telemetrie vypnutá, přepínač se v adminu jen zašedne a nejde měnit — hodnotu nemění (zobrazuje skutečnou uloženou hodnotu, jen je disabled). Při opětovném zapnutí telemetrie se `recordContent` načte čerstvě z DB (`GET /api/settings`), aby se zahodila případná neuložená lokální změna schovaná pod disabled.
 - **Soukromí:** ve výchozím stavu do Langfuse nejde obsah dotazů ani dokumentů, jen metadata (tokeny, latence, topK/threshold/temperature, počty chunků). Obsah lze zapnout přepínačem výše.
 - **Voyage náklady:** posíláme `embed.total_tokens`; pro přesnou kalkulaci nákladů je nutné v Langfuse dashboardu nadefinovat custom model `voyage-3.5`.
 

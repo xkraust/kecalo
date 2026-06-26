@@ -29,9 +29,28 @@ export function ParametersClient({ initial }: Props) {
     setStatus("idle");
   }
 
-  function updateToggle(key: ToggleSettingKey, checked: boolean) {
+  async function updateToggle(key: ToggleSettingKey, checked: boolean) {
     setValues((prev) => ({ ...prev, [key]: checked }));
     setStatus("idle");
+
+    // Při zapnutí přepínače, na kterém závisí jiná pole, načti jejich aktuální hodnotu
+    // čerstvě z DB — zahodí neuložené lokální změny, které se mezitím "schovaly" pod
+    // disabled (přepínač byl zašedlý při vypnuté závislosti).
+    if (!checked) return;
+    const dependents = TELEMETRY_FIELDS.filter((f) => f.dependsOn === key);
+    if (dependents.length === 0) return;
+    try {
+      const res = await fetch("/api/settings");
+      if (!res.ok) return;
+      const fresh = (await res.json()) as SettingsValues;
+      setValues((prev) => {
+        const next = { ...prev };
+        for (const f of dependents) next[f.key] = fresh[f.key];
+        return next;
+      });
+    } catch {
+      // necháme současnou hodnotu (prototyp) — fetch nemusí projít
+    }
   }
 
   function handleReset() {

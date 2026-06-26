@@ -464,6 +464,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [x] Nová `src/components/ui/switch.tsx` — stejný vzor jako `slider.tsx`, nad Base UI `@base-ui/react/switch` (Root + Thumb), korálový akcent `data-[checked]:bg-primary`
 - [x] `parameters/client.tsx` — druhá skupina „Telemetrie" mapující `TELEMETRY_FIELDS` na karty s přepínačem (u `recordContent` žlutý varovný pruh); boolean update handler; `handleReset` využije rozšířený `DEFAULT_SETTINGS`
 - [x] Provázání přepínačů (`ToggleField.dependsOn`): `recordContent` závisí na `telemetryEnabled` — když je telemetrie vypnutá, přepínač se jen zašedne a nejde měnit (hodnotu nemění, zobrazuje skutečnou uloženou hodnotu)
+- [x] Při zapnutí telemetrie se `recordContent` načte čerstvě z DB (`GET /api/settings`, async `updateToggle`) — zahodí neuloženou lokální změnu schovanou pod disabled
 - [x] `parameters/page.tsx` — beze změny (`initial` z `getSettings` ponese nové klíče)
 
 ### Dokumentace
@@ -496,6 +497,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 | `GET` | `/api/documents` | Seznam dokumentů + stav |
 | `DELETE` | `/api/documents/:id` | Smazání dokumentu, chunků, souboru |
 | `POST` | `/api/retrieval-test` | Top-k chunků pro dotaz (admin) |
+| `GET` | `/api/settings` | Aktuální runtime parametry + přepínače telemetrie z DB |
 | `POST` | `/api/settings` | Uložení globálních runtime parametrů RAG (admin) |
 | `POST` | `/api/feedback` | Uložení zpětné vazby (thumbs up/down) |
 
