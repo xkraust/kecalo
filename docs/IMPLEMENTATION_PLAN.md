@@ -488,6 +488,99 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ---
 
+## Fáze 12 — Strukturní chunkování (po kurzu, schválený návrh — zatím neimplementováno)
+
+**Milník:** Indexace dělí dokumenty podle jejich struktury (část → článek → odstavec) místo pevného znakového okna. Chunky nesou kontextovou hlavičku (breadcrumb) a `section_path`; citace v chatu uvádějí i článek/odstavec. Zlepšení ověřeno porovnáním retrievalu před/po na `testovaci_otazky*.md`.
+
+> **Pozn.:** Motivace — pevné okno 3 600 znaků řeže napříč články (pasáž „Ekologický benefit" skončila uprostřed chunku začínajícího koncem jiného článku → similarity jen 0,363, těsně nad prahem 0,35) a do embeddingů prosakují opakovaná záhlaví stránek z PDF („…ky pro pojištění majetku a odpovědnosti občanů M-100/23"). Změna je čistě v indexační pipeline; chat a retrieval se nemění (kromě obohacených citací). Záměrně bez sémantického chunkování přes embeddingy (drahé, křehké) a bez LLM-generovaného kontextu per chunk (~1 volání Claude na chunk; lze doplnit později — hlavička z kroku 3 se jen obohatí).
+
+### Krok 1 — Čištění textu (`src/lib/rag/clean.ts`, nový krok mezi extract a chunk)
+
+- [ ] Odstranění opakujících se záhlaví/patiček: detekce řádků, které se (téměř) shodně opakují na začátku/konci většiny stránek — bez hardcoded vzorů, funguje pro libovolný dokument
+- [ ] Slepení řádků rozdělených sazbou PDF: spojit řádek s následujícím, pokud nekončí interpunkcí a další nezačíná strukturní značkou; spojit slova rozdělená spojovníkem na konci řádku
+- [ ] Zachovat mapování offsetů na stránky (kvůli citacím)
+- **Dílčí milník:** vyčištěný text seed PDF neobsahuje opakovaná záhlaví, věty nejsou rozsekané tvrdými konci řádků
+
+### Krok 2 — Parser struktury (segmentace)
+
+- [ ] Detekce hierarchie podle vzorů VPP dokumentů: `^ČÁST\b` / `^Oddíl` (část), `^Článek \d+` + řádek s názvem (článek), `^▶ \d+\)` (odstavec), krátký samostatný řádek jako podnadpis (např. „Ekologický benefit"), `^[a-z]\)` (písmeno — nedělit uvnitř)
+- [ ] Výstup: sekce (ucelené významové jednotky) s cestou v hierarchii a číslem stránky
+- [ ] Fallback pro nestrukturované dokumenty (`.md`, prostý text): dělení po odstavcích (prázdný řádek); až jako poslední záchrana dnešní posuvné okno
+- **Dílčí milník:** parser na VPP M-100/23 vrátí sekce odpovídající skutečným článkům/odstavcům
+
+### Krok 3 — Skladač chunků s kontextovou hlavičkou
+
+- [ ] Greedy balení celých sekcí do chunků s cílovou velikostí ~3 000–4 000 znaků: malé sousední odstavce téhož článku slučovat, dlouhý článek dělit na hranicích odstavců (nikdy uvnitř písmene)
+- [ ] Breadcrumb hlavička na začátku obsahu chunku, např. `[VPP M-100/23 › Pojištění majetku › Článek 29 Pojistné plnění › odst. 8 Ekologický benefit]` — embeduje se spolu s textem (levná verze contextual retrieval bez LLM)
+- [ ] Překryv zrušit nebo snížit na symbolický (kontext nesou hlavičky a celistvost sekcí)
+- [ ] Zachovat rozhraní `chunkText(pages, documentId): ChunkInput[]` + rozšířit `ChunkInput` o `section_path`
+- **Dílčí milník:** chunk s „Ekologický benefit" začíná hlavičkou a obsahuje celou pasáž od podnadpisu
+
+### Krok 4 — DB a citace
+
+- [ ] Migrace `007_chunk_sections.sql` — `ALTER TABLE chunks ADD COLUMN section_path text;` + `supabase db push`
+- [ ] `match_chunks` RPC vrací i `section_path` (úprava `002` funkce novou migrací)
+- [ ] `buildContextBlock` (`prompts.ts`) — `source` atribut doplnit o sekci → citace „(VPP M-100/23, čl. 29 odst. 8, strana 11)"
+- [ ] Test retrievalu — zobrazit `section_path` v hlavičce výsledku
+- **Dílčí milník:** odpověď chatu cituje článek/odstavec, ne jen stranu
+
+### Krok 5 — Reindexace a porovnání
+
+- [ ] Reindexovat seed dokumenty (smazat + znovu nahrát přes admin UI; žádná migrace dat)
+- [ ] Porovnat před/po na `testovaci_otazky*.md` přes test retrievalu: similarity skóre, počet vrácených chunků, čistota fallbacku u otázek mimo bázi (využít rozbalování plného obsahu chunku)
+- **Dílčí milník:** znatelný posun similarity nahoru u dotazů typu „ekologický benefit" (dnes 0,363)
+
+### Krok 6 — Dokumentace
+
+- [ ] `CLAUDE.md` — moduly `rag/` (+ `clean.ts`, nový popis `chunk.ts`), datový model (`chunks.section_path`), seznam migrací
+- [ ] `docs/IMPLEMENTATION_PLAN.md` — zaškrtnutí kroků, adresářová struktura, seznam migrací
+
+---
+
+## Fáze 13 — Admin: parametry chunkování (po kurzu, schválený návrh — zatím neimplementováno)
+
+**Milník:** V `/admin/parameters` přibude podsekce **„Chunkování"** (velikost chunku, breadcrumb hlavička, odstraňování záhlaví). Parametry se uplatní při indexaci; dokumenty zaindexované zastaralou konfigurací jdou přeindexovat tlačítkem v tabulce dokumentů — bez opětovného uploadu (originál je v Storage).
+
+> **Pozn.:** Navazuje na Fázi 12 — implementovat až po jejím ověření. Zásadní rozdíl proti stávajícím parametrům (Fáze 8): `top_k`/threshold/temperature působí **při dotazu** (změna okamžitá), chunkovací parametry působí **při indexaci** (změna se projeví až reindexací) — UI to musí jasně komunikovat. Záměrně se neparametrizují expertní vnitřnosti (min. délka chunku, regexy strukturních vzorů, heuristika zlomu); volba granularity segmentace (článek/odstavec) je volitelné rozšíření, jen pokud by ladění ukázalo potřebu.
+
+### DB — migrace `008_chunking_settings.sql`
+
+- [ ] `app_settings` += `chunk_target_size int` (CHECK 1500–6000, default 3500), `chunk_breadcrumb boolean DEFAULT true`, `chunk_strip_headers boolean DEFAULT true`
+- [ ] `documents` += `chunking_config jsonb` — otisk konfigurace použité při poslední indexaci (pro detekci zastaralé konfigurace)
+- [ ] `supabase db push`
+- **Dílčí milník:** nové sloupce existují, stávající řádky mají defaulty
+
+### Sdílená metadata + server — `settings-meta.ts`, `settings.ts`
+
+- [ ] `SettingsValues` += `chunkTargetSize: number`, `chunkBreadcrumb: boolean`, `chunkStripHeaders: boolean`
+- [ ] `CHUNKING_FIELDS` — slider (1500–6000, krok 100) + dva toggly (vzor `SETTINGS_FIELDS`/`TELEMETRY_FIELDS`); rozsahy jediný zdroj pravdy, CHECK v migraci druhá linie
+- [ ] `getSettings()`/`saveSettings()`/`configFallback()` — mapování nových sloupců
+
+### Napojení indexace — `pipeline.ts`
+
+- [ ] `processDocument()` volá `getSettings()` a předá parametry do `clean.ts` (strip headers) a `chunk.ts` (target size, breadcrumb)
+- [ ] Po úspěšné indexaci uložit otisk konfigurace do `documents.chunking_config`
+- **Dílčí milník:** změna parametru + reindexace prokazatelně mění výsledné chunky
+
+### Reindexace — API + tabulka dokumentů
+
+- [ ] `POST /api/documents/[id]/reprocess` — znovu spustí `processDocument` nad souborem ve Storage (stávající logika už maže staré chunky); stav `processing` → `ready`/`error`
+- [ ] `DocumentsTable` — tlačítko „Reindexovat" u každého `ready`/`error` dokumentu; indikace zastaralé konfigurace (porovnání `chunking_config` s aktuálním nastavením), volitelně akce „Reindexovat vše"
+- **Dílčí milník:** změna parametrů → tabulka označí dokumenty jako zastaralé → reindexace bez re-uploadu
+
+### UI — `parameters/client.tsx`
+
+- [ ] Třetí skupina „Chunkování" (vzor skupiny „Telemetrie"): slider velikosti + dva přepínače
+- [ ] Viditelné upozornění, že změny se projeví až reindexací dokumentů (odkaz na `/admin/documents`)
+
+### Dokumentace + E2E ověření
+
+- [ ] `CLAUDE.md` — runtime parametry (+ chunkování, rozdíl index-time vs query-time), API routy (+ reprocess), datový model, migrace `008`
+- [ ] `docs/IMPLEMENTATION_PLAN.md` — zaškrtnutí kroků, přehled rout, migrace
+- [ ] E2E: A/B experiment breadcrumb hlaviček — stejné dotazy z `testovaci_otazky*.md` proti indexu s hlavičkami a bez nich, porovnat similarity v testu retrievalu
+
+---
+
 ## Přehled API rout
 
 | Metoda | Route | Účel |
