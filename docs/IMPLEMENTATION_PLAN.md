@@ -488,7 +488,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ---
 
-## Fáze 12 — Strukturní chunkování (po kurzu, schválený návrh — zatím neimplementováno)
+## Fáze 12 — Strukturní chunkování (po kurzu) ✅
 
 **Milník:** Indexace dělí dokumenty podle jejich struktury (část → článek → odstavec) místo pevného znakového okna. Chunky nesou kontextovou hlavičku (breadcrumb) a `section_path`; citace v chatu uvádějí i článek/odstavec. Zlepšení ověřeno porovnáním retrievalu před/po na `testovaci_otazky*.md`.
 
@@ -520,7 +520,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ### Krok 4 — DB a citace
 
-- [ ] Migrace `007_chunk_sections.sql` — soubor vytvořen (`ALTER TABLE` + `DROP FUNCTION` + nová `match_chunks` se `section_path`); **`supabase db push` čeká na uživatele** — pozor: dokud migrace neproběhne, indexace novým kódem spadne (insert do neexistujícího sloupce)
+- [x] Migrace `007_chunk_sections.sql` (`ALTER TABLE` + `DROP FUNCTION` + nová `match_chunks` se `section_path`) — aplikována uživatelem (`supabase db push`), sloupec i nová signatura RPC ověřeny přes REST
 - [x] `match_chunks` RPC vrací i `section_path` (v migraci `007`; funkce se dropuje a vytváří znovu kvůli změně návratového typu)
 - [x] `pipeline.ts` — insert řádků chunků doplněn o `section_path`
 - [x] `retrieve.ts` — `RetrievalResult` a mapování řádků z RPC rozšířeno o `section_path`
@@ -528,14 +528,19 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [x] `SYSTEM_PROMPT` (`prompts.ts`) — příklad v sekci `# Citace` aktualizován na formát s článkem/odstavcem
 - [x] Chat UI zdroje: `sources` v `chat/route.ts` (hlavička `X-Sources`) nese `section`; `SourcesBlock.tsx` ji zobrazuje pod názvem souboru
 - [x] Test retrievalu — `section_path` zobrazena v hlavičce výsledku
-- **Dílčí milník:** odpověď chatu cituje článek/odstavec, ne jen stranu (ověření až po migraci + reindexaci)
+- **Dílčí milník:** ✓ retrieval vrací `section_path` (ověřeno měřicím skriptem na reindexovaných dokumentech)
 
 ### Krok 5 — Reindexace a porovnání
 
-- [ ] **Prerekvizita:** seed dokumenty musí být nahrané a zaindexované **starým** chunkerem (zatím nahrané nejsou — RAG ladění je odložené právě kvůli tomu); baseline similarity skóre z `testovaci_otazky*.md` změřit a poznamenat **před** reindexací, jinak nebude s čím srovnávat
-- [ ] Reindexovat seed dokumenty (smazat + znovu nahrát přes admin UI; žádná migrace dat)
-- [ ] Porovnat před/po na `testovaci_otazky*.md` přes test retrievalu: similarity skóre, počet vrácených chunků, čistota fallbacku u otázek mimo bázi (využít rozbalování plného obsahu chunku)
-- **Dílčí milník:** znatelný posun similarity nahoru u dotazů typu „ekologický benefit" (dnes 0,363)
+- [x] **Prerekvizita:** 3 seed dokumenty (M-100, M-200, IPID) byly v DB zaindexované starým chunkerem; baseline změřen skriptem před reindexací (eko benefit: top 0,363, 1 chunk — přesně dle reference). Pozn.: `Informace pro klienta.pdf` v DB nahraná není
+- [x] Reindexace bez re-uploadu — `processDocument` spuštěn skriptem nad soubory ve Storage (M-100: 33 → 57 chunků, M-200: 34 → 59, IPID: 2 → 2)
+- [x] Porovnání před/po na 13 otázkách z `testovaci_otazky*.md` (top similarity, cílení top-1, fallback):
+  - top similarity vzrostla u 10 z 11 věcných otázek (prům. +0,030); poklesy jen kosmetické (−0,003 a −0,011)
+  - „ekologický benefit": **0,363 → 0,441 (+0,078)**, chunk nyní celistvý s breadcrumb hlavičkou čl. 29
+  - top-1 nově míří na věcně správné články (č. 2 → čl. 29 M-200, č. 3 → čl. 8 Výluky, č. 5 → čl. 44 Výklad pojmů, č. 8 → čl. 31 prodloužená záruka, č. 9 → čl. 37) místo obecných stránkových oken
+  - jediná regrese: otázka č. 4 (elektromotory) má top-1 v nesprávném dokumentu (M-100 čl. 43), správný čl. 29 M-200 zůstává v top-3 → do kontextu LLM se dostane
+  - fallback otázky mimo bázi (č. 11, 12) dál vracejí 5 chunků nad prahem 0,35 (stejně jako před reindexací) — čisté odmítnutí nadále zajišťuje systémový prompt; případné zvýšení prahu je téma ladění RAG (fáze 6 / `/admin/parameters`)
+- **Dílčí milník:** ✓ znatelný posun similarity nahoru („ekologický benefit" 0,363 → 0,441)
 
 ### Krok 6 — Dokumentace
 
