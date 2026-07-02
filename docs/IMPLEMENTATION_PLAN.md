@@ -499,6 +499,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [ ] Odstranění opakujících se záhlaví/patiček: detekce řádků, které se (téměř) shodně opakují na začátku/konci většiny stránek — bez hardcoded vzorů, funguje pro libovolný dokument
 - [ ] Slepení řádků rozdělených sazbou PDF: spojit řádek s následujícím, pokud nekončí interpunkcí a další nezačíná strukturní značkou; spojit slova rozdělená spojovníkem na konci řádku
 - [ ] Zachovat mapování offsetů na stránky (kvůli citacím)
+- [ ] Telemetrie: nový span `document.clean` v `pipeline.ts` (konzistence s `document.extract` / `document.chunk`)
 - **Dílčí milník:** vyčištěný text seed PDF neobsahuje opakovaná záhlaví, věty nejsou rozsekané tvrdými konci řádků
 
 ### Krok 2 — Parser struktury (segmentace)
@@ -513,19 +514,25 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [ ] Greedy balení celých sekcí do chunků s cílovou velikostí ~3 000–4 000 znaků: malé sousední odstavce téhož článku slučovat, dlouhý článek dělit na hranicích odstavců (nikdy uvnitř písmene)
 - [ ] Breadcrumb hlavička na začátku obsahu chunku, např. `[VPP M-100/23 › Pojištění majetku › Článek 29 Pojistné plnění › odst. 8 Ekologický benefit]` — embeduje se spolu s textem (levná verze contextual retrieval bez LLM)
 - [ ] Překryv zrušit nebo snížit na symbolický (kontext nesou hlavičky a celistvost sekcí)
+- [ ] Chunk pokrývající sekci přes více stran dostane číslo strany, na které sekce začíná (stejné pravidlo jako dnes — strana začátku obsahu)
 - [ ] Zachovat rozhraní `chunkText(pages, documentId): ChunkInput[]` + rozšířit `ChunkInput` o `section_path`
 - **Dílčí milník:** chunk s „Ekologický benefit" začíná hlavičkou a obsahuje celou pasáž od podnadpisu
 
 ### Krok 4 — DB a citace
 
 - [ ] Migrace `007_chunk_sections.sql` — `ALTER TABLE chunks ADD COLUMN section_path text;` + `supabase db push`
-- [ ] `match_chunks` RPC vrací i `section_path` (úprava `002` funkce novou migrací)
+- [ ] `match_chunks` RPC vrací i `section_path` (nová migrace; **pozor:** Postgres neumí přes `CREATE OR REPLACE` změnit návratový typ — funkci nejdřív `DROP FUNCTION match_chunks(...)` a vytvořit znovu)
+- [ ] `pipeline.ts` — insert řádků chunků doplnit o `section_path` (řádky se skládají explicitně po sloupcích)
+- [ ] `retrieve.ts` — rozšířit `RetrievalResult` a mapování řádků z RPC o `section_path` (jinak hodnota nedoteče do promptu ani UI)
 - [ ] `buildContextBlock` (`prompts.ts`) — `source` atribut doplnit o sekci → citace „(VPP M-100/23, čl. 29 odst. 8, strana 11)"
+- [ ] `SYSTEM_PROMPT` (`prompts.ts`) — příklad v sekci `# Citace` aktualizovat na formát s článkem/odstavcem
+- [ ] Chat UI zdroje: mapování `sources` v `chat/route.ts` (hlavička `X-Sources`) + interface `Source` a render v `SourcesBlock.tsx` — sekce se zobrazí i v rozklikávacím bloku „Zdroje" pod odpovědí
 - [ ] Test retrievalu — zobrazit `section_path` v hlavičce výsledku
 - **Dílčí milník:** odpověď chatu cituje článek/odstavec, ne jen stranu
 
 ### Krok 5 — Reindexace a porovnání
 
+- [ ] **Prerekvizita:** seed dokumenty musí být nahrané a zaindexované **starým** chunkerem (zatím nahrané nejsou — RAG ladění je odložené právě kvůli tomu); baseline similarity skóre z `testovaci_otazky*.md` změřit a poznamenat **před** reindexací, jinak nebude s čím srovnávat
 - [ ] Reindexovat seed dokumenty (smazat + znovu nahrát přes admin UI; žádná migrace dat)
 - [ ] Porovnat před/po na `testovaci_otazky*.md` přes test retrievalu: similarity skóre, počet vrácených chunků, čistota fallbacku u otázek mimo bázi (využít rozbalování plného obsahu chunku)
 - **Dílčí milník:** znatelný posun similarity nahoru u dotazů typu „ekologický benefit" (dnes 0,363)
@@ -546,7 +553,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 ### DB — migrace `008_chunking_settings.sql`
 
 - [ ] `app_settings` += `chunk_target_size int` (CHECK 1500–6000, default 3500), `chunk_breadcrumb boolean DEFAULT true`, `chunk_strip_headers boolean DEFAULT true`
-- [ ] `documents` += `chunking_config jsonb` — otisk konfigurace použité při poslední indexaci (pro detekci zastaralé konfigurace)
+- [ ] `documents` += `chunking_config jsonb` — otisk konfigurace použité při poslední indexaci (pro detekci zastaralé konfigurace); dokumenty s `chunking_config IS NULL` (zaindexované před touto fází) se považují za zastaralé
 - [ ] `supabase db push`
 - **Dílčí milník:** nové sloupce existují, stávající řádky mají defaulty
 
@@ -560,12 +567,17 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 - [ ] `processDocument()` volá `getSettings()` a předá parametry do `clean.ts` (strip headers) a `chunk.ts` (target size, breadcrumb)
 - [ ] Po úspěšné indexaci uložit otisk konfigurace do `documents.chunking_config`
+- [ ] Vedlejší efekt: `getSettings()` v `processDocument` obnoví i runtime flag telemetrie → odstraní známé omezení Fáze 11 (`document.process` dosud nečetl master vypínač) — aktualizovat poznámku „Omezení" u Fáze 11
 - **Dílčí milník:** změna parametru + reindexace prokazatelně mění výsledné chunky
 
 ### Reindexace — API + tabulka dokumentů
 
 - [ ] `POST /api/documents/[id]/reprocess` — znovu spustí `processDocument` nad souborem ve Storage (stávající logika už maže staré chunky); stav `processing` → `ready`/`error`
-- [ ] `DocumentsTable` — tlačítko „Reindexovat" u každého `ready`/`error` dokumentu; indikace zastaralé konfigurace (porovnání `chunking_config` s aktuálním nastavením), volitelně akce „Reindexovat vše"
+- [ ] Route validuje stav dokumentu — reprocess odmítnout (409), pokud je dokument právě `uploaded`/`processing` (tlačítko to sice skryje, ale API kontroluje samo)
+- [ ] Stejný vzor jako upload route: `export const maxDuration = 60` + spuštění `processDocument` přes `after()` (jinak na Vercelu velké PDF vytimeoutuje)
+- [ ] `GET /api/documents` — select doplnit o `chunking_config`; rozšířit typ `DocumentRecord` v `lib/types.ts`
+- [ ] `documents/client.tsx` / `DocumentsTable` — načíst aktuální chunkovací nastavení (`GET /api/settings`) pro porovnání s `chunking_config` dokumentů
+- [ ] `DocumentsTable` — tlačítko „Reindexovat" u každého `ready`/`error` dokumentu; indikace zastaralé konfigurace (porovnání `chunking_config` s aktuálním nastavením, `NULL` = zastaralé), volitelně akce „Reindexovat vše"
 - **Dílčí milník:** změna parametrů → tabulka označí dokumenty jako zastaralé → reindexace bez re-uploadu
 
 ### UI — `parameters/client.tsx`
