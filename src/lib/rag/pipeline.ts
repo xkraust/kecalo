@@ -2,6 +2,7 @@ import { SpanStatusCode } from "@opentelemetry/api";
 import { supabase } from "@/lib/supabase";
 import { getTracer, withSpan, flushTelemetry } from "@/lib/telemetry";
 import { extractText } from "./extract";
+import { cleanPages } from "./clean";
 import { chunkText } from "./chunk";
 import { embedBatch } from "./embed";
 
@@ -48,8 +49,18 @@ export async function processDocument(documentId: string): Promise<void> {
         return result;
       });
 
+      const cleaned = await withSpan("document.clean", async (s) => {
+        const result = cleanPages(pages);
+        s.setAttributes({
+          "clean.chars_before": pages.reduce((a, p) => a + p.text.length, 0),
+          "clean.chars_after": result.reduce((a, p) => a + p.text.length, 0),
+        });
+        return result;
+      });
+
+      const docTitle = doc.filename.replace(/\.[^.]+$/, "");
       const chunks = await withSpan("document.chunk", async (s) => {
-        const c = chunkText(pages, documentId);
+        const c = chunkText(cleaned, documentId, docTitle);
         s.setAttribute("chunk.count", c.length);
         return c;
       });
@@ -70,6 +81,7 @@ export async function processDocument(documentId: string): Promise<void> {
         document_id: c.document_id,
         chunk_index: c.chunk_index,
         page: c.page,
+        section_path: c.section_path,
         content: c.content,
         embedding: JSON.stringify(embeddings[i]),
       }));

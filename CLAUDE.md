@@ -8,7 +8,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0–7 hotovy. Fáze 8 (admin sekce **Parametry** — globální runtime parametry RAG) je hotová a ověřená (lint, build, E2E v prohlížeči, perzistence přes `/api/settings`); migrace `003_app_settings.sql` je aplikovaná na Supabase. Fáze 9 (Langfuse — observabilita přes OpenTelemetry) implementována (lint, build OK, chat ověřen v runtime); export traces do Langfuse Cloud vyžaduje restart serveru (načtení `instrumentation.ts`). Fáze 10 (zpětná vazba uživatelů — thumbs up/down) implementována (lint, build OK, E2E v prohlížeči); migrace `005_feedback.sql` čeká na `supabase db push`. Fáze 11 (admin podsekce **Telemetrie** — runtime přepínače observability) hotová a ověřená end-to-end (lint, build, záznam obsahu i kompletní traces v Langfuse z nasazené app); migrace `006_telemetry_settings.sql` aplikovaná. Na Vercel serverless se používá `exportMode: "immediate"` (jinak se ztrácely pozdní spany). Zbývá ladění RAG na seed dokumentech (odloženo — uživatel nahraje dokumenty ručně přes admin UI). Fáze 12 (strukturní chunkování — dělení podle článků/odstavců, breadcrumb hlavičky, `section_path`) a fáze 13 (admin parametry chunkování + reindexace bez re-uploadu) jsou navržené a schválené, zatím **neimplementované**. Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
+Fáze 0–7 hotovy. Fáze 8 (admin sekce **Parametry** — globální runtime parametry RAG) je hotová a ověřená (lint, build, E2E v prohlížeči, perzistence přes `/api/settings`); migrace `003_app_settings.sql` je aplikovaná na Supabase. Fáze 9 (Langfuse — observabilita přes OpenTelemetry) implementována (lint, build OK, chat ověřen v runtime); export traces do Langfuse Cloud vyžaduje restart serveru (načtení `instrumentation.ts`). Fáze 10 (zpětná vazba uživatelů — thumbs up/down) implementována (lint, build OK, E2E v prohlížeči); migrace `005_feedback.sql` čeká na `supabase db push`. Fáze 11 (admin podsekce **Telemetrie** — runtime přepínače observability) hotová a ověřená end-to-end (lint, build, záznam obsahu i kompletní traces v Langfuse z nasazené app); migrace `006_telemetry_settings.sql` aplikovaná. Na Vercel serverless se používá `exportMode: "immediate"` (jinak se ztrácely pozdní spany). Zbývá ladění RAG na seed dokumentech (odloženo — uživatel nahraje dokumenty ručně přes admin UI). Fáze 12 (strukturní chunkování — dělení podle článků/odstavců, breadcrumb hlavičky, `section_path`) je **implementovaná** (lint, build OK; chunker ověřen na všech seed dokumentech — sekce odpovídají skutečným článkům, nestrukturované dokumenty padají do odstavcového fallbacku); migrace `007_chunk_sections.sql` **čeká na `supabase db push`** — dokud neproběhne, indexace novým kódem spadne (insert do neexistujícího sloupce `section_path`). Krok 5 fáze 12 (reindexace + porovnání před/po) čeká na nahrání seed dokumentů. Fáze 13 (admin parametry chunkování + reindexace bez re-uploadu) je navržená a schválená, zatím **neimplementovaná**. Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
 
@@ -73,7 +73,7 @@ supabase init                    # jednorázová inicializace Supabase projektu
 supabase db push                 # aplikuje migrace na Supabase (vyžaduje DATABASE_URL)
 ```
 
-Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `005_feedback.sql` (tabulka `feedback`) a `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`).
+Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) a `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu).
 
 ### Scaffold projektu (fáze 1, jednorázové)
 
@@ -178,7 +178,8 @@ src/
     ├── utils.ts                      # cn() helper (shadcn)
     └── rag/
         ├── extract.ts
-        ├── chunk.ts
+        ├── clean.ts                  # čištění textu (záhlaví/patičky, slepení řádků)
+        ├── chunk.ts                  # strukturní chunkování (parser + skladač)
         ├── embed.ts
         ├── retrieve.ts
         ├── prompts.ts                # systémový prompt, fallback, kontext blok
@@ -188,7 +189,9 @@ supabase/
     ├── 001_init.sql                  # tabulky documents/chunks + HNSW index
     ├── 002_match_chunks.sql          # RPC match_chunks (retrieval)
     ├── 003_app_settings.sql          # tabulka app_settings (runtime parametry RAG)
-    └── 005_feedback.sql              # tabulka feedback (zpětná vazba thumbs up/down)
+    ├── 005_feedback.sql              # tabulka feedback (zpětná vazba thumbs up/down)
+    ├── 006_telemetry_settings.sql    # app_settings += telemetry_enabled, record_content
+    └── 007_chunk_sections.sql        # chunks += section_path, match_chunks vrací sekci
 ```
 
 ### RAG — dvě oddělené pipeline
@@ -196,19 +199,20 @@ supabase/
 **Pozor na rozdělení odpovědností:** `src/lib/rag/pipeline.ts` NENÍ dotazovací (chat) pipeline — je to **indexační (ingestion) pipeline**. Chat pipeline žije v `src/app/api/chat/route.ts` ve spojení s `prompts.ts`.
 
 #### Indexace dokumentu — `pipeline.ts` (`processDocument`)
-Spouští se z `POST /api/documents` po uploadu. Stáhne soubor ze Storage → `extract.ts` → `chunk.ts` → `embed.ts` → smaže staré chunky dokumentu → vloží nové po dávkách 100 → nastaví `status` dokumentu (`processing` → `ready` / `error`). Chyby se zachytí a uloží do `documents.error_message`.
+Spouští se z `POST /api/documents` po uploadu. Stáhne soubor ze Storage → `extract.ts` → `clean.ts` → `chunk.ts` (s `docTitle` = název souboru bez přípony) → `embed.ts` → smaže staré chunky dokumentu → vloží nové po dávkách 100 → nastaví `status` dokumentu (`processing` → `ready` / `error`). Chyby se zachytí a uloží do `documents.error_message`.
 
 #### Dotaz / chat — `api/chat/route.ts` + `prompts.ts`
-`retrieve(query)` → pokud `chunks.length === 0` fallback (viz níže), jinak `buildContextBlock` vloží chunky do system promptu → `streamText` přes Claude. Metadata zdrojů (filename, page, zaokrouhlené `similarity`) jdou na klienta v hlavičce odpovědi `X-Sources` (URL-encoded JSON). Historie se ořezává na posledních 8 zpráv (`MAX_HISTORY`).
+`retrieve(query)` → pokud `chunks.length === 0` fallback (viz níže), jinak `buildContextBlock` vloží chunky do system promptu (atribut `source` = dokument, `section_path`, strana → citace typu „(VPP M-100/23, čl. 29 odst. 8, strana 11)"). Metadata zdrojů (filename, page, section, zaokrouhlené `similarity`) jdou na klienta v hlavičce odpovědi `X-Sources` (URL-encoded JSON). Historie se ořezává na posledních 8 zpráv (`MAX_HISTORY`).
 
 #### Moduly `src/lib/rag/`
 
 | Soubor | Odpovědnost |
 |---|---|
 | `extract.ts` | PDF → text po stránkách přes `unpdf`; prostý text pro `.txt`/`.md` |
-| `chunk.ts` | Rozdělení na chunky ~900 tokenů s overlapem 150 tokenů; metadata `document_id`, `page`, `chunk_index` |
+| `clean.ts` | Čištění mezi extrakcí a chunkováním: frekvenční odstranění opakovaných záhlaví/patiček stránek (normalizace čísel, práh 60 % stránek, min. 3 — bez hardcoded vzorů) + slepení řádků rozdělených sazbou PDF (interpunkce, zkratky, spojovníky). Čistí po stránkách, mapování na strany zůstává. Exportuje strukturní vzory řádků `STRUCT` a `isStructuralStart` (sdílí s parserem v `chunk.ts`) |
+| `chunk.ts` | Strukturní chunkování: parser hierarchie (část → článek → `▶` odstavec, krátké podnadpisy; písmena výčtů `a)` hranici netvoří; řádky přehledu článků se demotují na obsah) + greedy skladač celých sekcí do chunků ~3 500 znaků (strop 4 500, bez překryvu) s breadcrumb hlavičkou `[docTitle › část › článek › odst.]`, která se embeduje s textem. `ChunkInput` nese `section_path`. Nestrukturované dokumenty (< 30 % obsahu v sekcích) → dělení po odstavcích |
 | `embed.ts` | Embeddingy přes Voyage AI (`voyage-3.5`): `embedQuery` pro jeden dotaz, `embedBatch` pro indexaci. 429 kvůli chybějící platební metodě (limit free tieru) neopakuje a mapuje na srozumitelnou hlášku do `error_message` |
-| `retrieve.ts` | `embedQuery` → volá Postgres RPC `match_chunks` (viz `002_match_chunks.sql`) → vrátí chunky se skóre `similarity` a `filename` |
+| `retrieve.ts` | `embedQuery` → volá Postgres RPC `match_chunks` (viz `002_match_chunks.sql`, rozšířeno v `007`) → vrátí chunky se skóre `similarity`, `filename` a `section_path` |
 | `prompts.ts` | `SYSTEM_PROMPT`, `FALLBACK_MESSAGE`, `buildContextBlock` (sestaví `<document>` bloky pro kontext) |
 | `pipeline.ts` | **Indexace** dokumentu (`processDocument`) — viz výše |
 
@@ -225,8 +229,10 @@ documents (id uuid PK, filename text, mime_type text, status text,
            error_message text NULL, chunk_count int, created_at timestamptz)
 
 chunks (id uuid PK, document_id uuid FK→documents ON DELETE CASCADE,
-        chunk_index int, page int NULL, content text, embedding vector(1024))
--- HNSW index nad chunks.embedding
+        chunk_index int, page int NULL, section_path text NULL,
+        content text, embedding vector(1024))
+-- HNSW index nad chunks.embedding; section_path = cesta sekce v hierarchii dokumentu
+-- (např. „Část 2 – … › Článek 29 Pojistné plnění"), NULL u nestrukturovaných dokumentů
 
 app_settings (id smallint PK CHECK (id = 1), top_k int, similarity_threshold double precision,
               llm_temperature double precision,
@@ -271,7 +277,7 @@ RAG pipeline je trasována přes OpenTelemetry s exportem do Langfuse Cloud. Pod
 - **`src/lib/telemetry.ts`** — jediný zdroj pravdy pro OTel: singleton `langfuseSpanProcessor` (drží se zde, aby na něj dosáhl i flush), `getTracer()`, `withSpan(name, fn, attrs)` (přes **`startActiveSpan`** — nutné pro vnořování spanů a zařazení AI SDK LLM spanu) a `flushTelemetry()` (`forceFlush` pro `after()` callbacky). Bez klíčů jsou všechny helpery no-op.
 - **Span filtr:** `shouldExportSpan` propustí vše kromě interního šumu `next.js` — výchozí smart-filtr Langfuse by zahodil naše vlastní `kecalo` spany (nemají `gen_ai.` atributy).
 - **Serverless export:** na Vercelu (`process.env.VERCEL`) má `LangfuseSpanProcessor` `exportMode: "immediate"` — default `batched` ztrácel pozdní spany (`chat-pipeline` + LLM končí v `onFinish` po dostreamování, funkce zmrzne dřív, než se batch odešle). Lokálně/long-running zůstává `batched`. Pozn.: `LANGFUSE_*` musí být v **Project** env proměnných Vercelu (ne jen Shared) + redeploy.
-- **Instrumentované cesty:** chat (`chat-pipeline` → `retrieval` → `embed.query`/`vector-search`; LLM span automaticky z AI SDK přes `experimental_telemetry`), indexace (`document.process` → download/extract/chunk/embed-batch/insert-chunks), upload (`document.upload`), retrieval-test (`retrieval-test`).
+- **Instrumentované cesty:** chat (`chat-pipeline` → `retrieval` → `embed.query`/`vector-search`; LLM span automaticky z AI SDK přes `experimental_telemetry`), indexace (`document.process` → download/extract/clean/chunk/embed-batch/insert-chunks), upload (`document.upload`), retrieval-test (`retrieval-test`).
 - **Streaming:** v `chat/route.ts` se rodičovský span ukončí až v `onFinish`/`onError` streamu (ne při návratu Response), aby latence zahrnula generování a LLM span se nestal osiřelým.
 - **Runtime přepínače (Fáze 11):** podsekce **Telemetrie** v `/admin/parameters` (sloupce `app_settings.telemetry_enabled`, `record_content`):
   - **Telemetrie zapnutá** — master vypínač. Promítá se do proměnného flagu v `telemetry.ts` (`setTelemetryExport`), který čte `shouldExportSpan`: spany se vždy vytvoří, ale při vypnutí se neexportují. Flag obnovuje `getSettings()` (per request) a `saveSettings()` (okamžitě). V chat route navíc gateuje `experimental_telemetry.isEnabled`.

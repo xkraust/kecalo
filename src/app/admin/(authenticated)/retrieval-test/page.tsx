@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 interface Result {
   content: string;
   page: number | null;
+  section_path: string | null;
   document_id: string;
   filename: string;
   similarity: number;
@@ -105,10 +106,17 @@ export default function RetrievalTestPage() {
               className="rounded-lg border border-border bg-card p-4 space-y-2"
             >
               <div className="flex items-center justify-between gap-4">
-                <span className="text-xs text-muted-foreground truncate">
-                  {r.filename}
-                  {r.page ? `, str. ${r.page}` : ""}
-                </span>
+                <div className="min-w-0">
+                  <span className="block text-xs text-muted-foreground truncate">
+                    {r.filename}
+                    {r.page ? `, str. ${r.page}` : ""}
+                  </span>
+                  {r.section_path && (
+                    <span className="block text-xs font-medium truncate">
+                      {r.section_path}
+                    </span>
+                  )}
+                </div>
                 <span className="shrink-0 rounded-md bg-secondary px-2 py-0.5 text-xs font-medium tabular-nums">
                   {(r.similarity * 100).toFixed(1)}%
                 </span>

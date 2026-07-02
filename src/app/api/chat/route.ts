@@ -140,6 +140,7 @@ export async function POST(request: Request) {
     const sources = chunks.map((c) => ({
       filename: c.filename,
       page: c.page,
+      section: c.section_path,
       similarity: Math.round(c.similarity * 100) / 100,
     }));
 

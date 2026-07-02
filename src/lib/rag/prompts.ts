@@ -13,7 +13,7 @@ Pokud úryvky na dotaz neodpovídají nebo jen zčásti, neodpovídej zpaměti. 
 - Pokud se dokumenty rozcházejí, na rozpor upozorni a uveď obě varianty i s jejich zdrojem.
 
 # Citace
-Uveď, z jakého dokumentu (a strany) čerpáš, podle atributu "source" — např. „(VPP M-100/23, strana 5)". Když odpověď skládáš z více dokumentů, cituj každý.
+Uveď, z jakého dokumentu čerpáš, podle atributu "source" — a pokud source obsahuje i článek či odstavec, cituj je také, např. „(VPP M-100/23, čl. 29 odst. 8, strana 11)". Dlouhou cestu sekce zkrať na článek a odstavec. Když odpověď skládáš z více dokumentů, cituj každý.
 
 # Tón a forma
 - Odpovídej česky a klientovi vykej.
@@ -31,9 +31,13 @@ export const FALLBACK_MESSAGE =
 export function buildContextBlock(chunks: RetrievalResult[]): string {
   return chunks
     .map((c, i) => {
-      const source = c.page
-        ? `${c.filename}, strana ${c.page}`
-        : c.filename;
+      const source = [
+        c.filename,
+        c.section_path,
+        c.page ? `strana ${c.page}` : null,
+      ]
+        .filter(Boolean)
+        .join(", ");
       return `<document index="${i + 1}" source="${source}">\n${c.content}\n</document>`;
     })
     .join("\n\n");

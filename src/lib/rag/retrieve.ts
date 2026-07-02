@@ -6,6 +6,7 @@ import { embedQuery } from "./embed";
 export interface RetrievalResult {
   content: string;
   page: number | null;
+  section_path: string | null;
   document_id: string;
   filename: string;
   similarity: number;
@@ -48,12 +49,14 @@ export async function retrieve(
     (row: {
       content: string;
       page: number | null;
+      section_path: string | null;
       document_id: string;
       filename: string;
       similarity: number;
     }) => ({
       content: row.content,
       page: row.page,
+      section_path: row.section_path,
       document_id: row.document_id,
       filename: row.filename,
       similarity: row.similarity,

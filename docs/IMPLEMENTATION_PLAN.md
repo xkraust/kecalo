@@ -496,39 +496,39 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ### Krok 1 — Čištění textu (`src/lib/rag/clean.ts`, nový krok mezi extract a chunk)
 
-- [ ] Odstranění opakujících se záhlaví/patiček: detekce řádků, které se (téměř) shodně opakují na začátku/konci většiny stránek — bez hardcoded vzorů, funguje pro libovolný dokument
-- [ ] Slepení řádků rozdělených sazbou PDF: spojit řádek s následujícím, pokud nekončí interpunkcí a další nezačíná strukturní značkou; spojit slova rozdělená spojovníkem na konci řádku
-- [ ] Zachovat mapování offsetů na stránky (kvůli citacím)
-- [ ] Telemetrie: nový span `document.clean` v `pipeline.ts` (konzistence s `document.extract` / `document.chunk`)
-- **Dílčí milník:** vyčištěný text seed PDF neobsahuje opakovaná záhlaví, věty nejsou rozsekané tvrdými konci řádků
+- [x] Odstranění opakujících se záhlaví/patiček: detekce řádků, které se (téměř) shodně opakují na začátku/konci většiny stránek (normalizace čísel na `#`, práh 60 % stránek, min. 3) — bez hardcoded vzorů
+- [x] Slepení řádků rozdělených sazbou PDF: spojení podle interpunkce/strukturních značek + slova dělená spojovníkem; tečka za zkratkou (č., odst., např.…) větu nekončí
+- [x] Zachovat mapování offsetů na stránky — čistí se po stránkách (`PageContent[] → PageContent[]`)
+- [x] Telemetrie: nový span `document.clean` v `pipeline.ts` (atributy chars_before/chars_after)
+- **Dílčí milník:** ✓ ověřeno na M-100 (odstraněno 1 485 znaků záhlaví, věty vcelku) i M-200/IPID/Informace
 
 ### Krok 2 — Parser struktury (segmentace)
 
-- [ ] Detekce hierarchie podle vzorů VPP dokumentů: `^ČÁST\b` / `^Oddíl` (část), `^Článek \d+` + řádek s názvem (článek), `^▶ \d+\)` (odstavec), krátký samostatný řádek jako podnadpis (např. „Ekologický benefit"), `^[a-z]\)` (písmeno — nedělit uvnitř)
-- [ ] Výstup: sekce (ucelené významové jednotky) s cestou v hierarchii a číslem stránky
-- [ ] Fallback pro nestrukturované dokumenty (`.md`, prostý text): dělení po odstavcích (prázdný řádek); až jako poslední záchrana dnešní posuvné okno
-- **Dílčí milník:** parser na VPP M-100/23 vrátí sekce odpovídající skutečným článkům/odstavcům
+- [x] Detekce hierarchie podle vzorů VPP dokumentů: `^ČÁST\b` / `^Oddíl` (část), `^Článek \d+` + řádek s názvem (článek), `^▶ \d+\)` (odstavec), krátký samostatný řádek jako podnadpis (např. „Ekologický benefit"), `^[a-z]\)` (písmeno — nedělit uvnitř); řádky přehledu článků (TOC) se demotují na obsah (článek s inline názvem následovaný dalším nadpisem)
+- [x] Výstup: sekce (ucelené významové jednotky) s cestou v hierarchii a číslem stránky
+- [x] Fallback pro nestrukturované dokumenty (`.md`, prostý text; strukturní sekce < 30 % obsahu): dělení po odstavcích (prázdný řádek); poslední záchrana dělení na hranicích vět v `splitOversized`
+- **Dílčí milník:** ✓ parser na M-100 vrátil sekce odpovídající článkům 1–44 / částem 1–5 (M-200 obdobně; IPID a md korektně spadly do fallbacku)
 
 ### Krok 3 — Skladač chunků s kontextovou hlavičkou
 
-- [ ] Greedy balení celých sekcí do chunků s cílovou velikostí ~3 000–4 000 znaků: malé sousední odstavce téhož článku slučovat, dlouhý článek dělit na hranicích odstavců (nikdy uvnitř písmene)
-- [ ] Breadcrumb hlavička na začátku obsahu chunku, např. `[VPP M-100/23 › Pojištění majetku › Článek 29 Pojistné plnění › odst. 8 Ekologický benefit]` — embeduje se spolu s textem (levná verze contextual retrieval bez LLM)
-- [ ] Překryv zrušit nebo snížit na symbolický (kontext nesou hlavičky a celistvost sekcí)
-- [ ] Chunk pokrývající sekci přes více stran dostane číslo strany, na které sekce začíná (stejné pravidlo jako dnes — strana začátku obsahu)
-- [ ] Zachovat rozhraní `chunkText(pages, documentId): ChunkInput[]` + rozšířit `ChunkInput` o `section_path`
-- **Dílčí milník:** chunk s „Ekologický benefit" začíná hlavičkou a obsahuje celou pasáž od podnadpisu
+- [x] Greedy balení celých sekcí do chunků s cílovou velikostí 3 500 znaků (strop 4 500): sousední sekce téhož článku se slučují, delší sekce se dělí na hranicích výčtů (nikdy uvnitř písmene), poslední záchrana hranice vět
+- [x] Breadcrumb hlavička na začátku obsahu chunku (`[název dokumentu › část › článek › odst.]`; u sloučených sekcí společný prefix cest) — embeduje se spolu s textem
+- [x] Překryv zrušen (kontext nesou hlavičky a celistvost sekcí)
+- [x] Chunk pokrývající sekci přes více stran dostane číslo strany, na které sekce začíná
+- [x] Rozhraní `chunkText` zachováno s volitelným třetím parametrem `docTitle` (kořen breadcrumbu, název souboru bez přípony); `ChunkInput` rozšířen o `section_path`
+- **Dílčí milník:** ✓ chunk 35 M-100 začíná hlavičkou `[… › Článek 29 Pojistné plnění]` a obsahuje celou pasáž od podnadpisu „Ekologický benefit" vč. limitu 5 %
 
 ### Krok 4 — DB a citace
 
-- [ ] Migrace `007_chunk_sections.sql` — `ALTER TABLE chunks ADD COLUMN section_path text;` + `supabase db push`
-- [ ] `match_chunks` RPC vrací i `section_path` (nová migrace; **pozor:** Postgres neumí přes `CREATE OR REPLACE` změnit návratový typ — funkci nejdřív `DROP FUNCTION match_chunks(...)` a vytvořit znovu)
-- [ ] `pipeline.ts` — insert řádků chunků doplnit o `section_path` (řádky se skládají explicitně po sloupcích)
-- [ ] `retrieve.ts` — rozšířit `RetrievalResult` a mapování řádků z RPC o `section_path` (jinak hodnota nedoteče do promptu ani UI)
-- [ ] `buildContextBlock` (`prompts.ts`) — `source` atribut doplnit o sekci → citace „(VPP M-100/23, čl. 29 odst. 8, strana 11)"
-- [ ] `SYSTEM_PROMPT` (`prompts.ts`) — příklad v sekci `# Citace` aktualizovat na formát s článkem/odstavcem
-- [ ] Chat UI zdroje: mapování `sources` v `chat/route.ts` (hlavička `X-Sources`) + interface `Source` a render v `SourcesBlock.tsx` — sekce se zobrazí i v rozklikávacím bloku „Zdroje" pod odpovědí
-- [ ] Test retrievalu — zobrazit `section_path` v hlavičce výsledku
-- **Dílčí milník:** odpověď chatu cituje článek/odstavec, ne jen stranu
+- [ ] Migrace `007_chunk_sections.sql` — soubor vytvořen (`ALTER TABLE` + `DROP FUNCTION` + nová `match_chunks` se `section_path`); **`supabase db push` čeká na uživatele** — pozor: dokud migrace neproběhne, indexace novým kódem spadne (insert do neexistujícího sloupce)
+- [x] `match_chunks` RPC vrací i `section_path` (v migraci `007`; funkce se dropuje a vytváří znovu kvůli změně návratového typu)
+- [x] `pipeline.ts` — insert řádků chunků doplněn o `section_path`
+- [x] `retrieve.ts` — `RetrievalResult` a mapování řádků z RPC rozšířeno o `section_path`
+- [x] `buildContextBlock` (`prompts.ts`) — `source` atribut doplněn o sekci → citace „(VPP M-100/23, čl. 29 odst. 8, strana 11)"
+- [x] `SYSTEM_PROMPT` (`prompts.ts`) — příklad v sekci `# Citace` aktualizován na formát s článkem/odstavcem
+- [x] Chat UI zdroje: `sources` v `chat/route.ts` (hlavička `X-Sources`) nese `section`; `SourcesBlock.tsx` ji zobrazuje pod názvem souboru
+- [x] Test retrievalu — `section_path` zobrazena v hlavičce výsledku
+- **Dílčí milník:** odpověď chatu cituje článek/odstavec, ne jen stranu (ověření až po migraci + reindexaci)
 
 ### Krok 5 — Reindexace a porovnání
 
@@ -539,8 +539,8 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ### Krok 6 — Dokumentace
 
-- [ ] `CLAUDE.md` — moduly `rag/` (+ `clean.ts`, nový popis `chunk.ts`), datový model (`chunks.section_path`), seznam migrací
-- [ ] `docs/IMPLEMENTATION_PLAN.md` — zaškrtnutí kroků, adresářová struktura, seznam migrací
+- [x] `CLAUDE.md` — moduly `rag/` (+ `clean.ts`, nový popis `chunk.ts`), datový model (`chunks.section_path`), seznam migrací
+- [x] `docs/IMPLEMENTATION_PLAN.md` — zaškrtnutí kroků, adresářová struktura, seznam migrací
 
 ---
 
@@ -652,7 +652,8 @@ kecalo/
 │       ├── utils.ts
 │       └── rag/
 │           ├── extract.ts
-│           ├── chunk.ts
+│           ├── clean.ts              # čištění textu (záhlaví/patičky, slepení řádků)
+│           ├── chunk.ts              # strukturní chunkování (parser + skladač)
 │           ├── embed.ts
 │           ├── retrieve.ts
 │           ├── prompts.ts            # systémový prompt, fallback, kontext blok
@@ -663,7 +664,8 @@ kecalo/
 │       ├── 002_match_chunks.sql      # RPC match_chunks (retrieval)
 │       ├── 003_app_settings.sql      # app_settings (runtime parametry RAG)
 │       ├── 005_feedback.sql          # feedback (zpětná vazba thumbs up/down)
-│       └── 006_telemetry_settings.sql # app_settings += telemetry_enabled, record_content
+│       ├── 006_telemetry_settings.sql # app_settings += telemetry_enabled, record_content
+│       └── 007_chunk_sections.sql    # chunks += section_path, match_chunks vrací sekci
 ├── .env.example
 └── README.md
 ```
