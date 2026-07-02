@@ -18,6 +18,16 @@ export default function RetrievalTestPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  function toggleExpanded(index: number) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -26,6 +36,7 @@ export default function RetrievalTestPage() {
     setLoading(true);
     setError("");
     setSearched(true);
+    setExpanded(new Set());
 
     try {
       const res = await fetch("/api/retrieval-test", {
@@ -102,11 +113,26 @@ export default function RetrievalTestPage() {
                   {(r.similarity * 100).toFixed(1)}%
                 </span>
               </div>
-              <p className="text-sm leading-relaxed">
-                {r.content.length > 300
-                  ? r.content.slice(0, 300) + "…"
-                  : r.content}
+              <p
+                className={`text-sm leading-relaxed ${
+                  expanded.has(i) ? "whitespace-pre-wrap" : ""
+                }`}
+              >
+                {expanded.has(i) || r.content.length <= 300
+                  ? r.content
+                  : r.content.slice(0, 300) + "…"}
               </p>
+              {r.content.length > 300 && (
+                <button
+                  type="button"
+                  onClick={() => toggleExpanded(i)}
+                  className="cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors select-none"
+                >
+                  {expanded.has(i)
+                    ? "Skrýt celý obsah"
+                    : `Zobrazit celý obsah (${r.content.length} znaků)`}
+                </button>
+              )}
             </div>
           ))}
         </div>
