@@ -4,14 +4,16 @@ import { supabase } from "@/lib/supabase";
 import { config } from "@/lib/config";
 import { setTelemetryExport } from "@/lib/telemetry";
 import {
-  SETTINGS_FIELDS,
-  TELEMETRY_FIELDS,
+  ALL_NUMERIC_FIELDS,
+  ALL_TOGGLE_FIELDS,
+  DEFAULT_SETTINGS,
   parseSettingsInput,
   type SettingsValues,
 } from "@/lib/settings-meta";
 
 const SELECT_COLUMNS =
-  "top_k, similarity_threshold, llm_temperature, telemetry_enabled, record_content";
+  "top_k, similarity_threshold, llm_temperature, telemetry_enabled, record_content, " +
+  "chunk_target_size, chunk_breadcrumb, chunk_strip_headers";
 
 type SettingsRow = {
   top_k: number;
@@ -19,6 +21,9 @@ type SettingsRow = {
   llm_temperature: number;
   telemetry_enabled: boolean;
   record_content: boolean;
+  chunk_target_size: number;
+  chunk_breadcrumb: boolean;
+  chunk_strip_headers: boolean;
 };
 
 function fromRow(data: SettingsRow): SettingsValues {
@@ -28,16 +33,19 @@ function fromRow(data: SettingsRow): SettingsValues {
     llmTemperature: data.llm_temperature,
     telemetryEnabled: data.telemetry_enabled,
     recordContent: data.record_content,
+    chunkTargetSize: data.chunk_target_size,
+    chunkBreadcrumb: data.chunk_breadcrumb,
+    chunkStripHeaders: data.chunk_strip_headers,
   };
 }
 
 // Runtime fallback z env (config) — když tabulka app_settings chybí nebo DB selže.
+// Chunkovací parametry env nemají, berou se tovární defaulty.
 const configFallback = (): SettingsValues => ({
+  ...DEFAULT_SETTINGS,
   topK: config.topK,
   similarityThreshold: config.similarityThreshold,
   llmTemperature: config.llmTemperature,
-  telemetryEnabled: true,
-  recordContent: false,
 });
 
 export async function getSettings(): Promise<SettingsValues> {
@@ -63,8 +71,8 @@ export async function saveSettings(input: unknown): Promise<SettingsValues> {
   const values = parseSettingsInput(input);
 
   const row = Object.fromEntries([
-    ...SETTINGS_FIELDS.map((f) => [f.column, values[f.key]]),
-    ...TELEMETRY_FIELDS.map((f) => [f.column, values[f.key]]),
+    ...ALL_NUMERIC_FIELDS.map((f) => [f.column, values[f.key]]),
+    ...ALL_TOGGLE_FIELDS.map((f) => [f.column, values[f.key]]),
   ]);
 
   const { data, error } = await supabase

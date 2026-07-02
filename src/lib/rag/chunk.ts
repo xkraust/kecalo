@@ -6,10 +6,10 @@
 import type { PageContent } from "./extract";
 import { STRUCT, isStructuralStart } from "./clean";
 
-/** Cílová velikost chunku ve znacích (fáze 13 ji zpřístupní jako parametr). */
-const TARGET_CHUNK_SIZE = 3500;
-/** Tvrdý strop — delší sekce se dělí na hranicích výčtů/vět. */
-const MAX_CHUNK_SIZE = 4500;
+/** Výchozí cílová velikost chunku ve znacích (runtime hodnota z app_settings, fáze 13). */
+const DEFAULT_TARGET_SIZE = 3500;
+/** Poměr tvrdého stropu k cílové velikosti — delší sekce se dělí na hranicích výčtů/vět. */
+const MAX_SIZE_RATIO = 1.3;
 const MIN_CHUNK_LENGTH = 50;
 /** Maximální délka řádku, který může být názvem článku / podnadpisem. */
 const MAX_HEADING_LENGTH = 90;
@@ -193,7 +193,11 @@ function paragraphSections(lines: Line[]): Section[] {
  * Rozdělí předlouhou sekci na hranicích výčtů (nikdy uvnitř písmene),
  * jako poslední záchrana na hranicích vět.
  */
-function splitOversized(section: Section): Section[] {
+function splitOversized(
+  section: Section,
+  targetSize: number,
+  maxSize: number
+): Section[] {
   // skupiny řádků: nová začíná na strukturní značce (písmeno, odrážka, číslo)
   const groups: string[][] = [];
   for (const line of section.lines) {
@@ -205,16 +209,16 @@ function splitOversized(section: Section): Section[] {
   const units: string[] = [];
   for (const group of groups) {
     const text = group.join("\n");
-    if (text.length <= MAX_CHUNK_SIZE) {
+    if (text.length <= maxSize) {
       units.push(text);
       continue;
     }
     let rest = text;
-    while (rest.length > MAX_CHUNK_SIZE) {
-      let end = TARGET_CHUNK_SIZE;
+    while (rest.length > maxSize) {
+      let end = targetSize;
       const slice = rest.slice(0, end);
       const breakAt = Math.max(slice.lastIndexOf(". "), slice.lastIndexOf("\n"));
-      if (breakAt > TARGET_CHUNK_SIZE / 2) end = breakAt + 1;
+      if (breakAt > targetSize / 2) end = breakAt + 1;
       units.push(rest.slice(0, end).trim());
       rest = rest.slice(end).trim();
     }
@@ -233,7 +237,7 @@ function splitOversized(section: Section): Section[] {
     accLen = 0;
   };
   for (const unit of units) {
-    if (acc.length > 0 && accLen + unit.length > TARGET_CHUNK_SIZE) emit();
+    if (acc.length > 0 && accLen + unit.length > targetSize) emit();
     acc.push(unit);
     accLen += unit.length + 1;
   }
@@ -261,7 +265,10 @@ function commonPath(sections: Section[]): string[] {
 function packSections(
   sections: Section[],
   documentId: string,
-  docTitle: string | null
+  docTitle: string | null,
+  targetSize: number,
+  maxSize: number,
+  breadcrumb: boolean
 ): ChunkInput[] {
   const chunks: ChunkInput[] = [];
 
@@ -270,12 +277,14 @@ function packSections(
     const body = group.map((s) => s.lines.join("\n")).join("\n");
     if (body.trim().length < MIN_CHUNK_LENGTH) return;
     const path = commonPath(group);
-    const breadcrumb = [docTitle, ...path].filter(Boolean).join(" › ");
+    const header = breadcrumb
+      ? [docTitle, ...path].filter(Boolean).join(" › ")
+      : "";
     chunks.push({
       document_id: documentId,
       chunk_index: chunks.length,
       page: group[0].page,
-      content: breadcrumb ? `[${breadcrumb}]\n${body}` : body,
+      content: header ? `[${header}]\n${body}` : body,
       section_path: path.length > 0 ? path.join(" › ") : null,
     });
   };
@@ -289,18 +298,19 @@ function packSections(
     const len = sectionLength(section);
     if (
       group.length > 0 &&
-      (scopeOf(section) !== scopeOf(group[0]) ||
-        groupLen + len > TARGET_CHUNK_SIZE)
+      (scopeOf(section) !== scopeOf(group[0]) || groupLen + len > targetSize)
     ) {
       emit(group);
       group = [];
       groupLen = 0;
     }
-    if (len > MAX_CHUNK_SIZE) {
+    if (len > maxSize) {
       emit(group);
       group = [];
       groupLen = 0;
-      for (const part of splitOversized(section)) emit([part]);
+      for (const part of splitOversized(section, targetSize, maxSize)) {
+        emit([part]);
+      }
       continue;
     }
     group.push(section);
@@ -310,6 +320,13 @@ function packSections(
   return chunks;
 }
 
+export interface ChunkOptions {
+  /** Cílová velikost chunku ve znacích (runtime parametr, fáze 13). */
+  targetSize?: number;
+  /** Vkládat breadcrumb hlavičku na začátek obsahu chunku. */
+  breadcrumb?: boolean;
+}
+
 /**
  * Rozdělí vyčištěné stránky dokumentu na chunky podle struktury.
  * `docTitle` (název dokumentu bez přípony) tvoří kořen breadcrumb hlavičky.
@@ -317,7 +334,8 @@ function packSections(
 export function chunkText(
   pages: PageContent[],
   documentId: string,
-  docTitle: string | null = null
+  docTitle: string | null = null,
+  { targetSize = DEFAULT_TARGET_SIZE, breadcrumb = true }: ChunkOptions = {}
 ): ChunkInput[] {
   const lines: Line[] = [];
   for (const p of pages) {
@@ -338,5 +356,6 @@ export function chunkText(
     sections = paragraphSections(lines);
   }
 
-  return packSections(sections, documentId, docTitle);
+  const maxSize = Math.round(targetSize * MAX_SIZE_RATIO);
+  return packSections(sections, documentId, docTitle, targetSize, maxSize, breadcrumb);
 }

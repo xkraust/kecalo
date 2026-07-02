@@ -1,5 +1,7 @@
 import { SpanStatusCode } from "@opentelemetry/api";
 import { supabase } from "@/lib/supabase";
+import { getSettings } from "@/lib/settings";
+import { chunkingConfigOf } from "@/lib/settings-meta";
 import { getTracer, withSpan, flushTelemetry } from "@/lib/telemetry";
 import { extractText } from "./extract";
 import { cleanPages } from "./clean";
@@ -42,6 +44,9 @@ export async function processDocument(documentId: string): Promise<void> {
         return blob;
       });
 
+      // Runtime parametry chunkování (fáze 13) — mimochodem obnoví i flag telemetrie.
+      const settings = await getSettings();
+
       const buffer = new Uint8Array(await blob.arrayBuffer());
       const { pages } = await withSpan("document.extract", async (s) => {
         const result = await extractText(buffer, doc.mime_type, doc.filename);
@@ -50,18 +55,28 @@ export async function processDocument(documentId: string): Promise<void> {
       });
 
       const cleaned = await withSpan("document.clean", async (s) => {
-        const result = cleanPages(pages);
+        const result = cleanPages(pages, {
+          stripHeaders: settings.chunkStripHeaders,
+        });
         s.setAttributes({
           "clean.chars_before": pages.reduce((a, p) => a + p.text.length, 0),
           "clean.chars_after": result.reduce((a, p) => a + p.text.length, 0),
+          "clean.strip_headers": settings.chunkStripHeaders,
         });
         return result;
       });
 
       const docTitle = doc.filename.replace(/\.[^.]+$/, "");
       const chunks = await withSpan("document.chunk", async (s) => {
-        const c = chunkText(cleaned, documentId, docTitle);
-        s.setAttribute("chunk.count", c.length);
+        const c = chunkText(cleaned, documentId, docTitle, {
+          targetSize: settings.chunkTargetSize,
+          breadcrumb: settings.chunkBreadcrumb,
+        });
+        s.setAttributes({
+          "chunk.count": c.length,
+          "chunk.target_size": settings.chunkTargetSize,
+          "chunk.breadcrumb": settings.chunkBreadcrumb,
+        });
         return c;
       });
 
@@ -99,7 +114,12 @@ export async function processDocument(documentId: string): Promise<void> {
 
       await supabase
         .from("documents")
-        .update({ status: "ready", chunk_count: chunks.length })
+        .update({
+          status: "ready",
+          chunk_count: chunks.length,
+          // otisk konfigurace pro detekci zastaralého chunkování v tabulce dokumentů
+          chunking_config: chunkingConfigOf(settings),
+        })
         .eq("id", documentId);
 
       span.setStatus({ code: SpanStatusCode.OK });

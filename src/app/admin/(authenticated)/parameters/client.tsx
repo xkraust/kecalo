@@ -1,14 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import {
   SETTINGS_FIELDS,
   TELEMETRY_FIELDS,
+  CHUNKING_SLIDER_FIELDS,
+  CHUNKING_TOGGLE_FIELDS,
+  ALL_TOGGLE_FIELDS,
   DEFAULT_SETTINGS,
   clampField,
+  type SettingField,
+  type ToggleField,
   type SettingsValues,
   type NumericSettingKey,
   type ToggleSettingKey,
@@ -16,6 +22,94 @@ import {
 
 interface Props {
   initial: SettingsValues;
+}
+
+function SliderCard({
+  field,
+  value,
+  onChange,
+}: {
+  field: SettingField;
+  value: number;
+  onChange: (key: NumericSettingKey, raw: number) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-5 space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-medium">{field.label}</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {field.description}
+          </p>
+        </div>
+        <span className="shrink-0 rounded-md bg-secondary px-2.5 py-1 text-sm font-medium tabular-nums">
+          {field.format(value)}
+        </span>
+      </div>
+
+      <div className="space-y-1.5">
+        <Slider
+          value={value}
+          min={field.min}
+          max={field.max}
+          step={field.step}
+          onValueChange={(v) =>
+            onChange(field.key, typeof v === "number" ? v : v[0])
+          }
+        />
+        <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
+          <span>{field.format(field.min)}</span>
+          <span>{field.format(field.max)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToggleCard({
+  field,
+  checked,
+  gatedOff,
+  onChange,
+}: {
+  field: ToggleField;
+  checked: boolean;
+  gatedOff: boolean;
+  onChange: (key: ToggleSettingKey, checked: boolean) => void;
+}) {
+  return (
+    <div
+      className={`rounded-lg border border-border bg-card p-5 ${
+        gatedOff ? "opacity-60" : ""
+      }`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-medium">{field.label}</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {field.description}
+          </p>
+        </div>
+        <Switch
+          checked={checked}
+          disabled={gatedOff}
+          onCheckedChange={(value) => onChange(field.key, value)}
+        />
+      </div>
+
+      {gatedOff ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Vyžaduje zapnutou telemetrii.
+        </p>
+      ) : (
+        field.warning && (
+          <div className="mt-3 flex items-center gap-2 rounded-md bg-[#FAEEDA] px-2.5 py-1.5 text-xs text-[#854F0B]">
+            <span>{field.warning}</span>
+          </div>
+        )
+      )}
+    </div>
+  );
 }
 
 export function ParametersClient({ initial }: Props) {
@@ -37,7 +131,7 @@ export function ParametersClient({ initial }: Props) {
     // čerstvě z DB — zahodí neuložené lokální změny, které se mezitím "schovaly" pod
     // disabled (přepínač byl zašedlý při vypnuté závislosti).
     if (!checked) return;
-    const dependents = TELEMETRY_FIELDS.filter((f) => f.dependsOn === key);
+    const dependents = ALL_TOGGLE_FIELDS.filter((f) => f.dependsOn === key);
     if (dependents.length === 0) return;
     try {
       const res = await fetch("/api/settings");
@@ -91,43 +185,14 @@ export function ParametersClient({ initial }: Props) {
   return (
     <div className="space-y-5">
       <div className="space-y-4">
-        {SETTINGS_FIELDS.map((field) => {
-          const value = values[field.key];
-          return (
-            <div
-              key={field.key}
-              className="rounded-lg border border-border bg-card p-5 space-y-4"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-sm font-medium">{field.label}</h2>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    {field.description}
-                  </p>
-                </div>
-                <span className="shrink-0 rounded-md bg-secondary px-2.5 py-1 text-sm font-medium tabular-nums">
-                  {field.format(value)}
-                </span>
-              </div>
-
-              <div className="space-y-1.5">
-                <Slider
-                  value={value}
-                  min={field.min}
-                  max={field.max}
-                  step={field.step}
-                  onValueChange={(v) =>
-                    update(field.key, typeof v === "number" ? v : v[0])
-                  }
-                />
-                <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-                  <span>{field.format(field.min)}</span>
-                  <span>{field.format(field.max)}</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {SETTINGS_FIELDS.map((field) => (
+          <SliderCard
+            key={field.key}
+            field={field}
+            value={values[field.key]}
+            onChange={update}
+          />
+        ))}
       </div>
 
       <div className="space-y-3">
@@ -139,47 +204,54 @@ export function ParametersClient({ initial }: Props) {
           </p>
         </div>
 
-        {TELEMETRY_FIELDS.map((field) => {
-          // Závislé pole (např. záznam obsahu) se jen zašedne a znemožní změnu, když
-          // je jeho závislost (telemetrie) vypnutá. Hodnota se nemění — přepínač
-          // zobrazuje skutečnou uloženou hodnotu, jen je disabled.
-          const gatedOff = field.dependsOn ? !values[field.dependsOn] : false;
-          const checked = values[field.key];
-          return (
-            <div
-              key={field.key}
-              className={`rounded-lg border border-border bg-card p-5 ${
-                gatedOff ? "opacity-60" : ""
-              }`}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-sm font-medium">{field.label}</h3>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    {field.description}
-                  </p>
-                </div>
-                <Switch
-                  checked={checked}
-                  disabled={gatedOff}
-                  onCheckedChange={(value) => updateToggle(field.key, value)}
-                />
-              </div>
+        {TELEMETRY_FIELDS.map((field) => (
+          <ToggleCard
+            key={field.key}
+            field={field}
+            checked={values[field.key]}
+            // Závislé pole se jen zašedne a znemožní změnu, když je jeho závislost
+            // vypnutá. Hodnota se nemění — přepínač zobrazuje skutečnou uloženou hodnotu.
+            gatedOff={field.dependsOn ? !values[field.dependsOn] : false}
+            onChange={updateToggle}
+          />
+        ))}
+      </div>
 
-              {gatedOff ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Vyžaduje zapnutou telemetrii.
-                </p>
-              ) : (
-                field.warning && (
-                  <div className="mt-3 flex items-center gap-2 rounded-md bg-[#FAEEDA] px-2.5 py-1.5 text-xs text-[#854F0B]">
-                    <span>{field.warning}</span>
-                  </div>
-                )
-              )}
-            </div>
-          );
-        })}
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-sm font-medium">Chunkování</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Parametry indexace dokumentů — působí při zpracování dokumentu, ne při
+            dotazu.
+          </p>
+        </div>
+
+        <div className="rounded-md bg-[#FAEEDA] px-3 py-2 text-xs text-[#854F0B]">
+          Změny chunkování se projeví až po reindexaci — u již zaindexovaných
+          dokumentů použijte tlačítko Reindexovat v sekci{" "}
+          <Link href="/admin/documents" className="font-medium underline">
+            Dokumenty
+          </Link>
+          .
+        </div>
+
+        {CHUNKING_SLIDER_FIELDS.map((field) => (
+          <SliderCard
+            key={field.key}
+            field={field}
+            value={values[field.key]}
+            onChange={update}
+          />
+        ))}
+        {CHUNKING_TOGGLE_FIELDS.map((field) => (
+          <ToggleCard
+            key={field.key}
+            field={field}
+            checked={values[field.key]}
+            gatedOff={field.dependsOn ? !values[field.dependsOn] : false}
+            onChange={updateToggle}
+          />
+        ))}
       </div>
 
       <div className="flex items-center gap-3">

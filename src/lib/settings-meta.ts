@@ -7,18 +7,29 @@ export interface SettingsValues {
   llmTemperature: number;
   telemetryEnabled: boolean;
   recordContent: boolean;
+  chunkTargetSize: number;
+  chunkBreadcrumb: boolean;
+  chunkStripHeaders: boolean;
 }
 
 /** Klíče číselných parametrů (slidery). */
-export type NumericSettingKey = "topK" | "similarityThreshold" | "llmTemperature";
-/** Klíče přepínačů telemetrie (Fáze 11). */
-export type ToggleSettingKey = "telemetryEnabled" | "recordContent";
+export type NumericSettingKey =
+  | "topK"
+  | "similarityThreshold"
+  | "llmTemperature"
+  | "chunkTargetSize";
+/** Klíče booleovských přepínačů (telemetrie — Fáze 11, chunkování — Fáze 13). */
+export type ToggleSettingKey =
+  | "telemetryEnabled"
+  | "recordContent"
+  | "chunkBreadcrumb"
+  | "chunkStripHeaders";
 
 export interface SettingField {
   /** Klíč v SettingsValues i v JSON payloadu API. */
   key: NumericSettingKey;
   /** Název sloupce v tabulce app_settings. */
-  column: "top_k" | "similarity_threshold" | "llm_temperature";
+  column: "top_k" | "similarity_threshold" | "llm_temperature" | "chunk_target_size";
   label: string;
   description: string;
   min: number;
@@ -33,7 +44,11 @@ export interface ToggleField {
   /** Klíč v SettingsValues i v JSON payloadu API. */
   key: ToggleSettingKey;
   /** Název sloupce v tabulce app_settings. */
-  column: "telemetry_enabled" | "record_content";
+  column:
+    | "telemetry_enabled"
+    | "record_content"
+    | "chunk_breadcrumb"
+    | "chunk_strip_headers";
   label: string;
   description: string;
   default: boolean;
@@ -110,8 +125,56 @@ export const TELEMETRY_FIELDS: readonly ToggleField[] = [
   },
 ];
 
+// Parametry chunkování (Fáze 13). Působí při INDEXACI — změna se projeví až
+// reindexací dokumentů (na rozdíl od parametrů výše, které působí při dotazu).
+// Rozsahy a defaulty musí odpovídat CHECK v 008_chunking_settings.sql.
+export const CHUNKING_SLIDER_FIELDS: readonly SettingField[] = [
+  {
+    key: "chunkTargetSize",
+    column: "chunk_target_size",
+    label: "Cílová velikost chunku",
+    description:
+      "Kolik znaků má mít jeden chunk při indexaci. Menší chunky = přesnější zásahy retrievalu, větší = víc souvislého kontextu v jednom kuse.",
+    min: 1500,
+    max: 6000,
+    step: 100,
+    default: 3500,
+    format: (v) => `${Math.round(v)} znaků`,
+  },
+];
+
+export const CHUNKING_TOGGLE_FIELDS: readonly ToggleField[] = [
+  {
+    key: "chunkBreadcrumb",
+    column: "chunk_breadcrumb",
+    label: "Breadcrumb hlavička chunku",
+    description:
+      "Na začátek každého chunku vloží cestu v dokumentu (dokument › část › článek › odstavec), která se embeduje spolu s textem — zlepšuje zacílení retrievalu.",
+    default: true,
+  },
+  {
+    key: "chunkStripHeaders",
+    column: "chunk_strip_headers",
+    label: "Odstraňovat záhlaví a patičky stránek",
+    description:
+      "Před chunkováním odstraní řádky opakující se na většině stránek (záhlaví, čísla stránek), aby nešuměly v embeddinzích.",
+    default: true,
+  },
+];
+
+/** Všechna číselná pole napříč skupinami (validace, ukládání). */
+export const ALL_NUMERIC_FIELDS: readonly SettingField[] = [
+  ...SETTINGS_FIELDS,
+  ...CHUNKING_SLIDER_FIELDS,
+];
+/** Všechny přepínače napříč skupinami (validace, ukládání). */
+export const ALL_TOGGLE_FIELDS: readonly ToggleField[] = [
+  ...TELEMETRY_FIELDS,
+  ...CHUNKING_TOGGLE_FIELDS,
+];
+
 function fieldFor(key: NumericSettingKey): SettingField {
-  const field = SETTINGS_FIELDS.find((f) => f.key === key);
+  const field = ALL_NUMERIC_FIELDS.find((f) => f.key === key);
   if (!field) throw new Error(`Neznámý parametr: ${key}`);
   return field;
 }
@@ -147,12 +210,12 @@ export function parseSettingsInput(input: unknown): SettingsValues {
   ) as Record<string, unknown>;
 
   const result = {} as SettingsValues;
-  for (const field of SETTINGS_FIELDS) {
+  for (const field of ALL_NUMERIC_FIELDS) {
     const raw = obj[field.key];
     const num = typeof raw === "number" ? raw : Number(raw);
     result[field.key] = clampField(field.key, num);
   }
-  for (const field of TELEMETRY_FIELDS) {
+  for (const field of ALL_TOGGLE_FIELDS) {
     result[field.key] = parseBool(obj[field.key], field.default);
   }
   return result;
@@ -165,4 +228,37 @@ export const DEFAULT_SETTINGS: SettingsValues = {
   llmTemperature: fieldFor("llmTemperature").default,
   telemetryEnabled: true,
   recordContent: false,
+  chunkTargetSize: fieldFor("chunkTargetSize").default,
+  chunkBreadcrumb: true,
+  chunkStripHeaders: true,
 };
+
+/** Otisk konfigurace chunkování ukládaný k dokumentu (documents.chunking_config). */
+export interface ChunkingConfig {
+  target_size: number;
+  breadcrumb: boolean;
+  strip_headers: boolean;
+}
+
+export function chunkingConfigOf(values: SettingsValues): ChunkingConfig {
+  return {
+    target_size: values.chunkTargetSize,
+    breadcrumb: values.chunkBreadcrumb,
+    strip_headers: values.chunkStripHeaders,
+  };
+}
+
+/**
+ * Dokument má zastaralé chunkování, když otisk chybí (NULL — indexace před
+ * Fází 13) nebo neodpovídá aktuálnímu nastavení.
+ */
+export function isChunkingStale(config: unknown, values: SettingsValues): boolean {
+  if (!config || typeof config !== "object") return true;
+  const c = config as Partial<ChunkingConfig>;
+  const now = chunkingConfigOf(values);
+  return (
+    c.target_size !== now.target_size ||
+    c.breadcrumb !== now.breadcrumb ||
+    c.strip_headers !== now.strip_headers
+  );
+}

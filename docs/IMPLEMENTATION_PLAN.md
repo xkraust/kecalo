@@ -482,7 +482,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [x] Nasazení (Vercel) loguje kompletní traces — po opravě env proměnných (Shared → Project) + `exportMode: immediate`
 - [ ] #1 — vypnout „Telemetrie zapnutá" → Uložit → chat dotaz → v Langfuse nepřibude trace (volitelné — mechanismus implementován a ověřen build/runtime, izolovaný klik-test neproveden)
 
-> **Omezení:** `document.process`/`document.upload` nevolají `getSettings()`, takže master flag tam má hodnotu z posledního chat/retrieval-test requestu nebo z posledního uložení (po `saveSettings()` okamžitě aktuální) — pro prototyp dostačující.
+> **Omezení (aktualizováno Fází 13):** `document.process` nyní volá `getSettings()` (kvůli parametrům chunkování), takže master flag telemetrie se při indexaci obnovuje. Omezení zůstává jen pro span `document.upload` (samotný upload request `getSettings()` nevolá) — pro prototyp dostačující.
 
 > **Nasazení (Vercel) — poznatky:** (1) `LANGFUSE_*` musí být v **Project** env proměnných (ne jen Shared/team — ty se k projektu nepřipojí automaticky) + redeploy. (2) Serverless vyžaduje `exportMode: "immediate"`, jinak se ztrácí pozdní spany.
 
@@ -549,7 +549,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ---
 
-## Fáze 13 — Admin: parametry chunkování (po kurzu, schválený návrh — zatím neimplementováno)
+## Fáze 13 — Admin: parametry chunkování (po kurzu)
 
 **Milník:** V `/admin/parameters` přibude podsekce **„Chunkování"** (velikost chunku, breadcrumb hlavička, odstraňování záhlaví). Parametry se uplatní při indexaci; dokumenty zaindexované zastaralou konfigurací jdou přeindexovat tlačítkem v tabulce dokumentů — bez opětovného uploadu (originál je v Storage).
 
@@ -557,44 +557,46 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ### DB — migrace `008_chunking_settings.sql`
 
-- [ ] `app_settings` += `chunk_target_size int` (CHECK 1500–6000, default 3500), `chunk_breadcrumb boolean DEFAULT true`, `chunk_strip_headers boolean DEFAULT true`
-- [ ] `documents` += `chunking_config jsonb` — otisk konfigurace použité při poslední indexaci (pro detekci zastaralé konfigurace); dokumenty s `chunking_config IS NULL` (zaindexované před touto fází) se považují za zastaralé
-- [ ] `supabase db push`
+- [x] `app_settings` += `chunk_target_size int` (CHECK 1500–6000, default 3500), `chunk_breadcrumb boolean DEFAULT true`, `chunk_strip_headers boolean DEFAULT true`
+- [x] `documents` += `chunking_config jsonb` — otisk konfigurace použité při poslední indexaci (pro detekci zastaralé konfigurace); dokumenty s `chunking_config IS NULL` (zaindexované před touto fází) se považují za zastaralé
+- [ ] `supabase db push` — **čeká na uživatele**; dokud neproběhne, ukládání parametrů a seznam dokumentů selžou (select/update nových sloupců)
 - **Dílčí milník:** nové sloupce existují, stávající řádky mají defaulty
 
 ### Sdílená metadata + server — `settings-meta.ts`, `settings.ts`
 
-- [ ] `SettingsValues` += `chunkTargetSize: number`, `chunkBreadcrumb: boolean`, `chunkStripHeaders: boolean`
-- [ ] `CHUNKING_FIELDS` — slider (1500–6000, krok 100) + dva toggly (vzor `SETTINGS_FIELDS`/`TELEMETRY_FIELDS`); rozsahy jediný zdroj pravdy, CHECK v migraci druhá linie
-- [ ] `getSettings()`/`saveSettings()`/`configFallback()` — mapování nových sloupců
+- [x] `SettingsValues` += `chunkTargetSize: number`, `chunkBreadcrumb: boolean`, `chunkStripHeaders: boolean`
+- [x] `CHUNKING_SLIDER_FIELDS` (1500–6000, krok 100) + `CHUNKING_TOGGLE_FIELDS` (vzor `SETTINGS_FIELDS`/`TELEMETRY_FIELDS`); agregáty `ALL_NUMERIC_FIELDS`/`ALL_TOGGLE_FIELDS` sdílí validace i ukládání; navíc `ChunkingConfig` + `chunkingConfigOf()`/`isChunkingStale()` (sdílená detekce zastaralé konfigurace)
+- [x] `getSettings()`/`saveSettings()`/`configFallback()` — mapování nových sloupců (fallback bere tovární defaulty, env proměnné pro chunkování neexistují)
 
 ### Napojení indexace — `pipeline.ts`
 
-- [ ] `processDocument()` volá `getSettings()` a předá parametry do `clean.ts` (strip headers) a `chunk.ts` (target size, breadcrumb)
-- [ ] Po úspěšné indexaci uložit otisk konfigurace do `documents.chunking_config`
-- [ ] Vedlejší efekt: `getSettings()` v `processDocument` obnoví i runtime flag telemetrie → odstraní známé omezení Fáze 11 (`document.process` dosud nečetl master vypínač) — aktualizovat poznámku „Omezení" u Fáze 11
-- **Dílčí milník:** změna parametru + reindexace prokazatelně mění výsledné chunky
+- [x] `processDocument()` volá `getSettings()` a předává parametry do `clean.ts` (strip headers) a `chunk.ts` (target size, breadcrumb); `chunkText` má nový volitelný parametr `ChunkOptions`
+- [x] Po úspěšné indexaci se ukládá otisk konfigurace do `documents.chunking_config` (`chunkingConfigOf`)
+- [x] Vedlejší efekt: `getSettings()` v `processDocument` obnoví i runtime flag telemetrie → odstraněno známé omezení Fáze 11 (poznámka u Fáze 11 aktualizována)
+- **Dílčí milník:** změna parametru + reindexace prokazatelně mění výsledné chunky (ověření po migraci `008`)
 
 ### Reindexace — API + tabulka dokumentů
 
-- [ ] `POST /api/documents/[id]/reprocess` — znovu spustí `processDocument` nad souborem ve Storage (stávající logika už maže staré chunky); stav `processing` → `ready`/`error`
-- [ ] Route validuje stav dokumentu — reprocess odmítnout (409), pokud je dokument právě `uploaded`/`processing` (tlačítko to sice skryje, ale API kontroluje samo)
-- [ ] Stejný vzor jako upload route: `export const maxDuration = 60` + spuštění `processDocument` přes `after()` (jinak na Vercelu velké PDF vytimeoutuje)
-- [ ] `GET /api/documents` — select doplnit o `chunking_config`; rozšířit typ `DocumentRecord` v `lib/types.ts`
-- [ ] `documents/client.tsx` / `DocumentsTable` — načíst aktuální chunkovací nastavení (`GET /api/settings`) pro porovnání s `chunking_config` dokumentů
-- [ ] `DocumentsTable` — tlačítko „Reindexovat" u každého `ready`/`error` dokumentu; indikace zastaralé konfigurace (porovnání `chunking_config` s aktuálním nastavením, `NULL` = zastaralé), volitelně akce „Reindexovat vše"
-- **Dílčí milník:** změna parametrů → tabulka označí dokumenty jako zastaralé → reindexace bez re-uploadu
+- [x] `POST /api/documents/[id]/reprocess` — znovu spustí `processDocument` nad souborem ve Storage (stávající logika už maže staré chunky); stav rovnou přepne na `processing` (okamžitá odezva pollingu) a vynuluje `error_message`
+- [x] Route validuje stav dokumentu — 409 pro `uploaded`/`processing`, 404 pro neexistující
+- [x] Stejný vzor jako upload route: `export const maxDuration = 60` + spuštění `processDocument` přes `after()`
+- [x] `GET /api/documents` i server `documents/page.tsx` — select doplněn o `chunking_config`; `DocumentRecord` v `lib/types.ts` rozšířen
+- [x] `documents/client.tsx` — načte aktuální nastavení (`GET /api/settings`) a předá `DocumentsTable` (bez něj se indikace jen nezobrazí)
+- [x] `DocumentsTable` — ikona „Reindexovat" (RefreshCw) u `ready`/`error` dokumentů + žlutá indikace „Zastaralá konfigurace chunkování" (`isChunkingStale`, `NULL` = zastaralé); akce „Reindexovat vše" (volitelná) vynechána — při 4 dokumentech stačí per-row tlačítko
+- **Dílčí milník:** změna parametrů → tabulka označí dokumenty jako zastaralé → reindexace bez re-uploadu (ověření po migraci `008`)
 
 ### UI — `parameters/client.tsx`
 
-- [ ] Třetí skupina „Chunkování" (vzor skupiny „Telemetrie"): slider velikosti + dva přepínače
-- [ ] Viditelné upozornění, že změny se projeví až reindexací dokumentů (odkaz na `/admin/documents`)
+- [x] Třetí skupina „Chunkování" (vzor skupiny „Telemetrie"): slider velikosti + dva přepínače; karty vytaženy do `SliderCard`/`ToggleCard` (bez duplikace markupu)
+- [x] Viditelné upozornění, že změny se projeví až reindexací dokumentů (žlutý pruh s odkazem na `/admin/documents`)
 
 ### Dokumentace + E2E ověření
 
-- [ ] `CLAUDE.md` — runtime parametry (+ chunkování, rozdíl index-time vs query-time), API routy (+ reprocess), datový model, migrace `008`
-- [ ] `docs/IMPLEMENTATION_PLAN.md` — zaškrtnutí kroků, přehled rout, migrace
-- [ ] E2E: A/B experiment breadcrumb hlaviček — stejné dotazy z `testovaci_otazky*.md` proti indexu s hlavičkami a bez nich, porovnat similarity v testu retrievalu
+- [x] `CLAUDE.md` — runtime parametry (+ chunkování, rozdíl index-time vs query-time), API routy (+ reprocess), datový model, migrace `008`
+- [x] `docs/IMPLEMENTATION_PLAN.md` — zaškrtnutí kroků, přehled rout, migrace
+- [x] `npm run lint` + `npm run build` — bez chyb
+- [ ] E2E v prohlížeči: uložení parametrů chunkování, indikace zastaralé konfigurace, reindexace tlačítkem (po migraci `008`)
+- [ ] E2E: A/B experiment breadcrumb hlaviček — stejné dotazy z `testovaci_otazky*.md` proti indexu s hlavičkami a bez nich, porovnat similarity (po migraci `008`)
 
 ---
 
@@ -606,6 +608,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 | `POST` | `/api/documents` | Upload + spuštění indexace |
 | `GET` | `/api/documents` | Seznam dokumentů + stav |
 | `DELETE` | `/api/documents/:id` | Smazání dokumentu, chunků, souboru |
+| `POST` | `/api/documents/:id/reprocess` | Reindexace dokumentu bez re-uploadu (admin) |
 | `POST` | `/api/retrieval-test` | Top-k chunků pro dotaz (admin) |
 | `GET` | `/api/settings` | Aktuální runtime parametry + přepínače telemetrie z DB |
 | `POST` | `/api/settings` | Uložení globálních runtime parametrů RAG (admin) |
@@ -633,6 +636,7 @@ kecalo/
 │   │       ├── chat/route.ts
 │   │       ├── documents/route.ts
 │   │       ├── documents/[id]/route.ts
+│   │       ├── documents/[id]/reprocess/route.ts  # reindexace bez re-uploadu
 │   │       ├── retrieval-test/route.ts
 │   │       ├── settings/route.ts
 │   │       ├── feedback/route.ts
@@ -670,7 +674,8 @@ kecalo/
 │       ├── 003_app_settings.sql      # app_settings (runtime parametry RAG)
 │       ├── 005_feedback.sql          # feedback (zpětná vazba thumbs up/down)
 │       ├── 006_telemetry_settings.sql # app_settings += telemetry_enabled, record_content
-│       └── 007_chunk_sections.sql    # chunks += section_path, match_chunks vrací sekci
+│       ├── 007_chunk_sections.sql    # chunks += section_path, match_chunks vrací sekci
+│       └── 008_chunking_settings.sql # app_settings += chunk_*, documents += chunking_config
 ├── .env.example
 └── README.md
 ```

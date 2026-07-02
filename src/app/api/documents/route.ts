@@ -23,7 +23,9 @@ function isAllowedFile(file: File): boolean {
 export async function GET() {
   const { data, error } = await supabase
     .from("documents")
-    .select("id, filename, mime_type, status, error_message, chunk_count, created_at")
+    .select(
+      "id, filename, mime_type, status, error_message, chunk_count, created_at, chunking_config"
+    )
     .order("created_at", { ascending: false });
 
   if (error) {
