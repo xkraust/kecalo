@@ -127,7 +127,7 @@ POST   /api/documents/[id]/reprocess → reindexace bez re-uploadu (aktuální p
 POST   /api/retrieval-test      → vrátí top-k chunků se skóre (pouze admin)
 GET    /api/settings            → vrátí aktuální runtime parametry + přepínače telemetrie z DB
 POST   /api/settings            → uloží globální runtime parametry RAG do app_settings
-POST   /api/feedback            → uloží zpětnou vazbu (thumbs up/down) do tabulky feedback
+POST   /api/feedback            → uloží zpětnou vazbu (thumbs up/down); limity vstupu + rate limit 10/min
 POST   /api/auth/login          → ověření username + password, nastavení session cookie
 POST   /api/auth/logout         → smazání session cookie
 ```
@@ -207,7 +207,7 @@ supabase/
 Spouští se z `POST /api/documents` po uploadu a z `POST /api/documents/[id]/reprocess` (reindexace). Načte runtime parametry chunkování (`getSettings()`) → stáhne soubor ze Storage → `extract.ts` → `clean.ts` → `chunk.ts` (s `docTitle` = název souboru bez přípony) → `embed.ts` → smaže staré chunky dokumentu → vloží nové po dávkách 100 → nastaví `status` dokumentu (`processing` → `ready` / `error`) a uloží otisk konfigurace do `documents.chunking_config`. Chyby se zachytí a uloží do `documents.error_message`.
 
 #### Dotaz / chat — `api/chat/route.ts` + `prompts.ts`
-Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4 000 znaků, max 50 zpráv; jinak 400) a routa má rate limit 20 požadavků/min na IP (sdílený helper `lib/rate-limit.ts`; 429). Pak `retrieve(query)` → pokud `chunks.length === 0` fallback (viz níže), jinak `buildContextBlock` vloží chunky do system promptu (atribut `source` = dokument, `section_path`, strana → citace typu „(VPP M-100/23, čl. 29 odst. 8, strana 11)"). Metadata zdrojů (filename, page, section, zaokrouhlené `similarity`) jdou na klienta v hlavičce odpovědi `X-Sources` (URL-encoded JSON). Historie se ořezává na posledních 8 zpráv (`MAX_HISTORY`).
+Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4 000 znaků, max 50 zpráv; jinak 400) a routa má rate limit 20 požadavků/min na IP (sdílený helper `lib/rate-limit.ts`; 429). Pak `retrieve(query)` → pokud `chunks.length === 0` fallback (viz níže), jinak `buildContextBlock` vloží chunky do system promptu (atribut `source` = dokument, `section_path`, strana → citace typu „(VPP M-100/23, čl. 29 odst. 8, strana 11)"). Metadata zdrojů (filename, page, section, zaokrouhlené `similarity`) jdou na klienta v hlavičce odpovědi `X-Sources` (URL-encoded JSON; `buildSourcesHeader` ořezává section na 100 a filename na 80 znaků, při překročení 8 000 znaků se sekce vynechají — ochrana proti limitu velikosti hlaviček). Historie se ořezává na posledních 8 zpráv (`MAX_HISTORY`).
 
 #### Moduly `src/lib/rag/`
 

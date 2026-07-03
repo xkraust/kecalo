@@ -46,14 +46,14 @@ Navazuje na revizi [code_check.md](code_check.md) (3. 7. 2026, 15 nálezů). Opr
 
 **Ověření:** ✅ provedeno — těla `{}`, `{"messages":"x"}`, role `system`, nečíselný content, content 4 001 znaků i nevalidní JSON → vše 400; validní dotaz → 200, stream + `X-Sources`; 25 rychlých požadavků → po vyčerpání 20/min okna 429; po vypršení okna se limiter zotaví (dotaz z UI prošel a vykreslil odpověď se zdroji); lint i build bez chyb.
 
-### B2. Omezení velikosti `X-Sources` (#7) 🟠
+### B2. Omezení velikosti `X-Sources` (#7) 🟠 ✅ HOTOVO
 
 **Soubor:** `src/app/api/chat/route.ts`
 
-- [ ] Před serializací oříznout `section` na 100 znaků a `filename` na 80 znaků (s `…`).
-- [ ] Pojistka: pokud URL-encoded JSON přesáhne 8 000 znaků, poslat zdroje bez pole `section` (filename + page + similarity stačí pro zobrazení).
+- [x] Před serializací se ořezává `section` na 100 znaků a `filename` na 80 znaků (s `…`) — helper `buildSourcesHeader`.
+- [x] Pojistka: pokud URL-encoded JSON přesáhne 8 000 znaků, pošlou se zdroje bez pole `section` (filename + page + similarity stačí pro zobrazení). Nejhorší případ je tím omezen bezpečně pod limit hlaviček.
 
-**Ověření:** dotaz s `top_k = 20` v `/admin/parameters` → odpověď má hlavičku < 8 KB a blok zdrojů se v chatu vykreslí.
+**Ověření:** ✅ provedeno — dočasně `top_k = 20` (přes API s cookie, poté obnoveno na 5): odpověď vrátila 20 zdrojů, hlavička 6 791 znaků (< 8 000), sekce ≤ 100 znaků; lint i build bez chyb.
 
 ### B3. Fallback bez volání Claude (#8) 🟡
 
@@ -97,12 +97,14 @@ Navazuje na revizi [code_check.md](code_check.md) (3. 7. 2026, 15 nálezů). Opr
 
 ## Balíček D — Menší opravy API (vysoká #6, nekritické #13, #14, #15)
 
-### D1. Limity `/api/feedback` (#6) 🟠
+### D1. Limity `/api/feedback` (#6) 🟠 ✅ HOTOVO
 
 **Soubor:** `src/app/api/feedback/route.ts`
 
-- [ ] `sessionId`: max 64 znaků (delší → 400). `messageIndex`: `Number.isInteger` a rozsah 0–10 000 (jinak 400 — žádný int4 overflow → 500). `query`: oříznout na 2 000 znaků (`slice`, neodmítat).
-- [ ] Napojit rate limit helper z B1 (např. 10 požadavků/min na IP).
+- [x] `sessionId`: max 64 znaků (delší → 400). `messageIndex`: `Number.isInteger` a rozsah 0–10 000 (jinak 400 — žádný int4 overflow → 500). `query`: oříznut na 2 000 znaků (`slice`, neodmítá se).
+- [x] Napojen rate limit helper z B1: 10 požadavků/min na IP → 429.
+
+**Ověření:** ✅ provedeno — sessionId 65 znaků, messageIndex 10^15 i 3,5, rating „maybe" → vše 400; validní hlas → 200 (testovací řádek poté smazán z DB); 11. požadavek v minutě → 429.
 
 ### D2. Skutečná kontrola chyb supabase volání (#13) 🟡
 

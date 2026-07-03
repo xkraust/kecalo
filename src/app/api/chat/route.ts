@@ -8,7 +8,7 @@ import { NextResponse, after } from "next/server";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { getSettings } from "@/lib/settings";
 import { createRateLimiter, clientIp } from "@/lib/rate-limit";
-import { retrieve } from "@/lib/rag/retrieve";
+import { retrieve, type RetrievalResult } from "@/lib/rag/retrieve";
 import { getTracer, withSpan, flushTelemetry } from "@/lib/telemetry";
 import {
   SYSTEM_PROMPT,
@@ -29,6 +29,31 @@ const chatLimiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+}
+
+/**
+ * Metadata zdrojů jdou v HTTP hlavičce X-Sources, která má limit velikosti
+ * (Vercel ~16 KB na všechny hlavičky). Dlouhé hodnoty se ořezávají a při
+ * překročení pojistky se vynechají cesty sekcí (filename + strana stačí).
+ */
+const MAX_SOURCES_HEADER = 8000;
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max - 1) + "…" : s;
+}
+
+function buildSourcesHeader(chunks: RetrievalResult[]): string {
+  const sources = chunks.map((c) => ({
+    filename: truncate(c.filename, 80),
+    page: c.page,
+    section: c.section_path ? truncate(c.section_path, 100) : null,
+    similarity: Math.round(c.similarity * 100) / 100,
+  }));
+  const encoded = encodeURIComponent(JSON.stringify(sources));
+  if (encoded.length <= MAX_SOURCES_HEADER) return encoded;
+  return encodeURIComponent(
+    JSON.stringify(sources.map((s) => ({ ...s, section: null })))
+  );
 }
 
 /** Validace těla požadavku — vrací zprávy, nebo null při nevalidním vstupu. */
@@ -186,12 +211,7 @@ export async function POST(request: Request) {
 
     const trimmedMessages = messages.slice(-MAX_HISTORY);
 
-    const sources = chunks.map((c) => ({
-      filename: c.filename,
-      page: c.page,
-      section: c.section_path,
-      similarity: Math.round(c.similarity * 100) / 100,
-    }));
+    const sourcesHeader = buildSourcesHeader(chunks);
 
     const result = streamText({
       model: anthropic("claude-sonnet-4-6"),
@@ -228,7 +248,7 @@ export async function POST(request: Request) {
     after(() => flushTelemetry());
 
     return result.toTextStreamResponse({
-      headers: { "X-Sources": encodeURIComponent(JSON.stringify(sources)) },
+      headers: { "X-Sources": sourcesHeader },
     });
   });
 }
