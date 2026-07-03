@@ -549,7 +549,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ---
 
-## Fáze 13 — Admin: parametry chunkování (po kurzu)
+## Fáze 13 — Admin: parametry chunkování (po kurzu) ✅
 
 **Milník:** V `/admin/parameters` přibude podsekce **„Chunkování"** (velikost chunku, breadcrumb hlavička, odstraňování záhlaví). Parametry se uplatní při indexaci; dokumenty zaindexované zastaralou konfigurací jdou přeindexovat tlačítkem v tabulce dokumentů — bez opětovného uploadu (originál je v Storage).
 
@@ -559,8 +559,8 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 - [x] `app_settings` += `chunk_target_size int` (CHECK 1500–6000, default 3500), `chunk_breadcrumb boolean DEFAULT true`, `chunk_strip_headers boolean DEFAULT true`
 - [x] `documents` += `chunking_config jsonb` — otisk konfigurace použité při poslední indexaci (pro detekci zastaralé konfigurace); dokumenty s `chunking_config IS NULL` (zaindexované před touto fází) se považují za zastaralé
-- [ ] `supabase db push` — **čeká na uživatele**; dokud neproběhne, ukládání parametrů a seznam dokumentů selžou (select/update nových sloupců)
-- **Dílčí milník:** nové sloupce existují, stávající řádky mají defaulty
+- [x] `supabase db push` — aplikováno uživatelem; sloupce a defaulty ověřeny přes REST
+- **Dílčí milník:** ✓ nové sloupce existují, stávající řádky mají defaulty
 
 ### Sdílená metadata + server — `settings-meta.ts`, `settings.ts`
 
@@ -573,7 +573,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [x] `processDocument()` volá `getSettings()` a předává parametry do `clean.ts` (strip headers) a `chunk.ts` (target size, breadcrumb); `chunkText` má nový volitelný parametr `ChunkOptions`
 - [x] Po úspěšné indexaci se ukládá otisk konfigurace do `documents.chunking_config` (`chunkingConfigOf`)
 - [x] Vedlejší efekt: `getSettings()` v `processDocument` obnoví i runtime flag telemetrie → odstraněno známé omezení Fáze 11 (poznámka u Fáze 11 aktualizována)
-- **Dílčí milník:** změna parametru + reindexace prokazatelně mění výsledné chunky (ověření po migraci `008`)
+- **Dílčí milník:** ✓ změna parametru + reindexace prokazatelně mění výsledné chunky (breadcrumb off → chunky začínají rovnou obsahem, počty 57/59/2 beze změny)
 
 ### Reindexace — API + tabulka dokumentů
 
@@ -583,7 +583,8 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [x] `GET /api/documents` i server `documents/page.tsx` — select doplněn o `chunking_config`; `DocumentRecord` v `lib/types.ts` rozšířen
 - [x] `documents/client.tsx` — načte aktuální nastavení (`GET /api/settings`) a předá `DocumentsTable` (bez něj se indikace jen nezobrazí)
 - [x] `DocumentsTable` — ikona „Reindexovat" (RefreshCw) u `ready`/`error` dokumentů + žlutá indikace „Zastaralá konfigurace chunkování" (`isChunkingStale`, `NULL` = zastaralé); akce „Reindexovat vše" (volitelná) vynechána — při 4 dokumentech stačí per-row tlačítko
-- **Dílčí milník:** změna parametrů → tabulka označí dokumenty jako zastaralé → reindexace bez re-uploadu (ověření po migraci `008`)
+- **Dílčí milník:** ✓ změna parametrů → tabulka okamžitě označila všechny dokumenty jako zastaralé (vč. čerstvě reindexovaného IPID) → reindexace tlačítkem bez re-uploadu funguje (IPID: `ready` + uložený otisk, indikace zmizela)
+> **Pozn. (jen dev):** Turbopack dev server v jednom případě novou routu `[id]/reprocess` nezaregistroval (404 → `_not-found`) i po restartu s čistou `.next`; pomohl až dotyk sousední složky (vytvoření/smazání souboru vedle), který vyvolal rescan. Produkčního buildu se netýká — `next build` routu vidí vždy.
 
 ### UI — `parameters/client.tsx`
 
@@ -595,8 +596,12 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [x] `CLAUDE.md` — runtime parametry (+ chunkování, rozdíl index-time vs query-time), API routy (+ reprocess), datový model, migrace `008`
 - [x] `docs/IMPLEMENTATION_PLAN.md` — zaškrtnutí kroků, přehled rout, migrace
 - [x] `npm run lint` + `npm run build` — bez chyb
-- [ ] E2E v prohlížeči: uložení parametrů chunkování, indikace zastaralé konfigurace, reindexace tlačítkem (po migraci `008`)
-- [ ] E2E: A/B experiment breadcrumb hlaviček — stejné dotazy z `testovaci_otazky*.md` proti indexu s hlavičkami a bez nich, porovnat similarity (po migraci `008`)
+- [x] E2E v prohlížeči: skupina „Chunkování" se renderuje (slider + 2 přepínače + žluté upozornění s odkazem), vypnutí breadcrumbu + Uložit → badge „Uloženo" a hodnota v DB; indikace zastaralé konfigurace (NULL i po změně nastavení); reindexace tlačítkem (IPID → `processing` → `ready`, otisk uložen, indikace zmizela)
+- [x] E2E: A/B experiment breadcrumb hlaviček (13 otázek, topK 5, práh 0,35; index s hlavičkami vs. bez nich, poté obnoveno na výchozí stav s hlavičkami — kontrolní měření identické s fází 12):
+  - průměrný rozdíl top similarity u věcných otázek jen **+0,008 ve prospěch hlaviček** (7 z 11 otázek výš, poklesy ≤ 0,011)
+  - hlavní přínos hlaviček je **cílení top-1**: s hlavičkami míří otázka č. 1 na VPP M-200 Část 2 a č. 3 na čl. 8 Výluky (očekávané zdroje); bez hlaviček obě sklouzly na obecný IPID — název dokumentu v hlavičce rozlišuje M-100/M-200/IPID
+  - fallback otázky bez rozdílu (č. 11: +0,007, č. 12: −0,013) — hlavičky fallback nezhoršují
+  - **závěr: breadcrumb hlavičky ponechány zapnuté (default `true`)**
 
 ---
 
