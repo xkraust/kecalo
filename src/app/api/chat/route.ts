@@ -1,11 +1,8 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-
-const anthropic = createAnthropic({
-  baseURL: "https://api.anthropic.com/v1",
-});
+import { anthropic } from "@ai-sdk/anthropic";
 import { streamText } from "ai";
 import { NextResponse, after } from "next/server";
 import { SpanStatusCode } from "@opentelemetry/api";
+import { config } from "@/lib/config";
 import { getSettings } from "@/lib/settings";
 import { createRateLimiter, clientIp } from "@/lib/rate-limit";
 import { retrieve, type RetrievalResult } from "@/lib/rag/retrieve";
@@ -165,44 +162,18 @@ export async function POST(request: Request) {
     }
 
     if (chunks.length === 0) {
-      const result = streamText({
-        model: anthropic("claude-sonnet-4-6"),
-        messages: [{ role: "user" as const, content: query }],
-        system:
-          "Odpověz přesně touto zprávou, nic jiného nepřidávej: " +
-          FALLBACK_MESSAGE,
-        temperature: 0,
-        maxOutputTokens: 300,
-        experimental_telemetry: {
-          isEnabled: settings.telemetryEnabled,
-          functionId: "chat-fallback",
-          // Obsah dotazů/odpovědí jen když je zapnut runtime přepínač (Fáze 11).
-          recordInputs: settings.recordContent,
-          recordOutputs: settings.recordContent,
-          metadata: {
-            topK: settings.topK,
-            similarityThreshold: settings.similarityThreshold,
-            llmTemperature: 0,
-            chunkCount: 0,
-          },
-        },
-        onError({ error }) {
-          console.error("Claude stream (fallback) selhal:", error);
-          endSpan(false, error);
-        },
-        onFinish({ usage }) {
-          span.setAttributes({
-            "llm.input_tokens": usage?.inputTokens ?? 0,
-            "llm.output_tokens": usage?.outputTokens ?? 0,
-          });
-          endSpan(true);
-        },
-      });
-
+      // Oprava B3: fallback je statický text — volat Claude jen kvůli doslovnému
+      // opsání FALLBACK_MESSAGE stálo latenci a tokeny a riskovalo nepřesnou
+      // reprodukci. Klient čte tělo streamem, prostý text mu nevadí.
+      span.setAttribute("retrieval.is_fallback", true);
+      endSpan(true);
       after(() => flushTelemetry());
 
-      return result.toTextStreamResponse({
-        headers: { "X-Sources": encodeURIComponent(JSON.stringify([])) },
+      return new Response(FALLBACK_MESSAGE, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "X-Sources": encodeURIComponent(JSON.stringify([])),
+        },
       });
     }
 
@@ -214,7 +185,7 @@ export async function POST(request: Request) {
     const sourcesHeader = buildSourcesHeader(chunks);
 
     const result = streamText({
-      model: anthropic("claude-sonnet-4-6"),
+      model: anthropic(config.chatModel),
       system: systemWithContext,
       messages: trimmedMessages,
       temperature: settings.llmTemperature,

@@ -55,21 +55,23 @@ Navazuje na revizi [code_check.md](code_check.md) (3. 7. 2026, 15 nálezů). Opr
 
 **Ověření:** ✅ provedeno — dočasně `top_k = 20` (přes API s cookie, poté obnoveno na 5): odpověď vrátila 20 zdrojů, hlavička 6 791 znaků (< 8 000), sekce ≤ 100 znaků; lint i build bez chyb.
 
-### B3. Fallback bez volání Claude (#8) 🟡
+### B3. Fallback bez volání Claude (#8) 🟡 ✅ HOTOVO
 
-**Soubory:** `src/app/api/chat/route.ts`, `src/lib/rag/prompts.ts`
+**Soubor:** `src/app/api/chat/route.ts`
 
-- [ ] Větev `chunks.length === 0`: místo `streamText` vrátit přímo `new Response(FALLBACK_MESSAGE, { headers: { "Content-Type": "text/plain; charset=utf-8", "X-Sources": … } })` — klient čte tělo readerem, plain text mu nevadí.
-- [ ] Span `chat-pipeline` ukončit hned (endSpan(true)) s atributem `retrieval.is_fallback = true`; `after(flushTelemetry)` zachovat.
+- [x] Větev `chunks.length === 0`: místo `streamText` se vrací přímo `new Response(FALLBACK_MESSAGE, …)` s `text/plain; charset=utf-8` a prázdným `X-Sources` — klient čte tělo readerem, plain text mu nevadí.
+- [x] Span `chat-pipeline` se ukončí hned (`endSpan(true)`) s atributem `retrieval.is_fallback = true`; `after(flushTelemetry)` zachován.
 
-**Ověření:** otázka mimo bázi (testovací otázky v `docs/testovaci_otazky*.md`) → doslovná fallback hláška, prázdné zdroje, v Langfuse trace bez LLM spanu, odpověď < 1 s.
+**Ověření:** ✅ provedeno — s dočasným prahem 0,99 (poté obnoven na 0,35): odpověď je doslovná fallback hláška, `X-Sources: []`, `text/plain`, bez volání Claude.
 
-### B4. Model a baseURL do configu (#9) 🟡
+### B4. Model a baseURL do configu (#9) 🟡 ✅ HOTOVO
 
-**Soubory:** `src/lib/config.ts`, `src/app/api/chat/route.ts`
+**Soubory:** `src/lib/config.ts`, `src/app/api/chat/route.ts`, `.env.example`
 
-- [ ] Do `config` přidat `chatModel: process.env.CHAT_MODEL ?? "claude-sonnet-4-6"`; v chat route použít `anthropic(config.chatModel)` na obou místech (po B3 zbude jen jedno).
-- [ ] Odstranit `baseURL` z `createAnthropic` (SDK má správný default), případně celý `createAnthropic` nahradit importem defaultního `anthropic` provideru.
+- [x] Do `config` přidán `chatModel: process.env.CHAT_MODEL ?? "claude-sonnet-4-6"`; chat route používá `anthropic(config.chatModel)` (po B3 jediné místo). `CHAT_MODEL` doplněn do `.env.example` jako volitelný.
+- [x] `createAnthropic` s hardcoded `baseURL` nahrazen importem defaultního `anthropic` provideru.
+
+**Ověření:** ✅ běžný dotaz → 200, stream, 2 zdroje (model z configu funguje).
 
 ---
 
@@ -106,23 +108,27 @@ Navazuje na revizi [code_check.md](code_check.md) (3. 7. 2026, 15 nálezů). Opr
 
 **Ověření:** ✅ provedeno — sessionId 65 znaků, messageIndex 10^15 i 3,5, rating „maybe" → vše 400; validní hlas → 200 (testovací řádek poté smazán z DB); 11. požadavek v minutě → 429.
 
-### D2. Skutečná kontrola chyb supabase volání (#13) 🟡
+### D2. Skutečná kontrola chyb supabase volání (#13) 🟡 ✅ HOTOVO
 
 **Soubory:** `src/app/api/documents/route.ts`, `src/app/api/documents/[id]/route.ts`
 
-- [ ] Odstranit no-op `.catch(() => {})`, číst `error` z výsledku: u `createBucket` ignorovat jen chybu „already exists", jiné logovat; u `storage.remove` při mazání dokumentu chybu zalogovat (`console.warn` — osiřelý soubor, mazání záznamu pokračuje).
+- [x] Odstraněny no-op `.catch(() => {})`, čte se `error` z výsledku: u `createBucket` se ignoruje jen „already exists" (jiné → `console.warn`); u `storage.remove` při mazání dokumentu se chyba loguje (`console.warn` — osiřelý soubor, mazání záznamu pokračuje).
 
-### D3. Kontrola duplicitního filename při uploadu (#14) 🟡
+**Ověření:** ✅ upload i delete prošly bez warningů v logu; delete odstranil soubor ze Storage i záznam.
+
+### D3. Kontrola duplicitního filename při uploadu (#14) 🟡 ✅ HOTOVO
 
 **Soubor:** `src/app/api/documents/route.ts`
 
-- [ ] Před insertem dotaz na existující `filename`; při shodě 409 s hláškou „Dokument s tímto názvem už existuje — nejdřív ho smažte, nebo soubor přejmenujte." Ověřit, že `UploadZone`/`documents/client.tsx` hlášku z API zobrazí.
+- [x] Před insertem dotaz na existující `filename`; při shodě 409 s hláškou „Dokument s tímto názvem už existuje — nejdřív ho smažte, nebo soubor přejmenujte." (`UploadZone` hlášku z API zobrazuje — `data.error`.)
 
-### D4. Povinné API klíče (#15) 🟡
+**Ověření:** ✅ upload `test-duplicity-d3.txt` → 201, druhý stejný → 409, úklid delete → 200; v DB ani Storage nezůstaly zbytky.
+
+### D4. Povinné API klíče (#15) 🟡 ✅ HOTOVO
 
 **Soubor:** `src/lib/config.ts`
 
-- [ ] `anthropicApiKey` a `voyageApiKey` převést na `required()` — CLAUDE.md je už vede jako povinné. (Middleware `config.ts` neimportuje, edge build to neovlivní.)
+- [x] `anthropicApiKey` a `voyageApiKey` převedeny na `required()` — CLAUDE.md je už vede jako povinné. (Middleware `config.ts` neimportuje, edge build to neovlivnilo — build OK.)
 
 ---
 

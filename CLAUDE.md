@@ -101,6 +101,7 @@ npm i ai @ai-sdk/anthropic @supabase/supabase-js voyageai unpdf react-markdown
 | `TOP_K` | Výchozí počet výsledků z retrievalu (5) |
 | `SIMILARITY_THRESHOLD` | Výchozí práh kosinové podobnosti (0.35) |
 | `LLM_TEMPERATURE` | Výchozí teplota Claude (0.2) |
+| `CHAT_MODEL` | Model pro chat (volitelný, default `claude-sonnet-4-6`) |
 | `LANGFUSE_SECRET_KEY` | Langfuse server klíč (volitelný — bez něj app funguje, jen se neloguje) |
 | `LANGFUSE_PUBLIC_KEY` | Langfuse veřejný klíč (volitelný) |
 | `LANGFUSE_BASE_URL` | URL Langfuse instance (default `https://cloud.langfuse.com`) |
@@ -120,7 +121,7 @@ npm i ai @ai-sdk/anthropic @supabase/supabase-js voyageai unpdf react-markdown
 /admin/login            → Login (uživatelské jméno + heslo), nastaví session cookie
 
 POST   /api/chat                → RAG pipeline → streamovaná odpověď + metadata zdrojů
-POST   /api/documents           → upload → extrakce → chunking → embeddingy → uložení
+POST   /api/documents           → upload → extrakce → chunking → embeddingy → uložení (409 při duplicitním názvu)
 GET    /api/documents           → seznam dokumentů se stavem
 DELETE /api/documents/[id]      → smazání dokumentu, chunků (CASCADE), souboru v Storage
 POST   /api/documents/[id]/reprocess → reindexace bez re-uploadu (aktuální parametry chunkování)
@@ -224,7 +225,7 @@ Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4
 
 **Práh podobnosti se uplatňuje v SQL**, ne v JS: funkce `match_chunks` vrací jen chunky z dokumentů ve stavu `ready` se `similarity > match_threshold`. Když nic neprojde, `retrieve` vrátí prázdné pole.
 
-**Fallback:** pokud `retrieve` vrátí 0 chunků, route přesto volá Claude, ale s instrukcí vypsat doslovně `FALLBACK_MESSAGE` („nenacházím odpověď, kontaktujte infolinku 800 123 456") a s prázdným `X-Sources`.
+**Fallback:** pokud `retrieve` vrátí 0 chunků, route vrací `FALLBACK_MESSAGE` („nenacházím odpověď, kontaktujte infolinku 800 123 456") jako statickou `text/plain` odpověď s prázdným `X-Sources` — Claude se nevolá (oprava B3; dřív se volal jen kvůli doslovnému opsání hlášky).
 
 **Systémový prompt** (`prompts.ts`): bot odpovídá výhradně z poskytnutých chunků, česky, v každé odpovědi cituje zdrojový dokument, neposkytuje poradenství nad rámec citovaných podmínek a nesjednává produkty.
 
@@ -273,7 +274,7 @@ Parametry laditelné za běhu bez redeploye. **Pozor na zásadní rozdíl:** par
 |---|---|---|
 | `top_k` | 1–20 | počet chunků z retrievalu (při dotazu) |
 | `similarity_threshold` | 0–1 | práh podobnosti v `match_chunks` (při dotazu) |
-| `llm_temperature` | 0–1 | teplota Claude (hlavní větev chatu; fallback větev má vždy 0) |
+| `llm_temperature` | 0–1 | teplota Claude (hlavní větev chatu; fallback je statický, bez LLM) |
 | `chunk_target_size` | 1500–6000 | cílová velikost chunku ve znacích (při indexaci) |
 | `chunk_breadcrumb` | bool | breadcrumb hlavička na začátku chunku (při indexaci) |
 | `chunk_strip_headers` | bool | odstraňování záhlaví/patiček stránek (při indexaci) |

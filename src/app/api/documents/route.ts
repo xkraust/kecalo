@@ -65,10 +65,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Ensure storage bucket exists
-  await supabase.storage
-    .createBucket("documents", { public: false })
-    .catch(() => {});
+  // Oprava D3: duplicitní název by vedl na duplicitní chunky v retrievalu.
+  const { data: existing, error: existErr } = await supabase
+    .from("documents")
+    .select("id")
+    .eq("filename", file.name)
+    .limit(1);
+  if (existErr) {
+    return NextResponse.json({ error: existErr.message }, { status: 500 });
+  }
+  if (existing && existing.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Dokument s tímto názvem už existuje — nejdřív ho smažte, nebo soubor přejmenujte.",
+      },
+      { status: 409 }
+    );
+  }
+
+  // Bucket musí existovat; „already exists" není chyba. (supabase-js nevyhazuje —
+  // chyby vrací v poli error, oprava D2.)
+  const { error: bucketErr } = await supabase.storage.createBucket("documents", {
+    public: false,
+  });
+  if (bucketErr && !/already exists/i.test(bucketErr.message)) {
+    console.warn("Vytvoření bucketu selhalo:", bucketErr.message);
+  }
 
   type UploadOutcome =
     | { ok: true; id: string; filename: string; status: string }
