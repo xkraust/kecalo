@@ -160,21 +160,25 @@ Navazuje na revizi [code_check.md](code_check.md) (3. 7. 2026, 15 nálezů). Opr
 
 ## Pořadí a commity
 
-| Krok | Balíček | Závažnost | Poznámka |
-|---|---|---|---|
-| 1 | A1 | 🔴 | samostatný commit |
-| 2 | B1 (+ `lib/rate-limit.ts`) | 🔴 | samostatný commit |
-| 3 | A2 | 🟠 | vyžaduje `SESSION_SECRET` na Vercelu před nasazením |
-| 4 | C1 + C2 | 🟠 | migrace 009 → `supabase db push` před nasazením kódu |
-| 5 | B2 + D1 | 🟠 | |
-| 6 | B3 + B4 + D2 + D3 + D4 | 🟡 | |
-| 7 | E1 + E2 + E3 | 🟡 | |
-| 8 | Aktualizace CLAUDE.md + code_check.md (poznámky „opraveno") | — | závěrečný commit |
+| Krok | Balíček | Závažnost | Stav | Commit |
+|---|---|---|---|---|
+| 1 | A1 | 🔴 | ✅ | `92f239b` |
+| 2 | B1 (+ `lib/rate-limit.ts`) | 🔴 | ✅ | `c3751f7` |
+| 3 | A2 (`SESSION_SECRET` na Vercelu nastaven před nasazením) | 🟠 | ✅ | `a47e4e1` |
+| 4 | C1 + C2 (migrace 009 aplikována před nasazením kódu) | 🟠 | ✅ | `3d32f82` |
+| 5 | B2 + D1 | 🟠 | ✅ | `2c1ce2e`* |
+| 6 | B3 + B4 + D2 + D3 + D4 | 🟡 | ✅ | `e524afc` |
+| 7 | E1 + E2 + E3 | 🟡 | ✅ | `28a6a2f` |
+| 8 | Aktualizace CLAUDE.md + code_check.md (poznámky „opraveno") | — | ✅ | závěrečný commit |
+
+\* Kroky 4 a 5 byly implementovány v opačném pořadí, než plán původně předpokládal (B2+D1 před C1+C2) — bez věcného dopadu, balíčky jsou nezávislé.
 
 ## Závěrečné ověření (po všech balíčcích)
 
-1. `npm run lint` a `npm run build` bez chyb.
-2. E2E v prohlížeči: login (včetně 429 po opakovaných špatných pokusech) → dashboard → upload dokumentu (duplicitní název → chyba) → reindexace → test retrievalu → chat (věcná otázka se zdroji, fallback otázka, thumbs up/down) → změna parametrů → odhlášení.
-3. Bezpečnostní smoke test curl bez cookie: `POST /api/settings`, `GET/POST /api/documents`, `DELETE /api/documents/<id>`, `POST /api/documents/<id>/reprocess`, `POST /api/retrieval-test` → vše 401; `POST /api/chat` s nevalidním tělem → 400.
-4. Kontrolní měření retrievalu na `docs/testovaci_otazky*.md` — top similarity beze změny proti stavu z fáze 13 (opravy nesmí ovlivnit kvalitu RAG).
-5. Langfuse: chat trace kompletní, fallback trace bez LLM spanu.
+Ověřování probíhalo průběžně po každém kroku (detaily u jednotlivých balíčků výše); souhrn:
+
+1. ✅ `npm run lint` a `npm run build` bez chyb po každém kroku.
+2. ✅ E2E: login (včetně 429 po 5 špatných pokusech), duplicitní upload → 409, reindexace (včetně simulace selhání — data přežila), chat se zdroji, statický fallback, thumbs up/down se správným dotazem, zrušení streamu, změna a obnova parametrů přes API.
+3. ✅ Bezpečnostní smoke test bez cookie: všech 6 admin rout → 401; `/api/chat` s nevalidním tělem → 400 (6 variant), rate limity 429 na chat, feedback i login.
+4. ✅ Kontrolní měření retrievalu — top-5 similarity identická před a po reindexaci s novým pipeline (0,4433 / 0,4314 / 0,4291 / 0,4276 / 0,4267).
+5. ⏳ Langfuse: fallback trace bez LLM spanu ověřen jen nepřímo (statická odpověď bez volání Claude); kontrola traces v Langfuse UI z nasazené aplikace zbývá uživateli.

@@ -5,6 +5,8 @@
 
 Nálezy jsou rozděleny do tří úrovní závažnosti. U každého je uveden soubor (a řádky), dopad a doporučená náprava. Projekt je prototyp — některé nálezy jsou v CLAUDE.md vedeny jako známý dluh; zde jsou uvedeny kompletně, aby byl seznam samostatně použitelný.
 
+> **Stav (3. 7. 2026): všech 15 nálezů opraveno.** Implementace a ověření viz [issues_correction_plan.md](issues_correction_plan.md). Mapování nález → oprava: #1 → A1, #2 → B1, #3 → A2, #4 → C1, #5 → C2, #6 → D1, #7 → B2, #8 → B3, #9 → B4, #10 → E1, #11 → E2, #12 → E3, #13 → D2, #14 → D3, #15 → D4. Čísla řádků v textu níže odpovídají stavu kódu v době revize (commit `2c1ce2e`).
+
 ---
 
 ## 🔴 Kritické
