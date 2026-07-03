@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { config } from "@/lib/config";
+import { clientIp } from "@/lib/rate-limit";
 import {
   createSessionCookie,
   safeEqual,
@@ -13,12 +14,6 @@ import {
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000;
 const failedAttempts = new Map<string, { count: number; windowStart: number }>();
-
-function clientIp(request: NextRequest): string {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
-  );
-}
 
 function isRateLimited(ip: string): boolean {
   const entry = failedAttempts.get(ip);

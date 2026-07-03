@@ -7,6 +7,7 @@ import { streamText } from "ai";
 import { NextResponse, after } from "next/server";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { getSettings } from "@/lib/settings";
+import { createRateLimiter, clientIp } from "@/lib/rate-limit";
 import { retrieve } from "@/lib/rag/retrieve";
 import { getTracer, withSpan, flushTelemetry } from "@/lib/telemetry";
 import {
@@ -18,20 +19,71 @@ import {
 export const maxDuration = 60;
 
 const MAX_HISTORY = 8;
+/** Limit délky jedné zprávy — ochrana proti obřím promptům (náklady LLM). */
+const MAX_MESSAGE_LENGTH = 4000;
+/** Limit počtu zpráv v požadavku (historie se pak stejně ořezává na MAX_HISTORY). */
+const MAX_MESSAGES = 50;
+
+const chatLimiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
 
 interface ChatMessage {
-  role: string;
+  role: "user" | "assistant";
   content: string;
 }
 
+/** Validace těla požadavku — vrací zprávy, nebo null při nevalidním vstupu. */
+function parseMessages(body: unknown): ChatMessage[] | null {
+  if (!body || typeof body !== "object") return null;
+  const messages = (body as { messages?: unknown }).messages;
+  if (
+    !Array.isArray(messages) ||
+    messages.length === 0 ||
+    messages.length > MAX_MESSAGES
+  ) {
+    return null;
+  }
+
+  const result: ChatMessage[] = [];
+  for (const m of messages) {
+    if (!m || typeof m !== "object") return null;
+    const { role, content } = m as { role?: unknown; content?: unknown };
+    if (role !== "user" && role !== "assistant") return null;
+    if (typeof content !== "string" || content.length > MAX_MESSAGE_LENGTH) {
+      return null;
+    }
+    result.push({ role, content });
+  }
+  return result;
+}
+
 export async function POST(request: Request) {
-  const { messages } = (await request.json()) as { messages: ChatMessage[] };
+  if (!chatLimiter(clientIp(request))) {
+    return NextResponse.json(
+      { error: "Příliš mnoho dotazů. Zkuste to prosím za chvíli." },
+      { status: 429 }
+    );
+  }
+
+  const body = await request.json().catch(() => null);
+  const messages = parseMessages(body);
+  if (!messages) {
+    return NextResponse.json(
+      {
+        error:
+          "Neplatný vstup — očekávám pole zpráv s rolí user/assistant a textem do 4 000 znaků.",
+      },
+      { status: 400 }
+    );
+  }
 
   const lastUserMessage = [...messages]
     .reverse()
     .find((m) => m.role === "user");
   if (!lastUserMessage?.content) {
-    return new Response("Chybí dotaz uživatele", { status: 400 });
+    return NextResponse.json(
+      { error: "Chybí dotaz uživatele" },
+      { status: 400 }
+    );
   }
 
   const query = lastUserMessage.content;
@@ -132,10 +184,7 @@ export async function POST(request: Request) {
     const contextBlock = buildContextBlock(chunks);
     const systemWithContext = `${SYSTEM_PROMPT}\n\n<context>\n${contextBlock}\n</context>`;
 
-    const trimmedMessages = messages.slice(-MAX_HISTORY).map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    }));
+    const trimmedMessages = messages.slice(-MAX_HISTORY);
 
     const sources = chunks.map((c) => ({
       filename: c.filename,

@@ -174,7 +174,8 @@ src/
     ├── config.ts                     # konstanty z env, default hodnoty
     ├── telemetry.ts                  # OTel: singleton span processoru + withSpan/getTracer/flushTelemetry
     ├── supabase.ts                   # Supabase client (service role)
-    ├── auth.ts                       # podpis/ověření session cookie (HMAC)
+    ├── auth.ts                       # podpis/ověření session cookie (HMAC), safeEqual
+    ├── rate-limit.ts                 # sdílený in-memory rate limit (sliding window per IP)
     ├── settings.ts                   # server: getSettings/saveSettings (app_settings)
     ├── settings-meta.ts              # sdílená metadata + validace parametrů (klient i server)
     ├── types.ts                      # sdílené TS typy
@@ -206,7 +207,7 @@ supabase/
 Spouští se z `POST /api/documents` po uploadu a z `POST /api/documents/[id]/reprocess` (reindexace). Načte runtime parametry chunkování (`getSettings()`) → stáhne soubor ze Storage → `extract.ts` → `clean.ts` → `chunk.ts` (s `docTitle` = název souboru bez přípony) → `embed.ts` → smaže staré chunky dokumentu → vloží nové po dávkách 100 → nastaví `status` dokumentu (`processing` → `ready` / `error`) a uloží otisk konfigurace do `documents.chunking_config`. Chyby se zachytí a uloží do `documents.error_message`.
 
 #### Dotaz / chat — `api/chat/route.ts` + `prompts.ts`
-`retrieve(query)` → pokud `chunks.length === 0` fallback (viz níže), jinak `buildContextBlock` vloží chunky do system promptu (atribut `source` = dokument, `section_path`, strana → citace typu „(VPP M-100/23, čl. 29 odst. 8, strana 11)"). Metadata zdrojů (filename, page, section, zaokrouhlené `similarity`) jdou na klienta v hlavičce odpovědi `X-Sources` (URL-encoded JSON). Historie se ořezává na posledních 8 zpráv (`MAX_HISTORY`).
+Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4 000 znaků, max 50 zpráv; jinak 400) a routa má rate limit 20 požadavků/min na IP (sdílený helper `lib/rate-limit.ts`; 429). Pak `retrieve(query)` → pokud `chunks.length === 0` fallback (viz níže), jinak `buildContextBlock` vloží chunky do system promptu (atribut `source` = dokument, `section_path`, strana → citace typu „(VPP M-100/23, čl. 29 odst. 8, strana 11)"). Metadata zdrojů (filename, page, section, zaokrouhlené `similarity`) jdou na klienta v hlavičce odpovědi `X-Sources` (URL-encoded JSON). Historie se ořezává na posledních 8 zpráv (`MAX_HISTORY`).
 
 #### Moduly `src/lib/rag/`
 

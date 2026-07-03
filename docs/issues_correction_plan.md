@@ -36,15 +36,15 @@ Navazuje na revizi [code_check.md](code_check.md) (3. 7. 2026, 15 nálezů). Opr
 
 ## Balíček B — Robustnost chat API (kritické #2, vysoká #7, nekritické #8, #9)
 
-### B1. Validace vstupu a limity `/api/chat` (#2) 🔴
+### B1. Validace vstupu a limity `/api/chat` (#2) 🔴 ✅ HOTOVO
 
-**Soubor:** `src/app/api/chat/route.ts`
+**Soubory:** `src/app/api/chat/route.ts`, `src/lib/rate-limit.ts` (nový)
 
-- [ ] Validační funkce na začátku handleru: tělo musí být objekt s polem `messages`; každá zpráva objekt s `role ∈ {"user","assistant"}` a řetězcovým `content`; jinak 400 s českou hláškou (žádný `TypeError` → 500).
-- [ ] Limity: `content` jedné zprávy max 4 000 znaků (delší → 400), celkový počet zpráv před ořezem max 50 (ochrana proti obřímu JSON), JSON body parse s `.catch(() => null)` → 400.
-- [ ] Rate limit: sdílený in-memory helper (nový `src/lib/rate-limit.ts`, sliding window per IP z hlavičky `x-forwarded-for`), např. 20 požadavků/min na `/api/chat`. Použít i pro `/api/feedback` (D1) a login (A2). Komentářem zdokumentovat per-instance omezení na serverless.
+- [x] Validační funkce `parseMessages` na začátku handleru: tělo musí být objekt s polem `messages`; každá zpráva objekt s `role ∈ {"user","assistant"}` a řetězcovým `content`; jinak 400 s českou hláškou (žádný `TypeError` → 500). Odpadl nekontrolovaný cast `m.role as …`.
+- [x] Limity: `content` jedné zprávy max 4 000 znaků (delší → 400), celkový počet zpráv před ořezem max 50, JSON body parse s `.catch(() => null)` → 400.
+- [x] Rate limit: sdílený in-memory helper `src/lib/rate-limit.ts` (`createRateLimiter` — sliding window per klíč, `clientIp` z `x-forwarded-for`, pojistka MAX_KEYS proti růstu mapy), 20 požadavků/min na `/api/chat` → 429. Login (A2) sdílí `clientIp`, ale záměrně si nechává vlastní počítadlo **neúspěšných pokusů** (úspěšný login se nepočítá a nuluje) — jiná sémantika než počítání požadavků. `/api/feedback` se napojí v D1. Per-instance omezení na serverless zdokumentováno v komentáři.
 
-**Ověření:** `curl` s tělem `{}`, `{"messages":"x"}`, `{"messages":[{"role":"system","content":"x"}]}` → vždy 400; validní dotaz → stream OK; 21. požadavek v minutě → 429.
+**Ověření:** ✅ provedeno — těla `{}`, `{"messages":"x"}`, role `system`, nečíselný content, content 4 001 znaků i nevalidní JSON → vše 400; validní dotaz → 200, stream + `X-Sources`; 25 rychlých požadavků → po vyčerpání 20/min okna 429; po vypršení okna se limiter zotaví (dotaz z UI prošel a vykreslil odpověď se zdroji); lint i build bez chyb.
 
 ### B2. Omezení velikosti `X-Sources` (#7) 🟠
 
