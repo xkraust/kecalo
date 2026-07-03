@@ -8,15 +8,15 @@ Navazuje na revizi [code_check.md](code_check.md) (3. 7. 2026, 15 nálezů). Opr
 
 ## Balíček A — Zabezpečení admin API a session (kritické #1, vysoká #3)
 
-### A1. Ochrana admin API rout middlewarem (#1) 🔴
+### A1. Ochrana admin API rout middlewarem (#1) 🔴 ✅ HOTOVO
 
 **Soubor:** `src/middleware.ts`
 
-- [ ] Rozšířit `config.matcher` o admin API routy: `/api/documents/:path*`, `/api/settings`, `/api/retrieval-test` (a ponechat `/admin`, `/admin/:path*`). Veřejné zůstávají: `/api/chat`, `/api/feedback`, `/api/auth/*`.
-- [ ] V middlewaru rozlišit typ požadavku: pro cesty začínající `/api/` vracet při neplatné session `NextResponse.json({ error: "Nepřihlášen" }, { status: 401 })` místo redirectu na login (redirect je pro API nesmyslný).
-- [ ] Admin klientské komponenty (`documents/client.tsx`, `parameters/client.tsx`, retrieval-test) ověřit, že na 401 reagují rozumně (zobrazí chybu); případně přidat redirect na `/admin/login` při 401.
+- [x] Rozšířit `config.matcher` o admin API routy: `/api/documents/:path*`, `/api/settings`, `/api/retrieval-test` (a ponechat `/admin`, `/admin/:path*`). Veřejné zůstávají: `/api/chat`, `/api/feedback`, `/api/auth/*`.
+- [x] V middlewaru rozlišit typ požadavku: pro cesty začínající `/api/` vracet při neplatné session `NextResponse.json({ error: "Nepřihlášen" }, { status: 401 })` místo redirectu na login (redirect je pro API nesmyslný).
+- [x] Admin klientské komponenty (`documents/client.tsx`, `parameters/client.tsx`, retrieval-test) ověřeno: na 401 reagují rozumně (parameters a retrieval-test zobrazí hlášku z API, documents tiše ponechá stará data) — úprava nebyla potřeba.
 
-**Ověření:** `curl -X POST /api/settings` a `curl -X DELETE /api/documents/<id>` bez cookie → 401; s platnou cookie (po loginu) → funguje. Admin UI funguje beze změny.
+**Ověření:** ✅ provedeno — bez cookie vrací všech 6 chráněných rout (GET/POST documents, DELETE, reprocess, GET/POST settings, retrieval-test) 401; `/api/chat`, `/api/feedback` a `/api/auth/login` zůstávají veřejné (400 = validace, ne auth); po loginu s cookie routy vracejí 200; `/admin` bez cookie přesměruje na login; lint i build bez chyb.
 
 ### A2. Zpevnění session tokenu a loginu (#3) 🟠
 

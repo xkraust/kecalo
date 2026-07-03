@@ -135,7 +135,7 @@ POST   /api/auth/logout         → smazání session cookie
 
 ```
 src/
-├── middleware.ts                     # ochrana /admin (kontrola session cookie)
+├── middleware.ts                     # ochrana /admin + admin API rout (session cookie; API → 401)
 ├── instrumentation.ts                # registrace OTel provideru + Langfuse processoru (Node.js runtime)
 ├── app/
 │   ├── page.tsx                      # Chat UI
@@ -258,7 +258,7 @@ Hodnoty `status` dokumentu: `uploaded → processing → ready | error`
 
 ## Admin autentizace
 
-`/admin` je chráněno middlewarem (`src/middleware.ts`), který kontroluje session cookie nastavenou na `/admin/login`. Přihlášení vyžaduje uživatelské jméno (`ADMIN_USERNAME`, povinné) a heslo (`ADMIN_PASSWORD`). Auth API routy jsou v `/api/auth/login` a `/api/auth/logout`. Jde o autentizaci na úrovni prototypu — ne JWT, ne SSO.
+`/admin` a admin API routy (`/api/documents*`, `/api/settings`, `/api/retrieval-test`) jsou chráněny middlewarem (`src/middleware.ts`), který kontroluje session cookie nastavenou na `/admin/login`; stránky bez cookie přesměruje na login, API routy vracejí 401 JSON. Veřejné zůstávají `/api/chat`, `/api/feedback` a `/api/auth/*`. Přihlášení vyžaduje uživatelské jméno (`ADMIN_USERNAME`, povinné) a heslo (`ADMIN_PASSWORD`). Auth API routy jsou v `/api/auth/login` a `/api/auth/logout`. Jde o autentizaci na úrovni prototypu — ne JWT, ne SSO.
 
 ## Runtime parametry RAG (`/admin/parameters`)
 
@@ -280,7 +280,7 @@ Parametry laditelné za běhu bez redeploye. **Pozor na zásadní rozdíl:** par
 - **Napojení (při indexaci, Fáze 13):** `pipeline.ts` (`processDocument`) volá `getSettings()` a předává `chunkStripHeaders` do `cleanPages()` a `chunkTargetSize`/`chunkBreadcrumb` do `chunkText()`; po úspěchu ukládá otisk `chunkingConfigOf(settings)` do `documents.chunking_config`.
 - **Reindexace:** `POST /api/documents/[id]/reprocess` znovu spustí `processDocument` nad originálem ve Storage (409 při běžícím zpracování; `after()` + `maxDuration = 60`). Tabulka dokumentů porovnává `chunking_config` s aktuálním nastavením (`isChunkingStale`; `NULL` = zastaralé) a zobrazuje žlutou indikaci + tlačítko Reindexovat (ikona RefreshCw) u `ready`/`error` dokumentů.
 - **UI:** `/admin/parameters` (server `page.tsx` + klient `client.tsx`) — tři skupiny (slidery RAG · Telemetrie · Chunkování), karty `SliderCard`/`ToggleCard`, tlačítka **Uložit** a **Obnovit výchozí**.
-- **Pozor:** `POST /api/settings` i `POST /api/documents/[id]/reprocess` (jako ostatní `/api/*`) nejsou chráněny middlewarem — známé omezení prototypu (viz produkční dluh v plánu).
+- Admin API routy (`/api/settings`, `/api/documents*`, `/api/retrieval-test`) jsou od opravy A1 (viz `docs/issues_correction_plan.md`) chráněny middlewarem — bez platné session cookie vracejí 401.
 
 ## Observabilita (Langfuse)
 
