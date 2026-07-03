@@ -40,6 +40,12 @@ export default function ChatPage() {
     Record<number, "up" | "down">
   >({});
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Běžící stream se dá zrušit (nová konverzace, unmount) — oprava E3.
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
 
   const [sessionId, setSessionId] = useState(() => {
     if (typeof window === "undefined") return "";
@@ -72,6 +78,9 @@ export default function ChatPage() {
       setInput("");
       setIsLoading(true);
 
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
@@ -82,6 +91,7 @@ export default function ChatPage() {
               content: m.content,
             })),
           }),
+          signal: controller.signal,
         });
 
         let sources: Source[] = [];
@@ -123,7 +133,20 @@ export default function ChatPage() {
             )
           );
         }
-      } catch {
+
+        // Flush dekodéru — poslední vícebajtový znak mohl zůstat rozdělený.
+        accumulated += decoder.decode();
+        const final = accumulated;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId ? { ...m, content: final, sources } : m
+          )
+        );
+      } catch (err) {
+        // Zrušený request (nová konverzace, unmount) není výpadek služby.
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
@@ -157,9 +180,11 @@ export default function ChatPage() {
       if (feedbackMap[messageIndex] === rating) return;
       setFeedbackMap((prev) => ({ ...prev, [messageIndex]: rating }));
 
-      const userQuery = messages
-        .filter((m) => m.role === "user")
-        .at(-1)?.content;
+      // Dotaz patřící hodnocené odpovědi je zpráva těsně před ní — ne poslední
+      // dotaz celé konverzace (oprava E3).
+      const prevMessage = messages[messageIndex - 1];
+      const userQuery =
+        prevMessage?.role === "user" ? prevMessage.content : undefined;
 
       fetch("/api/feedback", {
         method: "POST",
@@ -176,6 +201,7 @@ export default function ChatPage() {
   );
 
   const handleNewConversation = useCallback(() => {
+    abortRef.current?.abort();
     setMessages([]);
     setInput("");
     setFeedbackMap({});

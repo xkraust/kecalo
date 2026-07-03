@@ -134,25 +134,27 @@ Navazuje na revizi [code_check.md](code_check.md) (3. 7. 2026, 15 nálezů). Opr
 
 ## Balíček E — Klient a drobnosti (nekritické #10, #11, #12)
 
-### E1. Robustní detekce chyb Voyage (#10) 🟡
+### E1. Robustní detekce chyb Voyage (#10) 🟡 ✅ HOTOVO
 
 **Soubor:** `src/lib/rag/embed.ts`
 
-- [ ] Číst `statusCode` a `body` z chybového objektu SDK (fern klient je vystavuje) místo `message.includes("429")`; sniffing textu ponechat jen jako fallback. Detekci „payment method" hledat v `body` odpovědi.
+- [x] Čte se `statusCode` a `body` z chybového objektu SDK (`statusCodeOf`/`errorTextOf`); sniffing textu zprávy zůstal jen jako fallback. Detekce „payment method" prohledává i `body` odpovědi.
 
-### E2. Escapování `source` atributu (#11) 🟡
+### E2. Escapování `source` atributu (#11) 🟡 ✅ HOTOVO
 
 **Soubor:** `src/lib/rag/prompts.ts`
 
-- [ ] V `buildContextBlock` nahradit `"` → `&quot;` (příp. `<`/`>` → entity) v hodnotě `source`, aby název souboru nemohl rozbít strukturu `<document>` bloků.
+- [x] V `buildContextBlock` se hodnota `source` escapuje (`&`, `"`, `<`, `>` → entity) — název souboru nemůže rozbít strukturu `<document>` bloků.
 
-### E3. Chat klient (#12) 🟡
+### E3. Chat klient (#12) 🟡 ✅ HOTOVO
 
 **Soubor:** `src/app/page.tsx`
 
-- [ ] Po `done` doplnit závěrečný `decoder.decode()` (flush posledního vícebajtového znaku).
-- [ ] `AbortController` na request: „Nová konverzace" a unmount komponenty běžící fetch zruší (`AbortError` v catch ignorovat, ne zobrazovat jako výpadek služby).
-- [ ] Feedback: `query` brát ze zprávy `messages[messageIndex - 1]` (je-li `role === "user"`), ne z posledního dotazu konverzace.
+- [x] Po `done` doplněn závěrečný `decoder.decode()` (flush posledního vícebajtového znaku).
+- [x] `AbortController` na request: „Nová konverzace" i unmount komponenty běžící fetch zruší; `AbortError` se v catch ignoruje (nezobrazuje se jako výpadek služby).
+- [x] Feedback: `query` se bere ze zprávy `messages[messageIndex - 1]` (je-li `role === "user"`), ne z posledního dotazu konverzace.
+
+**Ověření E1–E3:** ✅ provedeno — E2E v prohlížeči: dvě otázky, hodnocení první odpovědi → feedback řádek nese dotaz první otázky (testovací řádek poté smazán); zrušení streamu tlačítkem „Nová konverzace" uprostřed generování → čistý prázdný stav, aktivní input, žádné chyby v konzoli; běžný chat beze změny chování. E1/E2 jsou kryty kódovou revizí (429 scénář nelze bez zásahu vyvolat). Lint i build bez chyb.
 
 ---
 

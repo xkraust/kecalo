@@ -28,6 +28,16 @@ Uveď, z jakého dokumentu čerpáš, podle atributu "source" — a pokud source
 export const FALLBACK_MESSAGE =
   "Na tuto otázku v dostupných podmínkách nenacházím odpověď. Obraťte se prosím na infolinku **800 123 456**.";
 
+/** Escapování hodnoty atributu — uvozovka v názvu souboru/sekci nesmí rozbít
+ * strukturu <document> bloků (oprava E2). */
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export function buildContextBlock(chunks: RetrievalResult[]): string {
   return chunks
     .map((c, i) => {
@@ -38,7 +48,7 @@ export function buildContextBlock(chunks: RetrievalResult[]): string {
       ]
         .filter(Boolean)
         .join(", ");
-      return `<document index="${i + 1}" source="${source}">\n${c.content}\n</document>`;
+      return `<document index="${i + 1}" source="${escapeAttr(source)}">\n${c.content}\n</document>`;
     })
     .join("\n\n");
 }

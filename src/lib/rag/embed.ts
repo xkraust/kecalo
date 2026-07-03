@@ -14,10 +14,39 @@ const PAYMENT_METHOD_ERROR =
 
 const voyage = new VoyageAIClient({ apiKey: config.voyageApiKey });
 
+// Chyby Voyage SDK (fern klient) nesou strukturovaná pole statusCode a body —
+// detekce se opírá primárně o ně; sniffing textu zprávy zůstává jen jako fallback
+// pro případ změny tvaru chybového objektu (oprava E1).
+function statusCodeOf(err: unknown): number | undefined {
+  if (err && typeof err === "object" && "statusCode" in err) {
+    const sc = (err as { statusCode?: unknown }).statusCode;
+    if (typeof sc === "number") return sc;
+  }
+  return undefined;
+}
+
+function errorTextOf(err: unknown): string {
+  let text = err instanceof Error ? err.message : "";
+  if (err && typeof err === "object" && "body" in err) {
+    try {
+      text += " " + JSON.stringify((err as { body?: unknown }).body);
+    } catch {
+      // body nejde serializovat — stačí message
+    }
+  }
+  return text.toLowerCase();
+}
+
 // Voyage vrací 429 i pro účet bez platební metody (limit free tieru). Tato chyba je
 // trvalá — opakování nepomůže — a poznáme ji podle těla odpovědi „payment method".
 function isPaymentMethodError(err: unknown): boolean {
-  return err instanceof Error && err.message.toLowerCase().includes("payment method");
+  return errorTextOf(err).includes("payment method");
+}
+
+function isRateLimitError(err: unknown): boolean {
+  const status = statusCodeOf(err);
+  if (status !== undefined) return status === 429;
+  return err instanceof Error && err.message.includes("429");
 }
 
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
@@ -26,9 +55,7 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
       return await fn();
     } catch (err) {
       if (isPaymentMethodError(err)) throw new Error(PAYMENT_METHOD_ERROR);
-      const is429 =
-        err instanceof Error && err.message.includes("429");
-      if (!is429 || attempt === MAX_RETRIES - 1) throw err;
+      if (!isRateLimitError(err) || attempt === MAX_RETRIES - 1) throw err;
       await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
     }
   }
