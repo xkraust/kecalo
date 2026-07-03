@@ -73,7 +73,7 @@ supabase init                    # jednorázová inicializace Supabase projektu
 supabase db push                 # aplikuje migrace na Supabase (vyžaduje DATABASE_URL)
 ```
 
-Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu) a `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`).
+Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu), `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`) a `009_chunk_batch.sql` (`chunks` += `batch_id` — reindexace bez ztráty dat, oprava C1).
 
 ### Scaffold projektu (fáze 1, jednorázové)
 
@@ -196,7 +196,8 @@ supabase/
     ├── 005_feedback.sql              # tabulka feedback (zpětná vazba thumbs up/down)
     ├── 006_telemetry_settings.sql    # app_settings += telemetry_enabled, record_content
     ├── 007_chunk_sections.sql        # chunks += section_path, match_chunks vrací sekci
-    └── 008_chunking_settings.sql     # app_settings += chunk_*, documents += chunking_config
+    ├── 008_chunking_settings.sql     # app_settings += chunk_*, documents += chunking_config
+    └── 009_chunk_batch.sql           # chunks += batch_id (reindexace bez ztráty dat)
 ```
 
 ### RAG — dvě oddělené pipeline
@@ -204,7 +205,7 @@ supabase/
 **Pozor na rozdělení odpovědností:** `src/lib/rag/pipeline.ts` NENÍ dotazovací (chat) pipeline — je to **indexační (ingestion) pipeline**. Chat pipeline žije v `src/app/api/chat/route.ts` ve spojení s `prompts.ts`.
 
 #### Indexace dokumentu — `pipeline.ts` (`processDocument`)
-Spouští se z `POST /api/documents` po uploadu a z `POST /api/documents/[id]/reprocess` (reindexace). Načte runtime parametry chunkování (`getSettings()`) → stáhne soubor ze Storage → `extract.ts` → `clean.ts` → `chunk.ts` (s `docTitle` = název souboru bez přípony) → `embed.ts` → smaže staré chunky dokumentu → vloží nové po dávkách 100 → nastaví `status` dokumentu (`processing` → `ready` / `error`) a uloží otisk konfigurace do `documents.chunking_config`. Chyby se zachytí a uloží do `documents.error_message`.
+Spouští se z `POST /api/documents` po uploadu a z `POST /api/documents/[id]/reprocess` (reindexace). Načte runtime parametry chunkování (`getSettings()`) → stáhne soubor ze Storage → `extract.ts` → `clean.ts` → `chunk.ts` (s `docTitle` = název souboru bez přípony) → `embed.ts` → **vloží nové chunky** po dávkách 100 s novým `batch_id` → **pak smaže staré** (`batch_id != nový`, atomický příkaz) → nastaví `status = ready` a uloží otisk konfigurace do `documents.chunking_config`. Selhání před výměnou → úklid nového batche, původní chunky přežijí (oprava C1); chyby se uloží do `documents.error_message`.
 
 #### Dotaz / chat — `api/chat/route.ts` + `prompts.ts`
 Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4 000 znaků, max 50 zpráv; jinak 400) a routa má rate limit 20 požadavků/min na IP (sdílený helper `lib/rate-limit.ts`; 429). Pak `retrieve(query)` → pokud `chunks.length === 0` fallback (viz níže), jinak `buildContextBlock` vloží chunky do system promptu (atribut `source` = dokument, `section_path`, strana → citace typu „(VPP M-100/23, čl. 29 odst. 8, strana 11)"). Metadata zdrojů (filename, page, section, zaokrouhlené `similarity`) jdou na klienta v hlavičce odpovědi `X-Sources` (URL-encoded JSON; `buildSourcesHeader` ořezává section na 100 a filename na 80 znaků, při překročení 8 000 znaků se sekce vynechají — ochrana proti limitu velikosti hlaviček). Historie se ořezává na posledních 8 zpráv (`MAX_HISTORY`).
@@ -238,7 +239,9 @@ documents (id uuid PK, filename text, mime_type text, status text,
 
 chunks (id uuid PK, document_id uuid FK→documents ON DELETE CASCADE,
         chunk_index int, page int NULL, section_path text NULL,
-        content text, embedding vector(1024))
+        content text, embedding vector(1024), batch_id uuid)
+-- batch_id = identifikátor indexačního běhu; reindexace vkládá nový batch
+-- a staré chunky maže až po úspěšném vložení (oprava C1)
 -- HNSW index nad chunks.embedding; section_path = cesta sekce v hierarchii dokumentu
 -- (např. „Část 2 – … › Článek 29 Pojistné plnění"), NULL u nestrukturovaných dokumentů
 
@@ -280,7 +283,7 @@ Parametry laditelné za běhu bez redeploye. **Pozor na zásadní rozdíl:** par
 - **Sdílená metadata:** `lib/settings-meta.ts` (`SETTINGS_FIELDS`, `TELEMETRY_FIELDS`, `CHUNKING_SLIDER_FIELDS`/`CHUNKING_TOGGLE_FIELDS`, agregáty `ALL_NUMERIC_FIELDS`/`ALL_TOGGLE_FIELDS`, `clampField`, `parseSettingsInput`, `chunkingConfigOf`/`isChunkingStale`) — bez server importů, sdílí klient, API i server. Rozsahy jsou jediný zdroj pravdy; CHECK v migracích je druhá obranná linie.
 - **Napojení (při dotazu):** `chat/route.ts` i `retrieval-test/route.ts` volají `getSettings()` při každém requestu (záměrně bez cache → změny se projeví okamžitě) a předávají hodnoty do `retrieve()` / `streamText`.
 - **Napojení (při indexaci, Fáze 13):** `pipeline.ts` (`processDocument`) volá `getSettings()` a předává `chunkStripHeaders` do `cleanPages()` a `chunkTargetSize`/`chunkBreadcrumb` do `chunkText()`; po úspěchu ukládá otisk `chunkingConfigOf(settings)` do `documents.chunking_config`.
-- **Reindexace:** `POST /api/documents/[id]/reprocess` znovu spustí `processDocument` nad originálem ve Storage (409 při běžícím zpracování; `after()` + `maxDuration = 60`). Tabulka dokumentů porovnává `chunking_config` s aktuálním nastavením (`isChunkingStale`; `NULL` = zastaralé) a zobrazuje žlutou indikaci + tlačítko Reindexovat (ikona RefreshCw) u `ready`/`error` dokumentů.
+- **Reindexace:** `POST /api/documents/[id]/reprocess` znovu spustí `processDocument` nad originálem ve Storage (`after()` + `maxDuration = 60`). Kontrola stavu a přepnutí na `processing` probíhá jedním podmíněným updatem (oprava C2) — souběžné volání → 409, neexistující dokument → 404. Tabulka dokumentů porovnává `chunking_config` s aktuálním nastavením (`isChunkingStale`; `NULL` = zastaralé) a zobrazuje žlutou indikaci + tlačítko Reindexovat (ikona RefreshCw) u `ready`/`error` dokumentů.
 - **UI:** `/admin/parameters` (server `page.tsx` + klient `client.tsx`) — tři skupiny (slidery RAG · Telemetrie · Chunkování), karty `SliderCard`/`ToggleCard`, tlačítka **Uložit** a **Obnovit výchozí**.
 - Admin API routy (`/api/settings`, `/api/documents*`, `/api/retrieval-test`) jsou od opravy A1 (viz `docs/issues_correction_plan.md`) chráněny middlewarem — bez platné session cookie vracejí 401.
 

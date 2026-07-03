@@ -15,30 +15,39 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  const { data: doc, error } = await supabase
+  // Oprava C2: kontrola stavu a přepnutí na processing v jednom podmíněném
+  // updatu — dvě souběžná volání nemohou spustit dvojí zpracování (druhé
+  // nezasáhne žádný řádek → 409). Zároveň dává okamžitou zpětnou vazbu pro
+  // polling tabulky (processDocument běží až v after()).
+  const { data: updated, error: updateErr } = await supabase
     .from("documents")
-    .select("id, status")
+    .update({ status: "processing", error_message: null })
     .eq("id", id)
-    .single();
+    .in("status", ["ready", "error"])
+    .select("id");
 
-  if (error || !doc) {
-    return NextResponse.json({ error: "Dokument nenalezen" }, { status: 404 });
+  if (updateErr) {
+    return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
-  // Tlačítko v UI běžící zpracování skryje, ale API stav kontroluje samo.
-  if (doc.status === "uploaded" || doc.status === "processing") {
+  if (!updated || updated.length === 0) {
+    // Rozlišit neexistující dokument od právě zpracovávaného.
+    const { data: doc } = await supabase
+      .from("documents")
+      .select("id")
+      .eq("id", id)
+      .single();
+    if (!doc) {
+      return NextResponse.json(
+        { error: "Dokument nenalezen" },
+        { status: 404 }
+      );
+    }
     return NextResponse.json(
       { error: "Dokument se právě zpracovává" },
       { status: 409 }
     );
   }
-
-  // Okamžitá zpětná vazba pro polling tabulky — processDocument by stav nastavil
-  // až po odeslání response (běží v after()).
-  await supabase
-    .from("documents")
-    .update({ status: "processing", error_message: null })
-    .eq("id", id);
 
   after(processDocument(id));
 

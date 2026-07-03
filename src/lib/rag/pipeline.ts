@@ -16,11 +16,23 @@ export async function processDocument(documentId: string): Promise<void> {
   // proto flush v finally.
   await getTracer().startActiveSpan("document.process", async (span) => {
     span.setAttribute("document.id", documentId);
+
+    // Oprava C1: nové chunky se vkládají s novým batch_id, staré se mažou až po
+    // úspěšném vložení — selhání uprostřed indexace neztratí původní data.
+    const batchId = crypto.randomUUID();
+    // insertované = nový batch (možná neúplně) v DB, staré chunky stále existují;
+    // swapped = staré smazané, nový batch je jediná kopie dat (už se neuklízí).
+    let inserted = false;
+    let swapped = false;
+
     try {
-      await supabase
+      const { error: procErr } = await supabase
         .from("documents")
         .update({ status: "processing" })
         .eq("id", documentId);
+      if (procErr) {
+        console.error("Nastavení stavu processing selhalo:", procErr.message);
+      }
 
       const { data: doc } = await supabase
         .from("documents")
@@ -90,8 +102,6 @@ export async function processDocument(documentId: string): Promise<void> {
         { "embed.total_texts": chunks.length }
       );
 
-      await supabase.from("chunks").delete().eq("document_id", documentId);
-
       const rows = chunks.map((c, i) => ({
         document_id: c.document_id,
         chunk_index: c.chunk_index,
@@ -99,10 +109,13 @@ export async function processDocument(documentId: string): Promise<void> {
         section_path: c.section_path,
         content: c.content,
         embedding: JSON.stringify(embeddings[i]),
+        batch_id: batchId,
       }));
 
+      // 1) Vložit nový batch — staré chunky zatím zůstávají v DB.
       await withSpan("document.insert-chunks", async (s) => {
         let batchCount = 0;
+        inserted = true;
         for (let i = 0; i < rows.length; i += INSERT_BATCH) {
           const batch = rows.slice(i, i + INSERT_BATCH);
           const { error } = await supabase.from("chunks").insert(batch);
@@ -112,7 +125,20 @@ export async function processDocument(documentId: string): Promise<void> {
         s.setAttribute("insert.batch_count", batchCount);
       });
 
-      await supabase
+      // 2) Smazat staré chunky — jeden SQL příkaz (v Postgresu atomický).
+      const { error: delErr } = await supabase
+        .from("chunks")
+        .delete()
+        .eq("document_id", documentId)
+        .neq("batch_id", batchId);
+      if (delErr) {
+        throw new Error(`Smazání starých chunků selhalo: ${delErr.message}`);
+      }
+      swapped = true;
+
+      // 3) Teprve teď je dokument připravený. Selhání se propaguje — jinak by
+      // dokument zůstal viset ve stavu processing bez chybové hlášky.
+      const { error: readyErr } = await supabase
         .from("documents")
         .update({
           status: "ready",
@@ -121,15 +147,34 @@ export async function processDocument(documentId: string): Promise<void> {
           chunking_config: chunkingConfigOf(settings),
         })
         .eq("id", documentId);
+      if (readyErr) {
+        throw new Error(`Uložení stavu ready selhalo: ${readyErr.message}`);
+      }
 
       span.setStatus({ code: SpanStatusCode.OK });
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Neznámá chyba při indexaci";
-      await supabase
+      // Úklid: dokud existují staré chunky, smaže se (možná neúplný) nový batch
+      // a dokument zůstává na původních datech. Po swapu je nový batch jediná
+      // kompletní kopie dat — nechává se (jen status není ready).
+      if (inserted && !swapped) {
+        const { error: cleanupErr } = await supabase
+          .from("chunks")
+          .delete()
+          .eq("document_id", documentId)
+          .eq("batch_id", batchId);
+        if (cleanupErr) {
+          console.error("Úklid nového batche selhal:", cleanupErr.message);
+        }
+      }
+      const { error: errUpdErr } = await supabase
         .from("documents")
         .update({ status: "error", error_message: message })
         .eq("id", documentId);
+      if (errUpdErr) {
+        console.error("Zápis chybového stavu selhal:", errUpdErr.message);
+      }
       span.recordException(err as Error);
       span.setStatus({ code: SpanStatusCode.ERROR });
     } finally {

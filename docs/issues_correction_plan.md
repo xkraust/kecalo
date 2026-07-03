@@ -75,23 +75,23 @@ Navazuje na revizi [code_check.md](code_check.md) (3. 7. 2026, 15 nálezů). Opr
 
 ## Balíček C — Integrita indexace (vysoká #4, #5)
 
-### C1. Reindexace bez ztráty dat (#4) 🟠
+### C1. Reindexace bez ztráty dat (#4) 🟠 ✅ HOTOVO
 
 **Soubory:** nová migrace `supabase/migrations/009_chunk_batch.sql`, `src/lib/rag/pipeline.ts`
 
-- [ ] Migrace 009: `chunks += batch_id uuid NOT NULL DEFAULT gen_random_uuid()`. `match_chunks` beze změny (během zpracování je dokument ve stavu `processing`, retrieval ho nevrací — okno nekonzistence nevzniká).
-- [ ] `pipeline.ts` — otočit pořadí: vygenerovat `batchId` → **nejdřív vložit** nové chunky (všechny dávky se stejným `batch_id`) → **pak smazat** staré (`document_id = X AND batch_id != batchId`) → nastavit `status = ready`. Selhání při insertu → staré chunky zůstávají netknuté; uklidit částečně vložený nový batch (`delete … batch_id = batchId`) v catch větvi.
-- [ ] Kontrolovat `error` u všech `update` statusů dokumentu (řádky, kde se dnes výsledek zahazuje) — při selhání alespoň `console.error`, u přechodu na `ready` chybu propagovat (jinak dokument zamrzne v `processing` bez informace).
+- [x] Migrace 009: `chunks += batch_id uuid NOT NULL DEFAULT gen_random_uuid()`. `match_chunks` beze změny (během zpracování je dokument ve stavu `processing`, retrieval ho nevrací — okno nekonzistence nevzniká). **Aplikována na Supabase** (`supabase db push` provedl uživatel).
+- [x] `pipeline.ts` — otočené pořadí: vygenerovat `batchId` → **nejdřív vložit** nové chunky (všechny dávky se stejným `batch_id`) → **pak smazat** staré (`document_id = X AND batch_id != batchId`, jeden atomický příkaz) → nastavit `status = ready`. Selhání před výměnou → úklid částečně vloženého nového batche v catch, staré chunky netknuté; po výměně se nový batch nechává (jediná kompletní kopie).
+- [x] Kontroluje se `error` u všech `update` statusů dokumentu — selhání přechodu na `ready` se propaguje (jinak by dokument zamrzl v `processing` bez informace), ostatní alespoň `console.error`.
 
-**Ověření:** reindexace M-100 přes admin UI → stejný počet chunků jako před změnou (57), `docs/testovaci_otazky*.md` přes test retrievalu → shodná top similarity. Simulace selhání (dočasně vyhozená výjimka mezi dávkami insertu) → původní chunky přežijí, status `error`.
+**Ověření:** ✅ provedeno na IPID (2 chunky) — úspěšná reindexace: `ready`, 2 chunky, jediný nový `batch_id`; simulace selhání (dočasný `throw` mezi insertem a výměnou): status `error` s hláškou, **původní 2 chunky s původním batch_id přežily**, nový batch uklizen; po odstranění chyby reindexace zpět do `ready`. Kontrolní retrieval identický s baseline (top-5 similarity 0,4433 / 0,4314 / 0,4291 / 0,4276 / 0,4267). Lint i build bez chyb.
 
-### C2. Atomický přechod stavu při reprocess (#5) 🟠
+### C2. Atomický přechod stavu při reprocess (#5) 🟠 ✅ HOTOVO
 
 **Soubor:** `src/app/api/documents/[id]/reprocess/route.ts`
 
-- [ ] Nahradit dvojici select+update jedním podmíněným updatem: `.update({ status: "processing", error_message: null }).eq("id", id).in("status", ["ready", "error"]).select("id")` — když vrátí 0 řádků, rozlišit 404 (dokument neexistuje — druhý select) vs. 409 (právě se zpracovává).
+- [x] Dvojice select+update nahrazena jedním podmíněným updatem: `.update({ status: "processing", error_message: null }).eq("id", id).in("status", ["ready", "error"]).select("id")` — když vrátí 0 řádků, rozlišuje se 404 (dokument neexistuje — druhý select) vs. 409 (právě se zpracovává).
 
-**Ověření:** dvě rychlá volání reprocess za sebou (curl) → první 200, druhé 409; po doběhnutí je dokument `ready` se správným počtem chunků.
+**Ověření:** ✅ provedeno — dvě rychlá volání za sebou: první 200, druhé 409 „Dokument se právě zpracovává"; neexistující id → 404; po doběhnutí dokument `ready` se správným počtem chunků. (Pozn.: při testování bylo nutné smazat `.next` cache — dev server po dřívějším křížení s `next build` nezaregistroval vnořenou routu a vracel HTML 404.)
 
 ---
 
