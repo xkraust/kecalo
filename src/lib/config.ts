@@ -9,6 +9,7 @@ export const config = {
   supabaseServiceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
   adminUsername: required("ADMIN_USERNAME"),
   adminPassword: required("ADMIN_PASSWORD"),
+  sessionSecret: required("SESSION_SECRET"),
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   voyageApiKey: process.env.VOYAGE_API_KEY ?? "",
   topK: parseInt(process.env.TOP_K ?? "5", 10),

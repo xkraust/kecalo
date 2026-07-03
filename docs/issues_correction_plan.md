@@ -18,19 +18,19 @@ Navazuje na revizi [code_check.md](code_check.md) (3. 7. 2026, 15 nálezů). Opr
 
 **Ověření:** ✅ provedeno — bez cookie vrací všech 6 chráněných rout (GET/POST documents, DELETE, reprocess, GET/POST settings, retrieval-test) 401; `/api/chat`, `/api/feedback` a `/api/auth/login` zůstávají veřejné (400 = validace, ne auth); po loginu s cookie routy vracejí 200; `/admin` bez cookie přesměruje na login; lint i build bez chyb.
 
-### A2. Zpevnění session tokenu a loginu (#3) 🟠
+### A2. Zpevnění session tokenu a loginu (#3) 🟠 ✅ HOTOVO
 
 **Soubory:** `src/lib/auth.ts`, `src/middleware.ts`, `src/lib/config.ts`, `src/app/api/auth/login/route.ts`, `.env.example`
 
-- [ ] Nová env proměnná `SESSION_SECRET` (dlouhý náhodný řetězec): přidat do `.env.example`, do `config.ts` jako `required()`, doplnit do tabulky env v CLAUDE.md a nastavit na Vercelu. Podpisový klíč HMAC = `SESSION_SECRET` (už ne `ADMIN_PASSWORD`) → uniklá cookie neumožní brute-force hesla.
-- [ ] Do podepisovaných dat přidat náhodný nonce: cookie `ts.nonce.sig`, podpis přes `ts.nonce` (tokeny přestanou být deterministické).
-- [ ] Ověření podpisu přes `crypto.subtle.verify("HMAC", key, sig, data)` místo porovnání hex řetězců — verify je constant-time a funguje i v edge runtime middlewaru.
-- [ ] `middleware.ts`: při chybějícím `SESSION_SECRET` přístup **zamítnout** (redirect/401), nikdy nepadat na prázdný secret.
-- [ ] Login rate limit: jednoduchá in-memory mapa `IP → {count, firstAttempt}` v module scope routy, např. max 5 pokusů / 15 min, při překročení 429. (Per-instance limit — na serverless jde o zmírnění, ne absolutní ochranu; zdokumentovat v komentáři.)
-- [ ] Porovnání username/hesla v login routě přes constant-time helper (HMAC obou hodnot stejným náhodným klíčem a porovnání přes `crypto.subtle.verify`, nebo XOR porovnání bajtů).
-- [ ] Logout bez server-side invalidace ponechat jako dokumentované omezení prototypu (zkrátit `SESSION_MAX_AGE` na 8 h jako zmírnění).
+- [x] Nová env proměnná `SESSION_SECRET` (dlouhý náhodný řetězec): přidána do `.env.example`, do `config.ts` jako `required()`, doplněna do tabulky env v CLAUDE.md. **Na Vercelu nutno nastavit před nasazením!** Podpisový klíč HMAC = `SESSION_SECRET` (už ne `ADMIN_PASSWORD`) → uniklá cookie neumožní brute-force hesla.
+- [x] Do podepisovaných dat přidán náhodný nonce: cookie `ts.nonce.sig`, podpis přes `ts.nonce` (tokeny přestaly být deterministické).
+- [x] Ověření podpisu přes `crypto.subtle.verify("HMAC", key, sig, data)` místo porovnání hex řetězců — verify je constant-time a funguje i v edge runtime middlewaru.
+- [x] `middleware.ts`: při chybějícím `SESSION_SECRET` přístup zamítá (deny + console.error), nikdy nepadá na prázdný secret.
+- [x] Login rate limit: in-memory mapa `IP → {count, windowStart}` v module scope routy, max 5 pokusů / 15 min, při překročení 429; úspěšný login počítadlo nuluje. (Per-instance limit — na serverless zmírnění, ne absolutní ochrana; zdokumentováno v komentáři.)
+- [x] Porovnání username/hesla v login routě přes constant-time helper `safeEqual` (SHA-256 otisky + XOR porovnání pevné délky; obě porovnání běží vždy, bez short-circuit).
+- [x] Logout bez server-side invalidace ponechán jako dokumentované omezení prototypu; `SESSION_MAX_AGE` zkrácen z 24 h na 8 h.
 
-**Ověření:** login funguje, stará cookie (podepsaná heslem) je po nasazení neplatná → vyžádá nový login; 6. špatný pokus o login → 429.
+**Ověření:** ✅ provedeno — podvržená cookie starého formátu (`ts.sig`) → 401; login se správnými údaji → 200, cookie má formát `ts.nonce.sig` (3 části) a chráněné routy s ní vracejí 200; 6 špatných pokusů → 5× 401, poté 429; lint i build bez chyb. `SESSION_SECRET` vygenerován do `.env.local` (64 hex znaků, nezobrazen v přepisu).
 
 ---
 

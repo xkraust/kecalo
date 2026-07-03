@@ -97,6 +97,7 @@ npm i ai @ai-sdk/anthropic @supabase/supabase-js voyageai unpdf react-markdown
 | `DATABASE_URL` | Postgres connection string pro migrace |
 | `ADMIN_USERNAME` | Uživatelské jméno pro admin (povinné) |
 | `ADMIN_PASSWORD` | Heslo pro admin sekci |
+| `SESSION_SECRET` | Podpisový klíč admin session cookie (dlouhý náhodný řetězec, povinný) |
 | `TOP_K` | Výchozí počet výsledků z retrievalu (5) |
 | `SIMILARITY_THRESHOLD` | Výchozí práh kosinové podobnosti (0.35) |
 | `LLM_TEMPERATURE` | Výchozí teplota Claude (0.2) |
@@ -258,7 +259,7 @@ Hodnoty `status` dokumentu: `uploaded → processing → ready | error`
 
 ## Admin autentizace
 
-`/admin` a admin API routy (`/api/documents*`, `/api/settings`, `/api/retrieval-test`) jsou chráněny middlewarem (`src/middleware.ts`), který kontroluje session cookie nastavenou na `/admin/login`; stránky bez cookie přesměruje na login, API routy vracejí 401 JSON. Veřejné zůstávají `/api/chat`, `/api/feedback` a `/api/auth/*`. Přihlášení vyžaduje uživatelské jméno (`ADMIN_USERNAME`, povinné) a heslo (`ADMIN_PASSWORD`). Auth API routy jsou v `/api/auth/login` a `/api/auth/logout`. Jde o autentizaci na úrovni prototypu — ne JWT, ne SSO.
+`/admin` a admin API routy (`/api/documents*`, `/api/settings`, `/api/retrieval-test`) jsou chráněny middlewarem (`src/middleware.ts`), který kontroluje session cookie nastavenou na `/admin/login`; stránky bez cookie přesměruje na login, API routy vracejí 401 JSON. Veřejné zůstávají `/api/chat`, `/api/feedback` a `/api/auth/*`. Přihlášení vyžaduje uživatelské jméno (`ADMIN_USERNAME`, povinné) a heslo (`ADMIN_PASSWORD`). Session cookie (`ts.nonce.sig`, platnost 8 h) je podepsaná HMAC-SHA256 klíčem `SESSION_SECRET` (nikdy ne heslem); ověření podpisu je constant-time (`crypto.subtle.verify`), při chybějícím `SESSION_SECRET` middleware přístup zamítá. Login má constant-time porovnání údajů (`safeEqual`) a in-memory rate limit 5 pokusů / 15 min na IP (per-instance zmírnění). Auth API routy jsou v `/api/auth/login` a `/api/auth/logout`; logout jen maže cookie (token platí do expirace — omezení prototypu). Jde o autentizaci na úrovni prototypu — ne JWT, ne SSO.
 
 ## Runtime parametry RAG (`/admin/parameters`)
 

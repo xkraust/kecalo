@@ -35,7 +35,15 @@ export async function middleware(request: NextRequest) {
     return deny();
   }
 
-  const secret = process.env.ADMIN_PASSWORD ?? "";
+  // Chybějící secret = zamítnout přístup, nikdy neověřovat proti prázdnému klíči.
+  // (Middleware neimportuje lib/config — běží v edge runtime a config vyžaduje
+  // všechny env proměnné najednou.)
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    console.error("SESSION_SECRET není nastaven — admin je nedostupný.");
+    return deny();
+  }
+
   const valid = await verifySession(cookie.value, secret);
   if (!valid) {
     return deny();
