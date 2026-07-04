@@ -3,6 +3,7 @@
 import ReactMarkdown from "react-markdown";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { SourcesBlock, type Source } from "./SourcesBlock";
+import { LeadForm, type ConversationMessage } from "./LeadForm";
 
 interface MessageBubbleProps {
   role: "user" | "assistant";
@@ -11,6 +12,11 @@ interface MessageBubbleProps {
   messageIndex?: number;
   feedbackRating?: "up" | "down" | null;
   onFeedback?: (messageIndex: number, rating: "up" | "down") => void;
+  /** Nabídka kontaktu — model odpověď označil tokenem [[NABIDKA]]. */
+  showLeadForm?: boolean;
+  sessionId?: string;
+  /** Posledních max 8 zpráv konverzace pro serverovou komprimaci poptávky. */
+  conversation?: ConversationMessage[];
 }
 
 export function MessageBubble({
@@ -20,6 +26,9 @@ export function MessageBubble({
   messageIndex,
   feedbackRating,
   onFeedback,
+  showLeadForm,
+  sessionId,
+  conversation,
 }: MessageBubbleProps) {
   if (role === "user") {
     return (
@@ -46,6 +55,9 @@ export function MessageBubble({
           <div className="px-1">
             <SourcesBlock sources={sources} />
           </div>
+        )}
+        {showLeadForm && sessionId && (
+          <LeadForm sessionId={sessionId} conversation={conversation ?? []} />
         )}
         {showFeedback && (
           <div className="mt-1.5 flex items-center gap-1 px-1">

@@ -18,6 +18,36 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   sources?: Source[];
+  /** Model odpověď označil tokenem [[NABIDKA]] → zobrazit kartu poptávky. */
+  offerLead?: boolean;
+}
+
+/** Skrytá značka od modelu — jen u dotazů na konkrétní pojistný produkt. */
+const LEAD_TOKEN = "[[NABIDKA]]";
+
+/**
+ * Odstraní token nabídky z textu pro zobrazení i historii. Pracuje vždy nad
+ * celým akumulovaným textem (token může přijít rozdělený mezi chunky streamu)
+ * a ořezává i neúplný prefix tokenu na konci ("[[", "[[NAB"…), aby během
+ * streamování neprobliknul v bublině, než dorazí zbytek.
+ */
+function stripLeadToken(text: string): {
+  content: string;
+  offerLead: boolean;
+} {
+  const offerLead = text.includes(LEAD_TOKEN);
+  let content = offerLead ? text.replaceAll(LEAD_TOKEN, "") : text;
+  for (
+    let len = Math.min(LEAD_TOKEN.length - 1, content.length);
+    len > 0;
+    len--
+  ) {
+    if (content.endsWith(LEAD_TOKEN.slice(0, len))) {
+      content = content.slice(0, content.length - len);
+      break;
+    }
+  }
+  return { content: content.trimEnd(), offerLead };
 }
 
 let nextId = 0;
@@ -129,20 +159,36 @@ export default function ChatPage() {
           if (done) break;
 
           accumulated += decoder.decode(value, { stream: true });
-          const current = accumulated;
+          // Token nabídky se odstraňuje už při ukládání do state — do /api/chat
+          // se tak historie posílá bez něj.
+          const current = stripLeadToken(accumulated);
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === assistantId ? { ...m, content: current, sources } : m
+              m.id === assistantId
+                ? {
+                    ...m,
+                    content: current.content,
+                    sources,
+                    offerLead: current.offerLead,
+                  }
+                : m
             )
           );
         }
 
         // Flush dekodéru — poslední vícebajtový znak mohl zůstat rozdělený.
         accumulated += decoder.decode();
-        const final = accumulated;
+        const final = stripLeadToken(accumulated);
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantId ? { ...m, content: final, sources } : m
+            m.id === assistantId
+              ? {
+                  ...m,
+                  content: final.content,
+                  sources,
+                  offerLead: final.offerLead,
+                }
+              : m
           )
         );
       } catch (err) {
@@ -277,6 +323,12 @@ export default function ChatPage() {
                 messageIndex={i}
                 feedbackRating={feedbackMap[i] ?? null}
                 onFeedback={handleFeedback}
+                showLeadForm={m.offerLead}
+                sessionId={sessionId}
+                conversation={messages
+                  .slice(0, i + 1)
+                  .slice(-8)
+                  .map(({ role, content }) => ({ role, content }))}
               />
             ))
           )}

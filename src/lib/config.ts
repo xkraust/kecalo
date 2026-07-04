@@ -13,6 +13,8 @@ export const config = {
   anthropicApiKey: required("ANTHROPIC_API_KEY"),
   voyageApiKey: required("VOYAGE_API_KEY"),
   chatModel: process.env.CHAT_MODEL ?? "claude-sonnet-4-6",
+  // Sumarizace konverzace u poptávek — jednoduchá kompresní úloha, stačí Haiku.
+  summaryModel: process.env.SUMMARY_MODEL ?? "claude-haiku-4-5",
   topK: parseInt(process.env.TOP_K ?? "5", 10),
   similarityThreshold: parseFloat(process.env.SIMILARITY_THRESHOLD ?? "0.35"),
   llmTemperature: parseFloat(process.env.LLM_TEMPERATURE ?? "0.2"),

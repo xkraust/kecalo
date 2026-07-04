@@ -1,7 +1,14 @@
-import { NextResponse } from "next/server";
+import { anthropic } from "@ai-sdk/anthropic";
+import { generateText } from "ai";
+import { NextResponse, after } from "next/server";
+import { config } from "@/lib/config";
 import { supabase } from "@/lib/supabase";
+import { getSettings } from "@/lib/settings";
 import { createRateLimiter, clientIp } from "@/lib/rate-limit";
+import { withSpan, flushTelemetry } from "@/lib/telemetry";
 import type { Lead } from "@/lib/types";
+
+export const maxDuration = 30;
 
 // Limity vstupu — routa je veřejná (bez auth), meze brání spamu a přetečení
 // DB checků. Limit poznámky platí na jednu odeslanou poznámku; sloupec note má
@@ -137,6 +144,53 @@ function parseLeadInput(body: unknown): LeadInput | string {
   };
 }
 
+const SUMMARY_SYSTEM_PROMPT =
+  "Jsi asistent zpracovatele poptávek pojišťovny. Dostaneš přepis konverzace " +
+  "klienta s chatbotem. Shrň do 2–4 vět česky, o jaký produkt má klient zájem " +
+  "a na co se má zpracovatel při kontaktu zaměřit. Piš věcně, bez oslovení a " +
+  "bez úvodních frází.";
+
+/** LLM shrnutí konverzace pro zpracovatele — nahrazuje surový dotaz v DB.
+ * Best-effort: při selhání vrací null, poptávka se nesmí ztratit kvůli
+ * sumarizaci. */
+async function summarizeConversation(
+  messages: ConversationMessage[]
+): Promise<string | null> {
+  if (messages.length === 0) return null;
+  try {
+    const settings = await getSettings();
+    const transcript = messages
+      .map((m) => `${m.role === "user" ? "Klient" : "Bot"}: ${m.content}`)
+      .join("\n\n");
+
+    return await withSpan("lead.summarize", async (span) => {
+      const { text, usage } = await generateText({
+        model: anthropic(config.summaryModel),
+        system: SUMMARY_SYSTEM_PROMPT,
+        prompt: transcript,
+        temperature: 0,
+        maxOutputTokens: 250,
+        experimental_telemetry: {
+          isEnabled: settings.telemetryEnabled,
+          functionId: "lead-summarize",
+          // Obsah jen při zapnutém runtime přepínači (stejně jako chat).
+          recordInputs: settings.recordContent,
+          recordOutputs: settings.recordContent,
+        },
+      });
+      span.setAttributes({
+        "lead.message_count": messages.length,
+        "llm.input_tokens": usage?.inputTokens ?? 0,
+        "llm.output_tokens": usage?.outputTokens ?? 0,
+      });
+      return text.trim() || null;
+    });
+  } catch (err) {
+    console.error("Sumarizace konverzace selhala:", err);
+    return null;
+  }
+}
+
 /** Připojí nový text pod oddělovač „— doplněno {datum}:" (deduplikace). */
 function appendText(
   existing: string | null,
@@ -190,9 +244,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: input }, { status: 400 });
   }
 
-  // LLM shrnutí konverzace přibude v kroku 2 (best-effort — poptávka se nesmí
-  // ztratit kvůli sumarizaci); do té doby se ukládá summary = null.
-  const summary: string | null = null;
+  const summary = await summarizeConversation(input.messages);
+  after(() => flushTelemetry());
 
   try {
     // Deduplikace podle kontaktu (nikdy podle jména): nevyřízený lead se
