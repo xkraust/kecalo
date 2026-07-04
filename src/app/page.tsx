@@ -52,8 +52,11 @@ export default function ChatPage() {
     return getSessionId();
   });
 
+  // Okamžitý (ne smooth) scroll vnitřního kontejneru: effect běží při každém
+  // kousku streamu a restartovaná smooth animace způsobovala trhání.
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   const sendMessage = useCallback(
@@ -211,7 +214,11 @@ export default function ChatPage() {
   }, []);
 
   return (
-    <div className="flex flex-1 flex-col h-full">
+    // h-dvh ukotví chat na výšku viewportu — scrolluje vnitřní panel zpráv,
+    // ne dokument (body má jen min-h-full), takže spodní lišta stojí na místě.
+    // min-h-0 je nutné: jako flex položka body (flex-col) by jinak min-height:auto
+    // roztáhl kořen na výšku obsahu a h-dvh by se neuplatnilo.
+    <div className="flex h-dvh min-h-0 flex-col">
       <header className="flex items-center justify-between border-b border-border px-4 py-3 shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-medium">
@@ -232,7 +239,9 @@ export default function ChatPage() {
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto">
+      {/* min-h-0: flex položka jinak nesmí být menší než obsah (min-height: auto)
+          a overflow-y-auto by se nikdy neaktivoval — scrolloval by celý dokument. */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-4 py-6 space-y-4">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-6 pt-16 text-center">
@@ -286,7 +295,6 @@ export default function ChatPage() {
               </div>
             )}
 
-          <div ref={scrollRef} />
         </div>
       </div>
 
