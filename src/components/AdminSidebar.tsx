@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   FileText,
+  Inbox,
   Search,
   SlidersHorizontal,
   MessageSquare,
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { label: "Přehled", href: "/admin", icon: LayoutDashboard },
   { label: "Dokumenty", href: "/admin/documents", icon: FileText },
+  { label: "Poptávky", href: "/admin/leads", icon: Inbox },
   { label: "Test retrievalu", href: "/admin/retrieval-test", icon: Search },
   { label: "Parametry", href: "/admin/parameters", icon: SlidersHorizontal },
   { label: "Chat", href: "/", icon: MessageSquare, external: true },
