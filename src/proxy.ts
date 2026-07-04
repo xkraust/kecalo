@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME, verifySession } from "./lib/auth";
 
 // Chráněné jsou admin stránky a admin API routy. Veřejné zůstávají:
-// /api/chat, /api/feedback a /api/auth/* (login/logout).
+// /api/chat, /api/feedback, /api/auth/* (login/logout) a POST /api/leads.
 export const config = {
   matcher: [
     "/admin",
     "/admin/:path*",
     "/api/documents",
     "/api/documents/:path*",
+    "/api/leads",
+    "/api/leads/:path*",
     "/api/settings",
     "/api/retrieval-test",
   ],
@@ -18,6 +20,11 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname === "/admin/login") {
+    return NextResponse.next();
+  }
+
+  // Odeslání poptávky z chatu je veřejné; zbytek /api/leads* (PATCH) je admin.
+  if (pathname === "/api/leads" && request.method === "POST") {
     return NextResponse.next();
   }
 

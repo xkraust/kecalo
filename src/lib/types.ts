@@ -13,3 +13,23 @@ export interface DocumentRecord {
   /** Otisk konfigurace chunkování z poslední indexace; NULL = zastaralé (před fází 13). */
   chunking_config: ChunkingConfig | null;
 }
+
+/** `new` → `in_progress` → `closed`; `updated` = rozšířeno deduplikací (viz POST /api/leads). */
+export type LeadStatus = "new" | "updated" | "in_progress" | "closed";
+
+export interface Lead {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  note: string | null;
+  /** LLM shrnutí konverzace pro zpracovatele (nahrazuje surový dotaz). */
+  summary: string | null;
+  session_id: string | null;
+  status: LeadStatus;
+  /** Jméno zpracovatele (zatím jen "admin"; příprava na CRM). */
+  assignee: string | null;
+  consent: boolean;
+  created_at: string;
+  updated_at: string;
+}
