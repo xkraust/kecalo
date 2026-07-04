@@ -2,7 +2,7 @@
 
 Rozšíření chatbota o lead-generation flow: když se návštěvník ptá na **konkrétní pojistný produkt**, bot mu nabídne spojení telefonicky/e-mailem pro podmínky „šité na míru". Návštěvník vyplní jméno a kontakt, požadavek se uloží a zpracovatel ho uvidí v nové admin sekci **Poptávky**.
 
-Návazně na `docs/IMPLEMENTATION_PLAN.md` jde o **Fázi 14**. Stav: ⏳ neimplementováno (schválený návrh).
+Návazně na `docs/IMPLEMENTATION_PLAN.md` jde o **Fázi 14**. Stav: ✅ **hotová a ověřená end-to-end** (4. 7. 2026). Migrace `010_leads.sql` aplikovaná; kroky 1–4 dokončeny, ověřeno lintem, buildem a E2E v prohlížeči (viz sekce Ověření). Zbývá jen úklid testovacích poptávek z DB (krok 7 ověření).
 
 ## Klíčová rozhodnutí (z upřesnění se zadavatelem)
 
@@ -95,12 +95,12 @@ Matcher += `"/api/leads"`, `"/api/leads/:path*"`. V handleru výjimka: `pathname
 
 ## Pořadí implementace a commity
 
-| Krok | Obsah | Poznámka |
+| Krok | Obsah | Stav |
 |---|---|---|
-| 1 | Migrace 010 + typy + `POST /api/leads` + proxy | **uživatel aplikuje migraci** (`supabase db push`) → ověřit insert. Routa v tomto kroku ukládá `summary = null` (komprimace přijde v kroku 2 — best-effort návrh to umožňuje) |
-| 2 | LLM komprimace (Haiku) + prompt token `[[NABIDKA]]` + klient (detekce značky, `LeadForm`) | |
-| 3 | Admin sekce (sidebar, stránka Poptávky, PATCH, dashboard karta) | |
-| 4 | Dokumentace (CLAUDE.md, IMPLEMENTATION_PLAN.md, .env.example) | |
+| 1 | Migrace 010 + typy + `POST /api/leads` + proxy | ✅ hotovo (commit `86b63ff`) — migrace aplikovaná uživatelem, insert i deduplikace ověřeny |
+| 2 | LLM komprimace (Haiku) + prompt token `[[NABIDKA]]` + klient (detekce značky, `LeadForm`) | ✅ hotovo (commit `8052f74`) |
+| 3 | Admin sekce (sidebar, stránka Poptávky, PATCH, dashboard karta) | ✅ hotovo (commit `44df4ff`) |
+| 4 | Dokumentace (CLAUDE.md, .env.example, tento plán) | ✅ hotovo — Fáze 14 se do `docs/IMPLEMENTATION_PLAN.md` **nepřidává**, plán žije zde |
 
 Commit po každém kroku (po potvrzení uživatelem).
 

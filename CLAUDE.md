@@ -8,7 +8,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0–7 hotovy. Fáze 8 (admin sekce **Parametry** — globální runtime parametry RAG) je hotová a ověřená (lint, build, E2E v prohlížeči, perzistence přes `/api/settings`); migrace `003_app_settings.sql` je aplikovaná na Supabase. Fáze 9 (Langfuse — observabilita přes OpenTelemetry) implementována (lint, build OK, chat ověřen v runtime); export traces do Langfuse Cloud vyžaduje restart serveru (načtení `instrumentation.ts`). Fáze 10 (zpětná vazba uživatelů — thumbs up/down) implementována (lint, build OK, E2E v prohlížeči); migrace `005_feedback.sql` čeká na `supabase db push`. Fáze 11 (admin podsekce **Telemetrie** — runtime přepínače observability) hotová a ověřená end-to-end (lint, build, záznam obsahu i kompletní traces v Langfuse z nasazené app); migrace `006_telemetry_settings.sql` aplikovaná. Na Vercel serverless se používá `exportMode: "immediate"` (jinak se ztrácely pozdní spany). Fáze 12 (strukturní chunkování — dělení podle článků/odstavců, breadcrumb hlavičky, `section_path`) je **hotová a ověřená end-to-end**: migrace `007_chunk_sections.sql` aplikovaná, seed dokumenty (M-100, M-200, IPID) reindexované novým chunkerem (57 + 59 + 2 chunků), porovnání na testovacích otázkách: top similarity ↑ u 10/11 věcných otázek, „ekologický benefit" 0,363 → 0,441, top-1 míří na správné články. Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživatel nahraje přes admin UI) a fallback otázky mimo bázi dál vracejí chunky nad prahem 0,35 (čisté odmítnutí zajišťuje systémový prompt; případně zvýšit práh v `/admin/parameters`). Fáze 13 (admin podsekce **Chunkování** + reindexace bez re-uploadu) je **hotová a ověřená end-to-end**: migrace `008_chunking_settings.sql` aplikovaná, uložení parametrů, indikace zastaralé konfigurace i reindexace tlačítkem ověřeny v prohlížeči. A/B experiment breadcrumb hlaviček (13 otázek): průměrný přínos hlaviček na top similarity je malý (+0,008), ale výrazně zlepšují cílení top-1 na správný dokument (bez nich otázky 1 a 3 sklouzly na obecný IPID) a fallback nezhoršují → **hlavičky ponechány zapnuté (default)**. Znalostní báze je po experimentu obnovena do kanonického stavu (breadcrumb on; kontrolní měření identické s fází 12). Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`. **Opravy nálezů z revize kódu (`docs/code_check.md`, 15 nálezů) jsou kompletně hotové a ověřené** — balíčky A–E dle `docs/issues_correction_plan.md` (3. 7. 2026): ochrana admin API proxy vrstvou (`src/proxy.ts`, dřív middleware), zpevněná session (`SESSION_SECRET`), validace a rate limity veřejných rout, reindexace bez ztráty dat (migrace `009` aplikovaná), statický fallback bez LLM a opravy chat klienta.
+Fáze 0–7 hotovy. Fáze 8 (admin sekce **Parametry** — globální runtime parametry RAG) je hotová a ověřená (lint, build, E2E v prohlížeči, perzistence přes `/api/settings`); migrace `003_app_settings.sql` je aplikovaná na Supabase. Fáze 9 (Langfuse — observabilita přes OpenTelemetry) implementována (lint, build OK, chat ověřen v runtime); export traces do Langfuse Cloud vyžaduje restart serveru (načtení `instrumentation.ts`). Fáze 10 (zpětná vazba uživatelů — thumbs up/down) implementována (lint, build OK, E2E v prohlížeči); migrace `005_feedback.sql` čeká na `supabase db push`. Fáze 11 (admin podsekce **Telemetrie** — runtime přepínače observability) hotová a ověřená end-to-end (lint, build, záznam obsahu i kompletní traces v Langfuse z nasazené app); migrace `006_telemetry_settings.sql` aplikovaná. Na Vercel serverless se používá `exportMode: "immediate"` (jinak se ztrácely pozdní spany). Fáze 12 (strukturní chunkování — dělení podle článků/odstavců, breadcrumb hlavičky, `section_path`) je **hotová a ověřená end-to-end**: migrace `007_chunk_sections.sql` aplikovaná, seed dokumenty (M-100, M-200, IPID) reindexované novým chunkerem (57 + 59 + 2 chunků), porovnání na testovacích otázkách: top similarity ↑ u 10/11 věcných otázek, „ekologický benefit" 0,363 → 0,441, top-1 míří na správné články. Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživatel nahraje přes admin UI) a fallback otázky mimo bázi dál vracejí chunky nad prahem 0,35 (čisté odmítnutí zajišťuje systémový prompt; případně zvýšit práh v `/admin/parameters`). Fáze 13 (admin podsekce **Chunkování** + reindexace bez re-uploadu) je **hotová a ověřená end-to-end**: migrace `008_chunking_settings.sql` aplikovaná, uložení parametrů, indikace zastaralé konfigurace i reindexace tlačítkem ověřeny v prohlížeči. A/B experiment breadcrumb hlaviček (13 otázek): průměrný přínos hlaviček na top similarity je malý (+0,008), ale výrazně zlepšují cílení top-1 na správný dokument (bez nich otázky 1 a 3 sklouzly na obecný IPID) a fallback nezhoršují → **hlavičky ponechány zapnuté (default)**. Znalostní báze je po experimentu obnovena do kanonického stavu (breadcrumb on; kontrolní měření identické s fází 12). Průběžný stav sleduj v `docs/IMPLEMENTATION_PLAN.md`. **Opravy nálezů z revize kódu (`docs/code_check.md`, 15 nálezů) jsou kompletně hotové a ověřené** — balíčky A–E dle `docs/issues_correction_plan.md` (3. 7. 2026): ochrana admin API proxy vrstvou (`src/proxy.ts`, dřív middleware), zpevněná session (`SESSION_SECRET`), validace a rate limity veřejných rout, reindexace bez ztráty dat (migrace `009` aplikovaná), statický fallback bez LLM a opravy chat klienta. Fáze 14 (poptávky — lead generation; plán viz `docs/lead_generation_plan.md`) je **hotová a ověřená end-to-end**: migrace `010_leads.sql` aplikovaná, `POST /api/leads` (veřejné, deduplikace podle kontaktu, Haiku shrnutí konverzace), token `[[NABIDKA]]` v chatu → karta `LeadForm`, admin sekce **Poptávky** s přechody stavů (`PATCH /api/leads/[id]`) a kartou na dashboardu. Lint, build, E2E v prohlížeči (produktový dotaz → karta, neproduktový → bez karty, odeslání → poděkování, Převzít/Uzavřít, deduplikace, chybové stavy PATCH 400/404/409) ověřeny.
 
 ## Projekt
 
@@ -19,7 +19,7 @@ Fáze 0–7 hotovy. Fáze 8 (admin sekce **Parametry** — globální runtime pa
 - **Framework:** Next.js 16 (App Router) + React 19 + TypeScript, adresářová struktura se `src/`
 - **UI:** Tailwind CSS v4 (konfigurace přes `@theme` v `globals.css`, bez `tailwind.config.ts`) + shadcn/ui
 - **AI orchestrace:** Vercel AI SDK (`useChat`, streamování)
-- **LLM:** Claude API — `claude-sonnet-4-6`
+- **LLM:** Claude API — `claude-sonnet-4-6` (chat); `claude-haiku-4-5` (shrnutí poptávek — levnější kompresní úloha)
 - **Embeddingy:** Voyage AI — `voyage-3.5` (1024 dimenzí)
 - **Vektorová DB + úložiště:** Supabase (Postgres + rozšíření pgvector + Storage)
 - **Parsování PDF:** `unpdf`
@@ -28,7 +28,7 @@ Fáze 0–7 hotovy. Fáze 8 (admin sekce **Parametry** — globální runtime pa
 
 UI vychází vizuálně z Anthropic Console (`platform.claude.com`). Výchozí režim je **světlý**, bez tmavého přepínače.
 
-- **Admin (`/admin`)** — přesně ve stylu Console: levý sidebar (Přehled · Dokumenty · Test retrievalu · Parametry · Chat · Odhlásit), krémové pozadí, korálový akcent, čisté white karty. Úvodní strana `/admin` je dashboard s přehledem znalostní báze (metrické karty + grafy).
+- **Admin (`/admin`)** — přesně ve stylu Console: levý sidebar (Přehled · Dokumenty · Poptávky · Test retrievalu · Parametry · Chat · Odhlásit), krémové pozadí, korálový akcent, čisté white karty. Úvodní strana `/admin` je dashboard s přehledem znalostní báze (metrické karty + grafy).
 - **Chat (`/`)** — odvozený vzhled: stejná paleta a typografie, ale s vlastním logem a brandem „Pojišťovna Jistota".
 
 Dashboard zobrazuje statistiky znalostní báze (počet dokumentů, chunků, zaindexovaných stran, rozpad stavů, chunky podle dokumentu) počítané přímo z tabulek `documents`/`chunks`. Metriky využití (dotazy, míra fallbacku, prům. skóre, latence) jsou odložené — vyžadují logování dotazů (viz produkční dluh).
@@ -73,7 +73,7 @@ supabase init                    # jednorázová inicializace Supabase projektu
 supabase db push                 # aplikuje migrace na Supabase (vyžaduje DATABASE_URL)
 ```
 
-Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu), `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`) a `009_chunk_batch.sql` (`chunks` += `batch_id` — reindexace bez ztráty dat, oprava C1).
+Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `004_enable_rls.sql` (zapnutí Row-Level Security na `documents`/`chunks`/`app_settings` — bez policy pro anon; app používá service-role klíč, který RLS obchází), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu), `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`), `009_chunk_batch.sql` (`chunks` += `batch_id` — reindexace bez ztráty dat, oprava C1) a `010_leads.sql` (tabulka `leads` — poptávky/lead generation, včetně RLS).
 
 ### Scaffold projektu (fáze 1, jednorázové)
 
@@ -102,6 +102,7 @@ npm i ai @ai-sdk/anthropic @supabase/supabase-js voyageai unpdf react-markdown
 | `SIMILARITY_THRESHOLD` | Výchozí práh kosinové podobnosti (0.35) |
 | `LLM_TEMPERATURE` | Výchozí teplota Claude (0.2) |
 | `CHAT_MODEL` | Model pro chat (volitelný, default `claude-sonnet-4-6`) |
+| `SUMMARY_MODEL` | Model pro shrnutí poptávek (volitelný, default `claude-haiku-4-5`) |
 | `LANGFUSE_SECRET_KEY` | Langfuse server klíč (volitelný — bez něj app funguje, jen se neloguje) |
 | `LANGFUSE_PUBLIC_KEY` | Langfuse veřejný klíč (volitelný) |
 | `LANGFUSE_BASE_URL` | URL Langfuse instance (default `https://cloud.langfuse.com`) |
@@ -116,6 +117,7 @@ npm i ai @ai-sdk/anthropic @supabase/supabase-js voyageai unpdf react-markdown
 /                       → Chat UI (hook useChat, streamování, blok zdrojů, disclaimer)
 /admin                  → Dashboard (přehled znalostní báze — metrické karty + grafy)
 /admin/documents        → Upload + tabulka dokumentů
+/admin/leads            → Poptávky (tabulka + akce Převzít/Uzavřít)
 /admin/retrieval-test   → Panel test retrievalu
 /admin/parameters       → Globální parametry RAG (slidery TOP_K, práh podobnosti, teplota)
 /admin/login            → Login (uživatelské jméno + heslo), nastaví session cookie
@@ -129,6 +131,8 @@ POST   /api/retrieval-test      → vrátí top-k chunků se skóre (pouze admin
 GET    /api/settings            → vrátí aktuální runtime parametry + přepínače telemetrie z DB
 POST   /api/settings            → uloží globální runtime parametry RAG do app_settings
 POST   /api/feedback            → uloží zpětnou vazbu (thumbs up/down); limity vstupu + rate limit 10/min
+POST   /api/leads               → uloží poptávku (veřejné); rate limit 5/min, deduplikace podle kontaktu, Haiku shrnutí konverzace
+PATCH  /api/leads/[id]          → změna stavu poptávky (pouze admin): in_progress/closed; 400/404/409
 POST   /api/auth/login          → ověření username + password, nastavení session cookie
 POST   /api/auth/logout         → smazání session cookie
 ```
@@ -148,6 +152,8 @@ src/
 │   │       ├── page.tsx              # Dashboard (přehled znalostní báze)
 │   │       ├── documents/page.tsx    # server část (načtení dokumentů)
 │   │       ├── documents/client.tsx  # klientská část (upload + tabulka)
+│   │       ├── leads/page.tsx        # server část (načtení poptávek)
+│   │       ├── leads/client.tsx      # klientská část (tabulka + akce Převzít/Uzavřít)
 │   │       ├── retrieval-test/page.tsx
 │   │       ├── parameters/page.tsx    # server část (getSettings)
 │   │       └── parameters/client.tsx  # klientská část (slidery + uložení)
@@ -156,6 +162,8 @@ src/
 │       ├── documents/route.ts
 │       ├── documents/[id]/route.ts
 │       ├── documents/[id]/reprocess/route.ts  # reindexace bez re-uploadu
+│       ├── leads/route.ts            # POST poptávka (veřejné) + Haiku shrnutí + deduplikace
+│       ├── leads/[id]/route.ts       # PATCH stav poptávky (admin)
 │       ├── retrieval-test/route.ts
 │       ├── settings/route.ts
 │       ├── feedback/route.ts
@@ -163,10 +171,12 @@ src/
 ├── components/
 │   ├── MessageBubble.tsx
 │   ├── SourcesBlock.tsx
+│   ├── LeadForm.tsx                  # karta poptávky pod odpovědí (token [[NABIDKA]])
 │   ├── UploadZone.tsx
 │   ├── DocumentsTable.tsx
 │   ├── AdminSidebar.tsx              # navigace admin sekce
 │   ├── StatusBadge.tsx               # badge stavu dokumentu
+│   ├── LeadStatusBadge.tsx           # badge stavu poptávky
 │   ├── StatCard.tsx                  # metrická karta dashboardu
 │   ├── FeedbackCard.tsx              # karta spokojenosti (% + poměrový pruh)
 │   ├── ChunksByDocChart.tsx          # graf chunků (CSS bary)
@@ -194,11 +204,13 @@ supabase/
     ├── 001_init.sql                  # tabulky documents/chunks + HNSW index
     ├── 002_match_chunks.sql          # RPC match_chunks (retrieval)
     ├── 003_app_settings.sql          # tabulka app_settings (runtime parametry RAG)
+    ├── 004_enable_rls.sql            # RLS na documents/chunks/app_settings
     ├── 005_feedback.sql              # tabulka feedback (zpětná vazba thumbs up/down)
     ├── 006_telemetry_settings.sql    # app_settings += telemetry_enabled, record_content
     ├── 007_chunk_sections.sql        # chunks += section_path, match_chunks vrací sekci
     ├── 008_chunking_settings.sql     # app_settings += chunk_*, documents += chunking_config
-    └── 009_chunk_batch.sql           # chunks += batch_id (reindexace bez ztráty dat)
+    ├── 009_chunk_batch.sql           # chunks += batch_id (reindexace bez ztráty dat)
+    └── 010_leads.sql                 # tabulka leads (poptávky/lead generation, vč. RLS)
 ```
 
 ### RAG — dvě oddělené pipeline
@@ -227,7 +239,7 @@ Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4
 
 **Fallback:** pokud `retrieve` vrátí 0 chunků, route vrací `FALLBACK_MESSAGE` („nenacházím odpověď, kontaktujte infolinku 800 123 456") jako statickou `text/plain` odpověď s prázdným `X-Sources` — Claude se nevolá (oprava B3; dřív se volal jen kvůli doslovnému opsání hlášky).
 
-**Systémový prompt** (`prompts.ts`): bot odpovídá výhradně z poskytnutých chunků, česky, v každé odpovědi cituje zdrojový dokument, neposkytuje poradenství nad rámec citovaných podmínek a nesjednává produkty.
+**Systémový prompt** (`prompts.ts`): bot odpovídá výhradně z poskytnutých chunků, česky, v každé odpovědi cituje zdrojový dokument, neposkytuje poradenství nad rámec citovaných podmínek a nesjednává produkty. U dotazů na konkrétní pojistný produkt přidá na úplný konec odpovědi samostatný řádek s tokenem `[[NABIDKA]]` (jinak nikdy) — klient token z textu odstraní a místo něj vykreslí kartu poptávky (`LeadForm`); viz Fáze 14 / `docs/lead_generation_plan.md`.
 
 ## Datový model
 
@@ -258,13 +270,24 @@ app_settings (id smallint PK CHECK (id = 1), top_k int, similarity_threshold dou
 feedback (id uuid PK, session_id text, message_index int, rating text CHECK ('up'/'down'),
           query text NULL, created_at timestamptz)
 -- UNIQUE (session_id, message_index) — jeden hlas na zprávu v rámci session
+
+leads (id uuid PK, name text, email text NULL, phone text NULL, note text NULL,
+       summary text NULL, session_id text NULL,
+       status text DEFAULT 'new' CHECK ('new'/'updated'/'in_progress'/'closed'),
+       assignee text NULL, consent boolean CHECK (consent),
+       created_at timestamptz, updated_at timestamptz)
+-- poptávky (lead generation, Fáze 14); CHECK (email OR phone) — aspoň jeden kontakt
+-- note ≤ 5000 (limit 500/poznámka vynucuje API; sloupec vyšší kvůli připojování při dedup)
+-- summary = Haiku shrnutí konverzace (nahrazuje surový dotaz); RLS zapnuté (migrace 010)
+-- poptávky se nemažou — uzavření jen nastaví status closed
 ```
 
 Hodnoty `status` dokumentu: `uploaded → processing → ready | error`
+Hodnoty `status` poptávky: `new`/`updated` → `in_progress` → `closed` (`closed` terminální; `updated` = rozšířeno deduplikací)
 
 ## Admin autentizace
 
-`/admin` a admin API routy (`/api/documents*`, `/api/settings`, `/api/retrieval-test`) jsou chráněny proxy vrstvou (`src/proxy.ts` — dřív `middleware.ts`, přejmenováno dle konvence Next.js 16), která kontroluje session cookie nastavenou na `/admin/login`; stránky bez cookie přesměruje na login, API routy vracejí 401 JSON. Veřejné zůstávají `/api/chat`, `/api/feedback` a `/api/auth/*`. Přihlášení vyžaduje uživatelské jméno (`ADMIN_USERNAME`, povinné) a heslo (`ADMIN_PASSWORD`). Session cookie (`ts.nonce.sig`, platnost 8 h) je podepsaná HMAC-SHA256 klíčem `SESSION_SECRET` (nikdy ne heslem); ověření podpisu je constant-time (`crypto.subtle.verify`), při chybějícím `SESSION_SECRET` proxy přístup zamítá. Login má constant-time porovnání údajů (`safeEqual`) a in-memory rate limit 5 pokusů / 15 min na IP (per-instance zmírnění). Auth API routy jsou v `/api/auth/login` a `/api/auth/logout`; logout jen maže cookie (token platí do expirace — omezení prototypu). Jde o autentizaci na úrovni prototypu — ne JWT, ne SSO.
+`/admin` a admin API routy (`/api/documents*`, `/api/leads*`, `/api/settings`, `/api/retrieval-test`) jsou chráněny proxy vrstvou (`src/proxy.ts` — dřív `middleware.ts`, přejmenováno dle konvence Next.js 16), která kontroluje session cookie nastavenou na `/admin/login`; stránky bez cookie přesměruje na login, API routy vracejí 401 JSON. Veřejné zůstávají `/api/chat`, `/api/feedback`, `/api/auth/*` a **`POST /api/leads`** (odeslání poptávky z chatu; ostatní metody na `/api/leads*`, zejména `PATCH`, vyžadují session). Přihlášení vyžaduje uživatelské jméno (`ADMIN_USERNAME`, povinné) a heslo (`ADMIN_PASSWORD`). Session cookie (`ts.nonce.sig`, platnost 8 h) je podepsaná HMAC-SHA256 klíčem `SESSION_SECRET` (nikdy ne heslem); ověření podpisu je constant-time (`crypto.subtle.verify`), při chybějícím `SESSION_SECRET` proxy přístup zamítá. Login má constant-time porovnání údajů (`safeEqual`) a in-memory rate limit 5 pokusů / 15 min na IP (per-instance zmírnění). Auth API routy jsou v `/api/auth/login` a `/api/auth/logout`; logout jen maže cookie (token platí do expirace — omezení prototypu). Jde o autentizaci na úrovni prototypu — ne JWT, ne SSO.
 
 ## Runtime parametry RAG (`/admin/parameters`)
 
