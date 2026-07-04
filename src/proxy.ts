@@ -14,7 +14,7 @@ export const config = {
   ],
 };
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname === "/admin/login") {
@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Chybějící secret = zamítnout přístup, nikdy neověřovat proti prázdnému klíči.
-  // (Middleware neimportuje lib/config — běží v edge runtime a config vyžaduje
+  // (Proxy neimportuje lib/config — běží v edge runtime a config vyžaduje
   // všechny env proměnné najednou.)
   const secret = process.env.SESSION_SECRET;
   if (!secret) {

@@ -1,5 +1,5 @@
 // Podpis a ověření admin session cookie (HMAC-SHA256 přes Web Crypto — funguje
-// v Node i edge runtime middlewaru). Podpisový klíč je SESSION_SECRET (nikdy ne
+// v Node i edge runtime proxy). Podpisový klíč je SESSION_SECRET (nikdy ne
 // ADMIN_PASSWORD — uniklá cookie by jinak umožnila offline brute-force hesla).
 export const SESSION_COOKIE_NAME = "admin_session";
 // 8 h — zmírnění chybějící server-side invalidace (logout jen maže cookie,
