@@ -31,7 +31,11 @@ export async function POST(
     .select("id");
 
   if (updateErr) {
-    return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    console.error(`Spuštění reindexace dokumentu ${id} selhalo:`, updateErr);
+    return NextResponse.json(
+      { error: "Reindexaci se nepodařilo spustit. Zkuste to prosím za chvíli." },
+      { status: 500 }
+    );
   }
 
   if (!updated || updated.length === 0) {

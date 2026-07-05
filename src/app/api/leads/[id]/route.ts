@@ -46,7 +46,11 @@ export async function PATCH(
     .select("id");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error(`Změna stavu poptávky ${id} selhala:`, error);
+    return NextResponse.json(
+      { error: "Změna stavu se nezdařila. Zkuste to prosím za chvíli." },
+      { status: 500 }
+    );
   }
 
   if (!updated || updated.length === 0) {

@@ -23,8 +23,12 @@ export async function POST(request: Request) {
     const saved = await saveSettings(body);
     return NextResponse.json(saved);
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Uložení nastavení selhalo";
-    return NextResponse.json({ error: message }, { status: 500 });
+    // parseSettingsInput je tolerantní (clampuje, defaultuje) a nevyhazuje —
+    // sem se dostane jen DB/serverová chyba, surovou hlášku ven neposíláme (SEC-3).
+    console.error("Uložení nastavení selhalo:", err);
+    return NextResponse.json(
+      { error: "Uložení nastavení se nezdařilo. Zkuste to prosím za chvíli." },
+      { status: 500 }
+    );
   }
 }

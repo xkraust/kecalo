@@ -33,7 +33,11 @@ export async function GET() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Načtení dokumentů selhalo:", error);
+    return NextResponse.json(
+      { error: "Načtení dokumentů se nezdařilo." },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json(data);
@@ -79,7 +83,11 @@ export async function POST(request: NextRequest) {
     .eq("filename", file.name)
     .limit(1);
   if (existErr) {
-    return NextResponse.json({ error: existErr.message }, { status: 500 });
+    console.error("Kontrola duplicitního názvu selhala:", existErr);
+    return NextResponse.json(
+      { error: "Ověření názvu se nezdařilo. Zkuste to prosím za chvíli." },
+      { status: 500 }
+    );
   }
   if (existing && existing.length > 0) {
     return NextResponse.json(
@@ -119,10 +127,11 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (insertErr || !doc) {
+        console.error("Vložení dokumentu selhalo:", insertErr);
         return {
           ok: false,
           status: 500,
-          error: insertErr?.message ?? "Chyba při ukládání",
+          error: "Uložení dokumentu se nezdařilo. Zkuste to prosím za chvíli.",
         };
       }
 
@@ -140,11 +149,12 @@ export async function POST(request: NextRequest) {
         .upload(storagePath, buffer, { contentType: file.type });
 
       if (uploadErr) {
+        console.error("Upload souboru do Storage selhal:", uploadErr);
         await supabase.from("documents").delete().eq("id", doc.id);
         return {
           ok: false,
           status: 500,
-          error: `Upload selhal: ${uploadErr.message}`,
+          error: "Nahrání souboru se nezdařilo. Zkuste to prosím za chvíli.",
         };
       }
 

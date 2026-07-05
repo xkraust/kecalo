@@ -49,7 +49,12 @@ export async function POST(request: Request) {
   );
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // Routa je veřejná — surová DB hláška ven nesmí (oprava SEC-3). Detail do logu.
+    console.error("Uložení zpětné vazby selhalo:", error);
+    return NextResponse.json(
+      { error: "Zpětnou vazbu se nepodařilo uložit. Zkuste to prosím za chvíli." },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({ ok: true });

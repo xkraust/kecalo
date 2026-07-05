@@ -40,8 +40,9 @@ export async function DELETE(
     .eq("id", id);
 
   if (deleteErr) {
+    console.error(`Smazání dokumentu ${id} selhalo:`, deleteErr);
     return NextResponse.json(
-      { error: `Smazání selhalo: ${deleteErr.message}` },
+      { error: "Smazání dokumentu se nezdařilo. Zkuste to prosím za chvíli." },
       { status: 500 }
     );
   }

@@ -6,13 +6,26 @@ import { withSpan, flushTelemetry } from "@/lib/telemetry";
 
 export const maxDuration = 60;
 
+// Stejný limit jako u chatu (oprava SEC-3) — validace vstupu i za autentizací.
+const MAX_QUERY_LENGTH = 4000;
+
 export async function POST(request: Request) {
   const denied = await requireAdmin();
   if (denied) return denied;
 
   const body = await request.json().catch(() => null);
-  if (!body?.query) {
+  const query =
+    typeof (body as { query?: unknown } | null)?.query === "string"
+      ? (body.query as string).trim()
+      : "";
+  if (!query) {
     return NextResponse.json({ error: "Dotaz je povinný" }, { status: 400 });
+  }
+  if (query.length > MAX_QUERY_LENGTH) {
+    return NextResponse.json(
+      { error: "Dotaz je příliš dlouhý (max 4 000 znaků)." },
+      { status: 400 }
+    );
   }
 
   try {
@@ -22,19 +35,22 @@ export async function POST(request: Request) {
       "retrieval-test",
       async (span) => {
         const r = await retrieve(
-          body.query,
+          query,
           settings.topK,
           settings.similarityThreshold
         );
         span.setAttribute("test.result_count", r.length);
         return r;
       },
-      { "test.query_length": String(body.query).length }
+      { "test.query_length": query.length }
     );
     return NextResponse.json(results);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Retrieval selhal";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Test retrievalu selhal:", err);
+    return NextResponse.json(
+      { error: "Test retrievalu se nezdařil. Zkuste to prosím za chvíli." },
+      { status: 500 }
+    );
   } finally {
     after(() => flushTelemetry());
   }

@@ -74,28 +74,29 @@ Navazuje na bezpečnostní revizi [security_issues.md](security_issues.md) (5. 7
 
 ---
 
-## Balíček C — Generické chyby a validace vstupů (SEC-3) 🟡
+## Balíček C — Generické chyby a validace vstupů (SEC-3) 🟡 ✅ HOTOVO
 
-### C1. Generické chybové hlášky místo `error.message` z DB
+### C1. Generické chybové hlášky místo `error.message` z DB ✅
 
-**Soubory:** `src/app/api/feedback/route.ts:52`, `src/app/api/documents/route.ts` (GET :32, POST :75 a :118), `src/app/api/documents/[id]/route.ts` (:39), `src/app/api/leads/[id]/route.ts` (:45), `src/app/api/settings/route.ts` (:21), `src/app/api/retrieval-test/route.ts` (:32)
+**Soubory:** `feedback/route.ts`, `documents/route.ts` (GET + duplicitní check + oba UploadOutcome branche), `documents/[id]/route.ts` (DELETE), `documents/[id]/reprocess/route.ts` (updateErr — **doplněno nad rámec plánu**, stejná třída úniku), `leads/[id]/route.ts` (PATCH), `settings/route.ts` (POST catch), `retrieval-test/route.ts` (catch)
 
-- [ ] Vzor podle `POST /api/leads`: `console.error("<kontext>:", error)` + klientovi generická česká hláška (`„Operace se nezdařila. Zkuste to prosím za chvíli."` apod. dle routy), status 500.
-- [ ] **Prioritně** veřejná routa `/api/feedback` (únik neautentizovanému uživateli); admin routy sjednotit stejným vzorem.
-- [ ] Pozor u `/api/settings`: `saveSettings` vyhazuje i **validační** chyby z `parseSettingsInput` (bezpečné, patří uživateli, správně 400) i **DB** chyby (surové, patří do logu). Rozlišit: v `lib/settings.ts` obalit DB chybu vlastním typem/příznakem (např. `throw new Error("SETTINGS_DB_ERROR")` + `console.error` s detailem, nebo vlastní třída `SettingsDbError`), v routě pak validační chyby vracet s 400 a plnou hláškou, DB chyby s 500 a generickou hláškou.
-- [ ] `error_message` u dokumentů (stavy `error` v tabulce) se **nemění** — je za autentizací a je to záměrná diagnostika pro admina.
+- [x] Vzor podle `POST /api/leads`: `console.error("<kontext>:", error)` + klientovi generická česká hláška, status 500. Sjednoceno napříč všemi routami.
+- [x] Prioritní veřejná routa `/api/feedback` opravena.
+- [x] **Zjištění k `/api/settings`:** `parseSettingsInput` (v `lib/settings-meta.ts`) je **plně tolerantní** — čísla clampuje do rozsahu, u booleanů dává default, **nikdy nevyhazuje** validační chybu. Rozlišení validace vs. DB chyba tedy odpadá: catch v routě chytá jen DB/serverovou chybu → generická 500 + `console.error`. Původní návrh (vlastní třída `SettingsDbError`) není potřeba. Tělo requestu se dál validuje na začátku routy (musí být objekt → jinak 400). Komentář v routě to vysvětluje.
+- [x] `error_message` u dokumentů (stav `error` v tabulce) nezměněno — za autentizací, záměrná diagnostika.
 
-### C2. Validace vstupu `/api/retrieval-test`
+### C2. Validace vstupu `/api/retrieval-test` ✅
 
 **Soubor:** `src/app/api/retrieval-test/route.ts`
 
-- [ ] `body.query` musí být `string`, po `trim()` neprázdný a max 4 000 znaků (stejný limit jako chat) → jinak 400 s českou hláškou. Odstranit `String(body.query)` cast v atributu spanu (po validaci už je string).
+- [x] `body.query` musí být `string`, po `trim()` neprázdný a max 4 000 znaků (konstanta `MAX_QUERY_LENGTH`) → jinak 400. `String(body.query)` cast v atributu spanu odstraněn (po validaci je `query` string).
 
-**Ověření:**
-1. `POST /api/feedback` s validním tělem, ale rozbitou DB vazbou nelze snadno vyvolat — kontrola kódem + test hlášky vynucením chyby (dočasně špatný název tabulky) → odpověď 500 bez SQL detailů, detail v konzoli serveru.
-2. `POST /api/settings` s hodnotou mimo rozsah → 400 s věcnou hláškou (validace zůstala); s vypnutou DB (dočasně špatný klíč) → 500 generická.
-3. `POST /api/retrieval-test` s `{"query": 42}`, `{"query": ""}` a 4 001 znaky → 400; validní dotaz → 200 se skóre.
-4. `npm run lint` a `npm run build` bez chyb.
+**Ověření:** ✅ provedeno —
+1. `POST /api/feedback` s dočasně rozbitým názvem tabulky → 500 s generickou hláškou (`„Zpětnou vazbu se nepodařilo uložit…"`), **žádný SQL detail v těle**; detail (kód `PGRST205` + message) jen v serverovém logu (ověřeno v preview_logs). Routa vrácena do původního stavu.
+2. `POST /api/settings` s `topK: 999` → 200, uložená hodnota clampnuta na 20 (potvrzuje, že validace neodmítá, jen clampuje); happy path beze změny.
+3. `POST /api/retrieval-test`: `{"query": 42}`, `""`, chybějící pole → 400 „Dotaz je povinný"; 4 001 znaků → 400 „Dotaz je příliš dlouhý"; validní dotaz → 200 se skóre.
+4. Feedback happy path → 200; testovací řádek smazán z DB.
+5. `npm run lint` a `npm run build` bez chyb.
 
 ---
 
@@ -176,7 +177,7 @@ Tyto nálezy revize hodnotí jako nezávažné a vyžadují rozhodnutí o archit
 |---|---|---|---|---|---|
 | 1 | A (require-admin) | SEC-2 | 🟠 | ✅ | `5e9111e` |
 | 2 | B (IP + limitery) | SEC-1, SEC-5 | 🟠 | ✅ (⏳ Vercel) | |
-| 3 | C (generické chyby + validace) | SEC-3 | 🟡 | ⬜ | |
+| 3 | C (generické chyby + validace) | SEC-3 | 🟡 | ✅ | |
 | 4 | D (upload whitelist) | SEC-6 | 🟡 | ⬜ | |
 | 5 | E (hlavičky) | SEC-10 | 🟡 | ⬜ | |
 | 6 | F (shrnutí poptávky) | SEC-9 | 🟡 | ⬜ | |
