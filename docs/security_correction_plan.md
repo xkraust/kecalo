@@ -122,22 +122,22 @@ Navazuje na bezpečnostní revizi [security_issues.md](security_issues.md) (5. 7
 
 ---
 
-## Balíček E — Bezpečnostní hlavičky (SEC-10) 🟡
+## Balíček E — Bezpečnostní hlavičky (SEC-10) 🟡 ✅ HOTOVO
 
-### E1. `headers()` v Next configu
+### E1. `headers()` v Next configu ✅
 
 **Soubor:** `next.config.ts`
 
-- [ ] Přidat `async headers()` s plošným pravidlem `source: "/(.*)"`:
-  - `X-Frame-Options: DENY` a zároveň `Content-Security-Policy: frame-ancestors 'none'` (clickjacking, kryje i starší prohlížeče),
+- [x] Přidán `async headers()` s plošným pravidlem `source: "/(.*)"` a konstantou `SECURITY_HEADERS`:
+  - `X-Frame-Options: DENY` + `Content-Security-Policy: frame-ancestors 'none'` (clickjacking, kryje i starší prohlížeče),
   - `X-Content-Type-Options: nosniff`,
   - `Referrer-Policy: strict-origin-when-cross-origin`.
-- [ ] Plná CSP (`default-src 'self'` …) se **nezavádí** — Next.js používá inline skripty (vyžadovalo by nonce/hash infrastructure) a přínos pro app bez raw HTML je malý; zapsat do produkčního dluhu, případně začít s `Content-Security-Policy-Report-Only`.
-- [ ] HSTS neřešit — na Vercelu ji dosazuje platforma; poznámka do komentáře pro případ vlastního hostingu.
+- [x] Plná CSP (`default-src 'self'` …) se nezavádí (inline skripty Next.js by vyžadovaly nonce/hash) — zdůvodnění v komentáři, zůstává produkční dluh.
+- [x] HSTS neřešeno — na Vercelu dosazuje platforma; poznámka v komentáři pro vlastní hosting.
 
-**Ověření:**
-1. `curl -I http://localhost:3000/` a `/admin/login` → všechny tři/čtyři hlavičky přítomné.
-2. Chat i admin fungují beze změny (žádný resource se nenačítá z iframe/cizího originu).
+**Ověření:** ✅ provedeno —
+1. Po restartu serveru (config se čte při startu, ne HMR) mají `/` i `/admin/login` všechny čtyři hlavičky (ověřeno `Invoke-WebRequest`).
+2. Chat stránka renderuje normálně (snapshot), žádné chyby ani CSP porušení v konzoli.
 3. `npm run build` bez chyb.
 
 ---
@@ -182,7 +182,7 @@ Tyto nálezy revize hodnotí jako nezávažné a vyžadují rozhodnutí o archit
 | 2 | B (IP + limitery) | SEC-1, SEC-5 | 🟠 | ✅ (⏳ Vercel) | |
 | 3 | C (generické chyby + validace) | SEC-3 | 🟡 | ✅ | |
 | 4 | D (upload whitelist) | SEC-6 | 🟡 | ✅ | |
-| 5 | E (hlavičky) | SEC-10 | 🟡 | ⬜ | |
+| 5 | E (hlavičky) | SEC-10 | 🟡 | ✅ | |
 | 6 | F (shrnutí poptávky) | SEC-9 | 🟡 | ⬜ | |
 | 7 | Aktualizace CLAUDE.md + security_issues.md (poznámky „opraveno") | — | — | ⬜ | |
 | — | G (odloženo) | SEC-4, SEC-7, SEC-8 | ⏸️ | produkční dluh | |
