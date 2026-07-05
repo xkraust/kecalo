@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireAdmin } from "@/lib/require-admin";
 import { processDocument } from "@/lib/rag/pipeline";
 import { withSpan, flushTelemetry } from "@/lib/telemetry";
 
@@ -21,6 +22,9 @@ function isAllowedFile(file: File): boolean {
 }
 
 export async function GET() {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   const { data, error } = await supabase
     .from("documents")
     .select(
@@ -36,6 +40,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   let formData: FormData;
   try {
     formData = await request.formData();

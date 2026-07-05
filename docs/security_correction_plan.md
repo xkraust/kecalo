@@ -6,31 +6,31 @@ Navazuje na bezpečnostní revizi [security_issues.md](security_issues.md) (5. 7
 
 ---
 
-## Balíček A — Druhá obranná linie autorizace (SEC-2) 🟠
+## Balíček A — Druhá obranná linie autorizace (SEC-2) 🟠 ✅ HOTOVO
 
-### A1. Sdílený helper `requireAdmin`
+### A1. Sdílený helper `requireAdmin` ✅
 
 **Soubor:** `src/lib/require-admin.ts` (nový)
 
-- [ ] Vytvořit `export async function requireAdmin(): Promise<NextResponse | null>`: přečte session cookie (`cookies()` z `next/headers` — admin handlery běží v Node.js runtime), ověří ji přes existující `verifySession(value, secret)` z `src/lib/auth.ts`.
-- [ ] Chybějící cookie, neplatný podpis, expirace **nebo chybějící `SESSION_SECRET`** → vrátit `NextResponse.json({ error: "Nepřihlášen — přihlaste se v administraci." }, { status: 401 })` (stejná hláška jako proxy). Platná session → vrátit `null`.
-- [ ] Secret číst z `process.env.SESSION_SECRET` (ne přes `lib/config` import v helperu není problém — helper běží jen v Node runtime; použít `config.sessionSecret` je tedy také možné, preferovat `config` kvůli fail-fast při chybějící proměnné).
-- [ ] Komentář: helper je **druhá obranná linie** za proxy (`src/proxy.ts`) — proxy zůstává první vrstvou (redirect stránek + rychlé 401), helper chrání handlery i při selhání/obejití proxy (viz CVE-2025-29927).
+- [x] Vytvořen `export async function requireAdmin(): Promise<NextResponse | null>`: čte session cookie (`cookies()` z `next/headers` — admin handlery běží v Node.js runtime), ověřuje přes existující `verifySession(value, secret)` z `src/lib/auth.ts`.
+- [x] Chybějící cookie, neplatný podpis, expirace **nebo chybějící `SESSION_SECRET`** → `NextResponse.json({ error: "Nepřihlášen — přihlaste se v administraci." }, { status: 401 })` (stejná hláška jako proxy). Platná session → `null`. (Chybějící secret kryje `config.sessionSecret` — `required()` vyhodí chybu při startu, a `verifySession` vrací `false` pro prázdný secret.)
+- [x] Secret se čte přes `config.sessionSecret` (fail-fast při chybějící proměnné).
+- [x] Komentář u helperu: druhá obranná linie za proxy (`src/proxy.ts`), odkaz na CVE-2025-29927.
 
-### A2. Volání ve všech admin handlerech
+### A2. Volání ve všech admin handlerech ✅
 
 **Soubory:** `src/app/api/documents/route.ts` (GET + POST), `src/app/api/documents/[id]/route.ts` (DELETE), `src/app/api/documents/[id]/reprocess/route.ts` (POST), `src/app/api/leads/[id]/route.ts` (PATCH), `src/app/api/settings/route.ts` (GET + POST), `src/app/api/retrieval-test/route.ts` (POST)
 
-- [ ] Na první řádek každého handleru přidat: `const denied = await requireAdmin(); if (denied) return denied;` — před čtením těla i před jakýmkoli přístupem k DB.
-- [ ] **Nezasahovat** do veřejných rout: `/api/chat`, `/api/feedback`, `POST /api/leads`, `/api/auth/login`, `/api/auth/logout`.
-- [ ] Proxy (`src/proxy.ts`) ponechat beze změny.
+- [x] Na prvním řádku každého z 8 handlerů: `const denied = await requireAdmin(); if (denied) return denied;` — před čtením těla i před přístupem k DB.
+- [x] Veřejné routy (`/api/chat`, `/api/feedback`, `POST /api/leads`, `/api/auth/*`) nedotčeny.
+- [x] Proxy (`src/proxy.ts`) beze změny.
 
-**Ověření:**
-1. Dočasně vyřadit jednu routu z matcheru proxy (např. `/api/settings`) → GET/POST bez cookie musí vrátit 401 z handleru; matcher vrátit zpět.
-2. Bez cookie: všech 8 chráněných handlerů (GET/POST documents, DELETE, reprocess, PATCH leads, GET/POST settings, retrieval-test) → 401.
-3. Po loginu s platnou cookie: tytéž routy → 200 (u mutací s validním tělem).
-4. `POST /api/leads` bez cookie → funguje beze změny (201/200), `POST /api/chat` → 200.
-5. `npm run lint` a `npm run build` bez chyb.
+**Ověření:** ✅ provedeno —
+1. S dočasně vyřazeným `/api/settings` z matcheru proxy vrátil GET bez cookie 401 **z handleru** (druhá linie prokázána); matcher vrácen.
+2. Bez cookie: všech 8 chráněných handlerů → 401.
+3. Po loginu s platnou cookie: GET settings 200, GET documents 200, POST retrieval-test 200.
+4. Veřejné routy bez cookie došly do handlerů: chat/leads/feedback s nevalidním tělem → 400 (validace, ne auth).
+5. `npm run build` bez chyb; `npm run lint` hlásí jen předchozí nesouvisející chybu v `scripts/langfuse-eval.mjs` (`@ts-nocheck`, z commitu e1b14ca).
 
 ---
 
@@ -174,7 +174,7 @@ Tyto nálezy revize hodnotí jako nezávažné a vyžadují rozhodnutí o archit
 
 | Krok | Balíček | Nálezy | Závažnost | Stav | Commit |
 |---|---|---|---|---|---|
-| 1 | A (require-admin) | SEC-2 | 🟠 | ⬜ | |
+| 1 | A (require-admin) | SEC-2 | 🟠 | ✅ | |
 | 2 | B (IP + limitery) | SEC-1, SEC-5 | 🟠 | ⬜ | |
 | 3 | C (generické chyby + validace) | SEC-3 | 🟡 | ⬜ | |
 | 4 | D (upload whitelist) | SEC-6 | 🟡 | ⬜ | |

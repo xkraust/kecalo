@@ -1,11 +1,15 @@
 import { NextResponse, after } from "next/server";
 import { retrieve } from "@/lib/rag/retrieve";
 import { getSettings } from "@/lib/settings";
+import { requireAdmin } from "@/lib/require-admin";
 import { withSpan, flushTelemetry } from "@/lib/telemetry";
 
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   const body = await request.json().catch(() => null);
   if (!body?.query) {
     return NextResponse.json({ error: "Dotaz je povinný" }, { status: 400 });
