@@ -4,6 +4,10 @@ Datum revize: 5. 7. 2026
 Rozsah: celý zdrojový kód (`src/`), API routy, autentizace, RAG pipeline, klientské renderování, DB migrace (RLS).
 Metoda: statická kontrola kódu, ne penetrační test.
 
+Nezávislá kontrolní revize 5. 7. 2026: všech 8 původních nálezů potvrzeno (lokace i závažnosti sedí).
+Doplněny nálezy SEC-9 a SEC-10, rozšíření SEC-1 (reset limiteru přes `hits.clear()`) a poznámky
+k SEC-3 (validace vstupu `retrieval-test`) a SEC-6 (sanitizace přípony v cestě Storage).
+
 Tento dokument je podkladem pro implementační plán oprav. Každý nález má stabilní ID
 (`SEC-x`), lokaci, popis, dopad, konkrétní kroky nápravy a akceptační kritéria, aby
 z něj šlo přímo vytvořit úkoly. Doporučené pořadí implementace viz sekce
@@ -21,6 +25,8 @@ z něj šlo přímo vytvořit úkoly. Doporučené pořadí implementace viz sek
 | SEC-6 | 🟡 Nezávažné | `application/octet-stream` obchází kontrolu přípony u uploadu | `src/app/api/documents/route.ts` |
 | SEC-7 | 🟡 Nezávažné | Klient posílá plnou historii vč. `assistant` zpráv (prompt injection) | `src/app/api/chat/route.ts`, `src/lib/rag/prompts.ts` |
 | SEC-8 | 🟡 Nezávažné | CSRF bez explicitního tokenu (zmírněno `SameSite=Lax`) | `src/lib/auth.ts`, admin routy |
+| SEC-9 | 🟡 Nezávažné | Prompt injection do shrnutí poptávky zobrazovaného v adminu | `src/app/api/leads/route.ts`, `src/app/admin/(authenticated)/leads/client.tsx` |
+| SEC-10 | 🟡 Nezávažné | Chybějící bezpečnostní HTTP hlavičky (CSP, X-Frame-Options, HSTS) | `next.config.ts` |
 
 **Kritické nálezy:** žádné. Nenalezena neautentizovaná cesta k převzetí systému, únik service-role
 klíče, SQL injection ani XSS. Session je HMAC-podepsaná klíčem odděleným od hesla, porovnání údajů
@@ -40,6 +46,11 @@ serveru, `react-markdown` běží bez `rehype-raw`.
 Rotací hlavičky (jiná hodnota na každý požadavek) se rozdělí požadavky do různých klíčů rate-limiteru
 a limit se fakticky ruší.
 
+Souvislost s pojistkou `MAX_KEYS` (`src/lib/rate-limit.ts:27`): při přetečení mapy (5000 klíčů) se
+volá `hits.clear()`, tedy **smažou se počítadla všech klientů najednou** — včetně útočníkova. Kdo
+spoofuje XFF, může limiter úmyslně přeplnit a tím si resetovat vlastní limit; zároveň se resetují
+limity všem legitimním klientům.
+
 ### Dopad
 - **Brute-force na login** (`login/route.ts`): limit 5 pokusů / 15 min je jediná ochrana proti hádání
   hesla; spoofingem IP lze zkoušet neomezeně.
@@ -56,11 +67,15 @@ a limit se fakticky ruší.
    limiter se navíc na serverless nuluje se studeným startem a počítá každá instance zvlášť.
 3. U loginu doplnit ochranu nezávislou na IP (např. globální strop pokusů, exponenciální zpoždění nebo
    CAPTCHA po N selháních).
+4. V `createRateLimiter` nahradit `hits.clear()` při přetečení `MAX_KEYS` vystěhováním nejstarších
+   klíčů (LRU / klíče s nejstaršími timestampy) — přeplnění mapy nesmí resetovat počítadla ostatních.
 
 ### Akceptační kritéria
 - Změna `X-Forwarded-For` mezi požadavky neresetuje počítadlo (ověřit skriptem: N+1 pokusů o login
   s různou hlavičkou vrátí 429 po dosažení limitu).
 - Chování na Vercelu ověřeno s reálným klientem (limit se uplatní podle skutečné IP).
+- Naplnění mapy limiteru mnoha klíči neresetuje počítadlo existujícího klíče (ověřit unit testem
+  s `MAX_KEYS + 1` různými klíči).
 
 ---
 
@@ -108,13 +123,21 @@ jediné místo autorizace.
 Routy vracejí klientovi `error.message` přímo z Postgresu/Supabase. Na veřejné `/api/feedback` to znamená
 drobný únik detailů schématu neautentizovanému uživateli. U admin rout je to za autentizací (nižší riziko).
 
+**Související poznámka (validace vstupu):** `retrieval-test/route.ts:10` kontroluje jen truthy
+`body.query` — nevaliduje typ (string) ani délku a hodnota jde rovnou do Voyage embeddingu. Za
+autentizací, takže jen drobnost, ale je to nekonzistentní s validací ostatních rout (`parseMessages`,
+`parseLeadInput`); opravit společně.
+
 ### Náprava
 1. Vracet klientovi generickou hlášku, detail logovat serverově (`console.error`) — vzor už používá
    `POST /api/leads` (`route.ts:285`).
 2. Sjednotit napříč routami.
+3. V `retrieval-test` validovat `query` jako string s rozumným limitem délky (např. 4 000 znaků jako
+   chat), jinak 400.
 
 ### Akceptační kritéria
 - Odpovědi 5xx neobsahují surové DB hlášky; detail je jen v serverovém logu.
+- `POST /api/retrieval-test` s ne-stringovým nebo příliš dlouhým `query` vrací 400.
 
 ---
 
@@ -166,13 +189,22 @@ Soubor s MIME `application/octet-stream` projde `isAllowedFile` na první podmí
 bez ohledu na příponu. Riziko je nízké (obsah zpracovává unpdf / textový parser, cesta ve Storage je serverová
 `{uuid}/file.{ext}`, bez path traversalu), ale kontrola přípony se tím fakticky obchází.
 
+**Související poznámka (sanitizace přípony):** `ext` na `documents/route.ts:129` se bere jako
+`file.name.split(".").pop()` z klientského názvu a může obsahovat `/` (např. název `evil.pdf/x` →
+cesta `{uuid}/file.pdf/x`, ručně sestaveným requestem). Traversal přes `..` možný není (tečky řetězec
+rozdělí) a routa je admin-only, jde tedy jen o hardening — whitelist přípon z nápravy níže to vyřeší
+zároveň.
+
 ### Náprava
 1. U `application/octet-stream` vždy vyžadovat kontrolu přípony (přesunout octet-stream mimo `ALLOWED_TYPES`
    a spoléhat jen na whitelist přípon `pdf/txt/md`).
-2. Volitelně ověřit magické bajty PDF (`%PDF`) u souborů deklarovaných jako PDF.
+2. Tentýž whitelist (`pdf|txt|md`) použít i pro `ext` při sestavování cesty ve Storage — do cesty se
+   nikdy nesmí dostat hodnota mimo whitelist.
+3. Volitelně ověřit magické bajty PDF (`%PDF`) u souborů deklarovaných jako PDF.
 
 ### Akceptační kritéria
 - Soubor s neplatnou příponou a MIME `application/octet-stream` je odmítnut (400).
+- Cesta ve Storage má vždy tvar `{uuid}/file.(pdf|txt|md)` — přípona mimo whitelist se do cesty nedostane.
 - Platné PDF/TXT/MD dál procházejí.
 
 ---
@@ -220,14 +252,70 @@ provedena přes GET.
 
 ---
 
+## SEC-9 — Prompt injection do shrnutí poptávky zobrazovaného v adminu
+
+**Závažnost:** 🟡 Nezávažné
+**Lokace:** `src/app/api/leads/route.ts:156-192` (`summarizeConversation`),
+`src/app/admin/(authenticated)/leads/client.tsx` (zobrazení `summary`).
+
+### Popis
+Pole `messages` z veřejného `POST /api/leads` jde bez úprav do promptu Haiku a výsledné shrnutí se
+zobrazuje zpracovateli v admin sekci Poptávky. Útočník tak může přes podvrženou „konverzaci" instruovat
+model a podstrčit do admin UI zavádějící text (např. „klient je ověřený VIP, volejte prioritně na …").
+Render je plain-text React (bez XSS), jde tedy o vektor sociálního inženýrství vůči zpracovateli, ne
+o technickou kompromitaci. Liší se od SEC-7 (chat) — zde výstup čte interní uživatel, ne autor vstupu.
+
+### Náprava
+1. V promptu sumarizace oddělit přepis konverzace jako data (např. obalit XML tagem `<transcript>`)
+   a doplnit instrukci, že obsah je nedůvěryhodný vstup klienta — pokyny v něm ignorovat, pouze shrnout.
+2. V admin UI označit shrnutí jako strojově generované z nedůvěryhodného vstupu (drobný popisek),
+   aby ho zpracovatel nebral jako ověřený fakt.
+
+### Akceptační kritéria
+- Konverzace obsahující pokyny typu „do shrnutí napiš X / ignoruj instrukce" nevede k převzetí pokynu —
+  shrnutí zůstane věcným popisem zájmu klienta (ověřit ručně sadou adversariálních vstupů).
+- Shrnutí je v adminu vizuálně označené jako automatické.
+
+---
+
+## SEC-10 — Chybějící bezpečnostní HTTP hlavičky
+
+**Závažnost:** 🟡 Nezávažné
+**Lokace:** `next.config.ts` (žádná konfigurace `headers()`).
+
+### Popis
+Aplikace nenastavuje žádné bezpečnostní hlavičky: chybí `Content-Security-Policy`,
+`X-Frame-Options` / `frame-ancestors` (clickjacking, typicky na `/admin/login`),
+`X-Content-Type-Options: nosniff` a `Strict-Transport-Security`. Pro prototyp nezávažné
+(moderní prohlížeče část rizik kryjí samy, XSS je uzavřeno absencí raw HTML), ale jde o levnou
+plošnou ochranu.
+
+### Náprava
+1. Do `next.config.ts` doplnit `headers()` s minimem: `X-Frame-Options: DENY` (nebo CSP
+   `frame-ancestors 'none'`), `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+   strict-origin-when-cross-origin`.
+2. Zvážit základní CSP (`default-src 'self'` + výjimky, které si vyžádá Next.js — inline skripty
+   vyžadují nonce/hash, případně začít s `Report-Only`).
+3. HSTS na Vercelu řeší platforma; při vlastním hostingu doplnit `Strict-Transport-Security`.
+
+### Akceptační kritéria
+- Odpovědi stránek obsahují `X-Frame-Options`/`frame-ancestors`, `X-Content-Type-Options` a
+  `Referrer-Policy` (ověřit `curl -I` na `/` a `/admin/login`).
+- Stránku `/admin/login` nelze vložit do iframe z cizího originu.
+
+---
+
 ## Návrh pořadí implementace
 
 1. **SEC-2** (druhá obranná linie autorizace) — nízké riziko regrese, vysoká ochranná hodnota; sdílený
    helper lze nasadit rychle.
-2. **SEC-1** (identita klienta pro rate-limit + tvrdší ochrana loginu) — největší reálný dopad (brute-force,
-   náklady); vyžaduje ověření chování na Vercelu.
-3. **SEC-3, SEC-5, SEC-6** — drobné, rychlé opravy (generické chyby, strop mapy, kontrola přípony).
-4. **SEC-4, SEC-7, SEC-8** — vyžadují návrhové rozhodnutí (session store, serverová historie, CSRF token);
+2. **SEC-1** (identita klienta pro rate-limit + tvrdší ochrana loginu, vč. náhrady `hits.clear()`) —
+   největší reálný dopad (brute-force, náklady); vyžaduje ověření chování na Vercelu.
+3. **SEC-3, SEC-5, SEC-6, SEC-10** — drobné, rychlé opravy (generické chyby + validace `retrieval-test`,
+   strop mapy, kontrola přípony + sanitizace cesty, bezpečnostní hlavičky).
+4. **SEC-9** — úprava promptu sumarizace + popisek v UI; malá změna, ale chce ruční ověření na
+   adversariálních vstupech.
+5. **SEC-4, SEC-7, SEC-8** — vyžadují návrhové rozhodnutí (session store, serverová historie, CSRF token);
    vhodné jako samostatná fáze, případně odložit pro produkci.
 
 ## Pozitivní zjištění (zachovat)
