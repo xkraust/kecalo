@@ -34,43 +34,43 @@ Navazuje na bezpečnostní revizi [security_issues.md](security_issues.md) (5. 7
 
 ---
 
-## Balíček B — Identita klienta a rate-limiting (SEC-1 + SEC-5) 🟠
+## Balíček B — Identita klienta a rate-limiting (SEC-1 + SEC-5) 🟠 ✅ HOTOVO (zbývá ověření na Vercelu)
 
-### B1. Důvěryhodná IP klienta
+### B1. Důvěryhodná IP klienta ✅
 
 **Soubor:** `src/lib/rate-limit.ts` (`clientIp`)
 
-- [ ] Přestat brát nejlevější (klientem spoofovatelnou) hodnotu `X-Forwarded-For`. Nové pořadí: `x-real-ip` (na Vercelu ji dosazuje platforma a klient ji nemůže přepsat) → **pravá (poslední)** hodnota `x-forwarded-for` (poslední hop dosazuje platforma) → `"unknown"`.
-- [ ] Komentář u funkce: proč levá hodnota XFF nesmí být zdrojem identity a že mimo Vercel (lokální dev) padá na `"unknown"` — všichni lokální klienti sdílejí jedno počítadlo, což pro dev nevadí.
+- [x] Levá (klientem spoofovatelná) hodnota `X-Forwarded-For` se už nebere. Nové pořadí: `x-real-ip` (na Vercelu ji dosazuje platforma a klientem poslanou přepisuje) → **pravá (poslední)** hodnota `x-forwarded-for` → `"unknown"`.
+- [x] Komentář u funkce: proč levá hodnota XFF nesmí být zdrojem identity; mimo Vercel/proxy jsou hlavičky dál spoofovatelné — proto globální strop u loginu (B4).
 
-### B2. Limiter bez hromadného resetu (`hits.clear()`)
+### B2. Limiter bez hromadného resetu (`hits.clear()`) ✅
 
 **Soubor:** `src/lib/rate-limit.ts` (`createRateLimiter`)
 
-- [ ] Nahradit `hits.clear()` při dosažení `MAX_KEYS` vystěhováním nejstarších klíčů: `Map` drží pořadí vložení — smazat prvních ~`MAX_KEYS / 4` klíčů (iterátor `hits.keys()`), ne celou mapu. Přeplnění mapy tak nikdy neresetuje počítadlo aktivního útočníka ani legitimních klientů.
-- [ ] Zvážit i průběžné čištění: při vystěhování přeskočit klíče, jejichž poslední timestamp je starší než `windowMs` (smazat přednostně ty).
+- [x] `hits.clear()` nahrazen vystěhováním ~`MAX_KEYS / 4` klíčů s prioritou: 1) vypršelá okna, 2) klíče **pod limitem** (nejstarší první), 3) nouzově cokoli. Oproti původnímu návrhu (čistě pořadí vložení) tak zablokovaný klíč vystěhování přežije — reset by vyžadoval zaplnit mapu tisíci *zablokovanými* klíči, což stojí řádově víc požadavků, než kolik obejití ušetří.
 
-### B3. Strop a sjednocení mapy `failedAttempts` u loginu (SEC-5)
-
-**Soubor:** `src/app/api/auth/login/route.ts`
-
-- [ ] Doplnit strop velikosti mapy `failedAttempts` (stejná hodnota `MAX_KEYS = 5000`): při překročení vystěhovat nejstarší záznamy podle pořadí vložení (stejný vzor jako B2) — **ne** `clear()`.
-- [ ] Sémantika zůstává vlastní (počítají se jen neúspěšné pokusy, úspěch nuluje) — nesjednocovat na `createRateLimiter`, jen převzít vzor stropu; zdokumentovat v komentáři.
-
-### B4. Ochrana loginu nezávislá na IP
+### B3. Strop mapy `failedAttempts` u loginu (SEC-5) ✅
 
 **Soubor:** `src/app/api/auth/login/route.ts`
 
-- [ ] Přidat **globální** počítadlo neúspěšných pokusů (module scope, bez klíče podle IP): např. max 30 selhání / 15 min přes všechny IP → 429 pro další pokusy o login. Jde o prototyp s jediným admin účtem — globální strop je jednoduchá a účinná pojistka proti distribuovanému hádání, i když je identita IP obejitá.
-- [ ] Úspěšný login globální počítadlo neresetuje (okno vyprší samo) — jinak by si útočník mohl počítadlo nulovat vlastním platným účtem; u jednoho admin účtu to znamená jen to, že legitimní admin po vlně útoku počká do konce okna.
-- [ ] Do komentáře: per-instance omezení na serverless platí dál (každá instance počítá zvlášť, studený start nuluje) — sdílené úložiště (Upstash/Vercel KV) zůstává produkční dluh, do prototypu se nezavádí (zásada bez nových závislostí).
+- [x] Strop `MAX_KEYS = 5000` + vystěhování stejným vzorem jako B2 (vypršelá okna → pod limitem → nouzově cokoli) — **ne** `clear()`.
+- [x] Sémantika zůstala vlastní (počítají se jen selhání, úspěch nuluje per-IP záznam); zdokumentováno v komentáři.
 
-**Ověření:**
-1. Skript: N+1 pokusů o login s **rotující** `X-Forwarded-For` (jiná hodnota na každý request) → po 5. selhání 429 (identita se už nebere z levé XFF; lokálně vše spadne pod `"unknown"`, což chování testu právě potvrzuje).
-2. Unit-styl test limiteru (dočasný skript): naplnit `MAX_KEYS + 1` klíčů, ověřit že počítadlo dříve vloženého aktivního klíče přežilo (nevystěhoval se celý stav).
-3. Globální strop: 30 selhání z různých „IP" → další pokus 429 i z nové IP.
-4. Po nasazení na Vercel: ověřit reálným klientem, že `x-real-ip` je přítomná a limit se váže na skutečnou IP (2 zařízení / mobilní data vs. wifi).
-5. `npm run lint` a `npm run build` bez chyb.
+### B4. Ochrana loginu nezávislá na IP ✅
+
+**Soubor:** `src/app/api/auth/login/route.ts`
+
+- [x] Globální počítadlo selhání (module scope, přes všechny IP): max 30 selhání / 15 min → 429 pro další pokusy. Pole timestampů je shora omezené — po dosažení stropu se 429 odpovědi už nezapočítávají.
+- [x] Úspěšný login globální počítadlo neresetuje (okno vyprší samo); zdokumentováno v komentáři.
+- [x] Komentář: per-instance omezení na serverless trvá; sdílené úložiště (Upstash/KV) zůstává produkční dluh.
+
+**Ověření:** ✅ provedeno (lokálně) —
+1. Unit test proti skutečnému zdrojáku (Node 24 type-stripping): `clientIp` preferuje `x-real-ip`, z XFF bere pravou hodnotu, bez hlaviček `"unknown"`; základní limit + sliding window; **regresní test: zablokovaný klíč přežil 7 000 junk klíčů (několik evikcí)** — s dřívějším `clear()` by se resetoval.
+2. Runtime T1: 6 pokusů o login se stejnou identitou → 5× 401, poté 429 (per-IP limit).
+3. Runtime T2: 30 pokusů s **rotující** `x-real-ip` → per-IP limit se rotací míjí (401), ale globální strop vrátil 429 přesně na 26. pokusu (5 selhání z T1 + 25 = 30 globálních).
+4. Po restartu serveru (vyčištění testovacích počítadel) legitimní login → 200, admin routy s cookie → 200, `/api/chat` beze změny (400 na nevalidní tělo).
+5. `npm run lint` i `npm run build` bez chyb.
+6. ⏳ Po nasazení na Vercel: ověřit reálným klientem, že `x-real-ip` je přítomná a limit se váže na skutečnou IP (2 zařízení / mobilní data vs. wifi) — zbývá uživateli.
 
 ---
 
@@ -175,7 +175,7 @@ Tyto nálezy revize hodnotí jako nezávažné a vyžadují rozhodnutí o archit
 | Krok | Balíček | Nálezy | Závažnost | Stav | Commit |
 |---|---|---|---|---|---|
 | 1 | A (require-admin) | SEC-2 | 🟠 | ✅ | `5e9111e` |
-| 2 | B (IP + limitery) | SEC-1, SEC-5 | 🟠 | ⬜ | |
+| 2 | B (IP + limitery) | SEC-1, SEC-5 | 🟠 | ✅ (⏳ Vercel) | |
 | 3 | C (generické chyby + validace) | SEC-3 | 🟡 | ⬜ | |
 | 4 | D (upload whitelist) | SEC-6 | 🟡 | ⬜ | |
 | 5 | E (hlavičky) | SEC-10 | 🟡 | ⬜ | |
