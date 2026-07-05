@@ -100,22 +100,25 @@ Navazuje na bezpečnostní revizi [security_issues.md](security_issues.md) (5. 7
 
 ---
 
-## Balíček D — Upload: MIME, přípona a cesta ve Storage (SEC-6) 🟡
+## Balíček D — Upload: MIME, přípona a cesta ve Storage (SEC-6) 🟡 ✅ HOTOVO
 
-### D1. Přípona jako jediný whitelist
+### D1. Přípona jako jediný whitelist ✅
 
 **Soubor:** `src/app/api/documents/route.ts`
 
-- [ ] Vyřadit `application/octet-stream` z `ALLOWED_TYPES`. Nová logika `isAllowedFile`: **vždy** vyžadovat příponu z whitelistu `pdf | txt | md` (case-insensitive); MIME kontrola zůstává jako druhá podmínka (`ALLOWED_TYPES.has(file.type) || file.type === "" || file.type === "application/octet-stream"`) — prohlížeče někdy MIME nepošlou, přípona je rozhodující.
-- [ ] Cestu ve Storage sestavovat **výhradně** z whitelistované přípony: `ext` po kontrole nabývá jen `pdf`/`txt`/`md`, do `storagePath` se nikdy nedostane surová hodnota z `file.name` (uzavírá i vektor `/` v názvu, např. `evil.pdf/x`).
-- [ ] Volitelně (nice-to-have): u souborů s příponou `pdf` ověřit magické bajty `%PDF` v prvních 4 bajtech bufferu → jinak 400. Levné, buffer už je v paměti.
+- [x] `isAllowedFile` (dřív přijímal soubor už podle MIME v `ALLOWED_TYPES` vč. `application/octet-stream`) nahrazen funkcí `allowedExtension(file)`, která **vždy** vyžaduje příponu z whitelistu `pdf | txt | md` (case-insensitive) a vrací ji, jinak `null`. MIME slouží jen jako druhotný signál (`isAcceptableMime`: prázdný, `application/octet-stream`, `text/*` nebo `application/pdf`) — konkrétní cizí MIME (např. `application/x-msdownload`) soubor odmítne i při správné příponě.
+- [x] Cesta ve Storage se sestavuje **výhradně** z whitelistované přípony (návratová hodnota `allowedExtension`), ne ze surového `file.name`. Odpadl fallback `?? "bin"`. Uzavírá i vektor `/` v názvu (`evil.pdf/x`).
+- [x] Magické bajty: deklarované PDF (`ext === "pdf"`) musí začínat `%PDF` (`hasPdfMagic` nad bufferem) → jinak 400 a úklid vloženého záznamu. Přejmenovaný textový/binární soubor s příponou `.pdf` se tak nedostane do indexace.
+- [x] Ověřena konzistence cesty: `pipeline.ts` (download) i `documents/[id]` (DELETE) odvozují příponu z `doc.filename.split(".").pop()?.toLowerCase()` — protože filename projde whitelistem, vrací tutéž příponu jako uložená cesta.
 
-**Ověření:**
-1. Upload souboru `evil.exe` s podvrženým MIME `application/octet-stream` (curl `-F "file=@evil.exe;type=application/octet-stream"`) → 400.
-2. Upload s názvem `evil.pdf/x` (ručně sestavený multipart) → 400 (přípona `pdf/x` neprojde whitelistem).
-3. Platné PDF, TXT i MD → 201 a zpracování do `ready`; cesta ve Storage má tvar `{uuid}/file.(pdf|txt|md)`.
-4. (Pokud implementováno) textový soubor přejmenovaný na `.pdf` → 400 na magických bajtech.
-5. `npm run lint` a `npm run build` bez chyb.
+**Ověření:** ✅ provedeno (integrační test přes Node fetch + FormData s admin cookie) —
+1. `evil.exe` s MIME `application/octet-stream` → 400 „Povolené formáty: PDF, TXT, MD".
+2. Název `evil.pdf/x` → 400 (přípona `pdf/x` neprojde whitelistem — surová hodnota se do cesty nedostane).
+3. `fake.pdf` (text, špatné magické bajty) → 400 „Soubor není platné PDF (chybí hlavička %PDF)".
+4. `evil.pdf` s MIME `application/x-msdownload` → 400 (cizí konkrétní MIME odmítnut i při příponě pdf).
+5. Platný `.txt` → 201, cesta ve Storage `{uuid}/file.txt`, zpracování do `ready` (1 chunk), download přes whitelistovanou příponu funguje. (Při prvním běhu skončil přechodně `error` kvůli souběhu 5 uploadů/embeddingů; čistý re-run → `ready` — nesouvisí se změnou.)
+6. Minimální platné PDF (`%PDF-1.4…`) → 201 (magické bajty prošly). Testovací dokumenty smazány přes API.
+7. `npm run lint` a `npm run build` bez chyb.
 
 ---
 
@@ -178,7 +181,7 @@ Tyto nálezy revize hodnotí jako nezávažné a vyžadují rozhodnutí o archit
 | 1 | A (require-admin) | SEC-2 | 🟠 | ✅ | `5e9111e` |
 | 2 | B (IP + limitery) | SEC-1, SEC-5 | 🟠 | ✅ (⏳ Vercel) | |
 | 3 | C (generické chyby + validace) | SEC-3 | 🟡 | ✅ | |
-| 4 | D (upload whitelist) | SEC-6 | 🟡 | ⬜ | |
+| 4 | D (upload whitelist) | SEC-6 | 🟡 | ✅ | |
 | 5 | E (hlavičky) | SEC-10 | 🟡 | ⬜ | |
 | 6 | F (shrnutí poptávky) | SEC-9 | 🟡 | ⬜ | |
 | 7 | Aktualizace CLAUDE.md + security_issues.md (poznámky „opraveno") | — | — | ⬜ | |

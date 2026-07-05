@@ -6,19 +6,37 @@ import { withSpan, flushTelemetry } from "@/lib/telemetry";
 
 export const maxDuration = 60;
 
-const ALLOWED_TYPES = new Set([
-  "application/pdf",
-  "text/plain",
-  "text/markdown",
-  "application/octet-stream",
-]);
-
 const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
 
-function isAllowedFile(file: File): boolean {
-  if (ALLOWED_TYPES.has(file.type)) return true;
+// Oprava SEC-6: přípona z whitelistu je jediný spolehlivý filtr. Dřív stačilo
+// deklarovat MIME application/octet-stream a kontrola přípony se obešla; navíc
+// se surová přípona z názvu dostávala do cesty ve Storage. MIME se teď bere jen
+// jako druhotný signál (prohlížeče u .md/.txt posílají různé nebo prázdné).
+type AllowedExt = "pdf" | "txt" | "md";
+
+function isAcceptableMime(type: string): boolean {
+  if (type === "" || type === "application/octet-stream") return true;
+  if (type.startsWith("text/")) return true;
+  return type === "application/pdf";
+}
+
+/** Přípona z whitelistu (pdf/txt/md), nebo null. Jediný zdroj přípony pro cestu
+ * ve Storage — surová hodnota z názvu se do cesty nikdy nedostane. */
+function allowedExtension(file: File): AllowedExt | null {
   const ext = file.name.split(".").pop()?.toLowerCase();
-  return ext === "md" || ext === "txt" || ext === "pdf";
+  if (ext !== "pdf" && ext !== "txt" && ext !== "md") return null;
+  if (!isAcceptableMime(file.type)) return null;
+  return ext;
+}
+
+/** Deklarované PDF musí začínat magickými bajty „%PDF". */
+function hasPdfMagic(buffer: Uint8Array): boolean {
+  return (
+    buffer[0] === 0x25 && // %
+    buffer[1] === 0x50 && // P
+    buffer[2] === 0x44 && // D
+    buffer[3] === 0x46 // F
+  );
 }
 
 export async function GET() {
@@ -62,7 +80,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Soubor je povinný" }, { status: 400 });
   }
 
-  if (!isAllowedFile(file)) {
+  const ext = allowedExtension(file);
+  if (!ext) {
     return NextResponse.json(
       { error: "Povolené formáty: PDF, TXT, MD" },
       { status: 400 }
@@ -140,9 +159,21 @@ export async function POST(request: NextRequest) {
         "document.filename": doc.filename,
       });
 
-      // Upload file to storage (use sanitized path — original name is in DB)
+      // Upload file to storage (use sanitized path — original name is in DB).
+      // Přípona pochází z whitelistu (allowedExtension), ne ze surového názvu.
       const buffer = new Uint8Array(await file.arrayBuffer());
-      const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
+
+      // Deklarované PDF ověříme podle magických bajtů — přejmenovaný soubor
+      // s příponou .pdf se tak nedostane do indexace (oprava SEC-6).
+      if (ext === "pdf" && !hasPdfMagic(buffer)) {
+        await supabase.from("documents").delete().eq("id", doc.id);
+        return {
+          ok: false,
+          status: 400,
+          error: "Soubor není platné PDF (chybí hlavička %PDF).",
+        };
+      }
+
       const storagePath = `${doc.id}/file.${ext}`;
       const { error: uploadErr } = await supabase.storage
         .from("documents")
