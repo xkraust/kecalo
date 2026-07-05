@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 /**
  * Langfuse eval runner — prožene testovací datasety přes nasazený /api/chat
  * a založí z výsledků experiment (dataset run) v Langfuse + deterministická skóre.

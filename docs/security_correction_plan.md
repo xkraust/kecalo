@@ -174,7 +174,7 @@ Tyto nálezy revize hodnotí jako nezávažné a vyžadují rozhodnutí o archit
 
 | Krok | Balíček | Nálezy | Závažnost | Stav | Commit |
 |---|---|---|---|---|---|
-| 1 | A (require-admin) | SEC-2 | 🟠 | ✅ | |
+| 1 | A (require-admin) | SEC-2 | 🟠 | ✅ | `5e9111e` |
 | 2 | B (IP + limitery) | SEC-1, SEC-5 | 🟠 | ⬜ | |
 | 3 | C (generické chyby + validace) | SEC-3 | 🟡 | ⬜ | |
 | 4 | D (upload whitelist) | SEC-6 | 🟡 | ⬜ | |
