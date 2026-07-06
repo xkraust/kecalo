@@ -192,7 +192,8 @@ i po odhlášení.
 `requireAdmin()` pro admin API a admin layout pro stránky (`isSessionRevoked`); proxy v edge zůstává
 rychlým podpisovým gatem. Nová `verifiedSessionIssuedAt` v `auth.ts` vrací ověřený čas vydání
 (`verifySession` na ni navázán). Fail-open při chybějící tabulce → bezpečné nasazení před migrací.
-Ověřen fail-open (login/admin/logout beze změny); E2E revokace čeká na `supabase db push` migrace `011`.
+Ověřeno E2E (migrace `011` aplikovaná): login → API 200 → logout → tatáž podržená cookie 401 (API) i
+307 redirect na login (stránka), nový login zase 200. Fail-open ověřen samostatně před migrací.
 
 ---
 

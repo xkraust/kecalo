@@ -172,13 +172,13 @@ Navazuje na bezpečnostní revizi [security_issues.md](security_issues.md) (5. 7
 
 Zvolena varianta „token epoch" (varianta a zjednodušená pro jediný admin účet — místo seznamu aktivních session stačí jedna hranice platnosti):
 
-- [x] Migrace `011_auth_state.sql` — jednořádková tabulka `auth_state` s `sessions_invalid_before timestamptz` (default epoch = žádná revokace, aby nasazení migrace nezneplatnilo aktivní session) + RLS. **Čeká na `supabase db push`.**
+- [x] Migrace `011_auth_state.sql` — jednořádková tabulka `auth_state` s `sessions_invalid_before timestamptz` (default epoch = žádná revokace, aby nasazení migrace nezneplatnilo aktivní session) + RLS. **Aplikováno** (`supabase db push`).
 - [x] `src/lib/session-revocation.ts` — `getSessionsInvalidBefore()`, `revokeAllSessions()` (logout → `now()`), `isSessionRevoked(issuedAtMs)`. Fail-open při chybějící tabulce/chybě DB (revokace se neuplatní, podpis+expirace se ověřují dál → bezpečné nasazení kódu před migrací).
 - [x] `src/lib/auth.ts` — nová `verifiedSessionIssuedAt()` vrací ověřený čas vydání tokenu (čistá krypto, edge-safe); `verifySession()` na ni navázán.
 - [x] `requireAdmin()` (admin API) i admin layout (stránky) kontrolují revokaci v Node runtimu; proxy v edge zůstává rychlým podpisovým gatem.
 - [x] `logout/route.ts` — `revokeAllSessions()` před smazáním cookie.
 
-**Ověření:** ✅ fail-open (login/admin API/logout beze změny při chybějící tabulce; chyba jen v logu). ⏳ E2E revokace (login → API 200 → logout → tentýž token 401 / stránka redirect na login) čeká na aplikaci migrace `011` (`supabase db push`).
+**Ověření:** ✅ fail-open (login/admin API/logout beze změny při chybějící tabulce; chyba jen v logu) i ✅ E2E po aplikaci migrace `011`: login → API 200 → logout → tatáž podržená cookie vrací 401 (API) i 307 redirect na `/admin/login` (stránka), nový login zase 200.
 
 ### SEC-7, SEC-8 — odloženo jako produkční dluh ⏸️
 
@@ -200,7 +200,7 @@ Nezávažné, vyžadují rozhodnutí o architektuře — **neimplementují se**,
 | 5 | E (hlavičky) | SEC-10 | 🟡 | ✅ | |
 | 6 | F (shrnutí poptávky) | SEC-9 | 🟡 | ✅ | |
 | 7 | Aktualizace CLAUDE.md + security_issues.md (poznámky „opraveno") | — | — | ✅ | |
-| 8 | G — SEC-4 (revokace session) | SEC-4 | 🟡 | ✅ (⏳ migrace 011) | |
+| 8 | G — SEC-4 (revokace session) | SEC-4 | 🟡 | ✅ | |
 | — | G (odloženo) | SEC-7, SEC-8 | ⏸️ | produkční dluh | |
 
 Balíčky C–F jsou vzájemně nezávislé (lze přehodit pořadí i sloučit commity); A je vhodné mít jako první (chrání ostatní práci), B vyžaduje po nasazení ověření na Vercelu.

@@ -684,7 +684,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ### Balíček G — SEC-4 opraveno; SEC-7, SEC-8 odloženo
 
-- [x] **SEC-4 — server-side invalidace session** ✅: „token epoch" — migrace `011_auth_state.sql` (`sessions_invalid_before`), `src/lib/session-revocation.ts`, `verifiedSessionIssuedAt` v `auth.ts`; logout posune hranici na `now()`, `requireAdmin()` (API) i admin layout (stránky) odmítnou token vydaný dřív. Fail-open bez tabulky. Ověřen fail-open; E2E revokace čeká na `supabase db push` migrace `011`
+- [x] **SEC-4 — server-side invalidace session** ✅: „token epoch" — migrace `011_auth_state.sql` (`sessions_invalid_before`, aplikovaná), `src/lib/session-revocation.ts`, `verifiedSessionIssuedAt` v `auth.ts`; logout posune hranici na `now()`, `requireAdmin()` (API) i admin layout (stránky) odmítnou token vydaný dřív. Fail-open bez tabulky. Ověřeno E2E: podržená cookie po logoutu → 401 (API) / 307 redirect (stránka), nový login zase 200
 - [ ] SEC-7 — serverová rekonstrukce/validace historie chatu (klient dnes posílá i `assistant` zprávy; zbytkové riziko nízké — bez nástrojů a exfiltračního kanálu)
 - [ ] SEC-8 — explicitní CSRF token (dnes zmírněno `SameSite=Lax`; žádná stavová operace není přes GET)
 
