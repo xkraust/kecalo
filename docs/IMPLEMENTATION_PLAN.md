@@ -690,6 +690,54 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ---
 
+## Fáze 15 — Evaluace: Langfuse datasety + eval runner (po kurzu) 🟡
+
+**Milník:** Testovací otázky z `docs/testovaci_otazky*.md` jsou v Langfuse jako datasety a lze je jedním příkazem prohnat nasazeným chatbotem, který založí **experiment (dataset run)** s deterministickými skóre — regresní měření kvality RAG při ladění parametrů/chunkování. Bez změny aplikace (jen eval nástroj).
+
+> **Pozn.:** Základ (datasety + runner + deterministická skóre) je **hotový a ověřený** (plný run 56 otázek, 0 errors); rozšíření metadat a LLM-as-judge jsou **navržená, zatím neimplementovaná**.
+
+### Krok 1 — CSV datasety z testovacích otázek ✅
+
+- [x] Tři CSV v `docs/langfuse_datasets/` (`dataset_obecne.csv` 12, `dataset_M-100_23.csv` 23, `dataset_M-200_23.csv` 21) — sloupce `input` (→ Input), `expected_output` (→ Expected output), `category`/`document`/`expected_source` (→ Metadata)
+- [x] `category` = `in_scope` / `out_of_scope` (fallback) / `confusion` (záměna M-100 ↔ M-200)
+- [x] README s postupem importu a evaluace (`docs/langfuse_datasets/README.md`)
+- [x] Import do Langfuse ve složce `kecalo/` → datasety `kecalo/obecne`, `kecalo/M-100`, `kecalo/M-200`
+
+### Krok 2 — Eval runner přes oficiální SDK ✅
+
+- [x] `scripts/langfuse-eval.mjs` (čisté Node ESM) — načte dataset, prožene `POST /api/chat` na nasazený cíl (`KECALO_BASE_URL`, default Vercel), zaparsuje odpověď + hlavičku `X-Sources`
+- [x] Zápis přes **`@langfuse/client` `experiment.run({ data, task, evaluators })`** — legacy ruční REST `/dataset-run-items` sice runy zakládá, ale Langfuse **v3.205 je v záložce Experiments nezobrazuje** (potřebuje experiment formát ze SDK)
+- [x] OTel setup ve skriptu (`LangfuseSpanProcessor` + `NodeTracerProvider.register()` + `setLangfuseTracerProvider`) — bez registrovaného provideru by byl tracer NoopTracer a experiment by nevytvořil spany
+- [x] `traceparent` z `getActiveTraceId/SpanId` → serverové spany chatu (`chat-pipeline → retrieval → LLM`) se vnoří pod experiment trace
+- [x] `maxConcurrency: 1` + `--delay` (default 3 s) kvůli rate limitu `/api/chat` (20/min)
+- [x] CLI: `--dataset`, `--only`, `--limit`, `--run`, `--dry`, `--prefix`; `npm run eval`; závislost `@langfuse/client`
+
+### Krok 3 — Deterministická skóre ✅
+
+- [x] Evaluátor v runneru (bez LLM) → `Evaluation[]` (NUMERIC 0/1) navázané na experiment:
+  - `fallback_correct` (`out_of_scope`) — prázdné `X-Sources` / odkaz na infolinku → chatbot nehalucinuje
+  - `retrieved` / `doc_match` (`in_scope`, `confusion`) — retrieval vrátil chunk / zdroj odpovídá `document`
+  - `article_match` — `section_path` obsahuje `čl. N` z `expected_source`
+- [x] Ověřeno: `in_scope` 100 % doc/article match na vzorku, `out_of_scope` 8/8 fallback, plný run 56/56 bez chyby
+
+### Krok 4 — Smysluplná metadata experimentu (navrženo) ⬜
+
+- [ ] **Run-level** (`experiment.run({ metadata })`, sloupec Metadata v Experiments): runtime RAG parametry (`topK`, `similarityThreshold`, `llmTemperature`) + chunking config (`chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`) natažené z `GET /api/settings`, git sha aplikace, cíl (`KECALO_BASE_URL`), CLI parametry runu — aby šlo porovnávat runy a poznat, proč se skóre liší
+- [ ] **Per-item** (`updateActiveObservation({ metadata })` uvnitř `task`): HTTP status, počet chunků, `X-Sources` — filtrovatelné v UI
+- [ ] **Run-level agregace** (`runEvaluators`): `overall_fallback_rate`, `overall_doc_match_rate` jako jedno číslo u runu
+
+### Krok 5 — LLM-as-judge (navrženo, mimo runner) ⬜
+
+- [ ] Konfigurace evaluátoru v Langfuse UI (**Evaluators**) — věcná správnost odpovědi proti `expected_output` tam, kde parafráze potřebuje „porozumění" (deterministická skóre neumí). Feature Langfuse Cloud, bez kódu
+
+### Gotchas
+
+- **Legacy dataset-run-items ≠ Experiments** — ruční REST runy se v UI v3.205 nezobrazí; nutný SDK experiment formát (viz Krok 2)
+- **Aggregation lag** — ClickHouse pohled Experiments dobíhá za ingestem i mazáním o (desítky) minut; run se po běhu objeví/po smazání zmizí se zpožděním (API/Postgres je konzistentní hned)
+- **Mazání runu nemaže traces** — DELETE `/datasets/{name}/runs/{run}` odstraní run + linky, traces (`experiment-item-run`) zůstanou v Tracing
+
+---
+
 ## Přehled API rout
 
 | Metoda | Route | Účel |
@@ -776,7 +824,7 @@ kecalo/
 │           ├── prompts.ts            # systémový prompt, fallback, kontext blok
 │           └── pipeline.ts           # indexace dokumentu (processDocument)
 ├── scripts/
-│   ├── langfuse-eval.mjs             # eval runner testovacích otázek přes /api/chat
+│   ├── langfuse-eval.mjs             # eval runner — Langfuse experiment nad datasety (Fáze 15)
 │   └── verify-rate-limit.mjs         # ověření SEC-1 (vazba limitu na x-real-ip)
 ├── supabase/
 │   └── migrations/
