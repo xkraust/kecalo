@@ -133,7 +133,7 @@ POST   /api/retrieval-test      → vrátí top-k chunků se skóre (pouze admin
 GET    /api/settings            → vrátí aktuální runtime parametry + přepínače telemetrie z DB
 POST   /api/settings            → uloží globální runtime parametry RAG do app_settings
 POST   /api/feedback            → uloží zpětnou vazbu (thumbs up/down); limity vstupu + rate limit 10/min
-POST   /api/leads               → uloží poptávku (veřejné); rate limit 5/min, deduplikace podle kontaktu, Haiku shrnutí konverzace
+POST   /api/leads               → uloží poptávku (veřejné); rate limit 5/min, deduplikace podle kontaktu, Haiku shrnutí konverzace (přepis izolován v bloku <transcript> jako nedůvěryhodný vstup — oprava SEC-9)
 PATCH  /api/leads/[id]          → změna stavu poptávky (pouze admin): in_progress/closed; 400/404/409
 POST   /api/auth/login          → ověření username + password, nastavení session cookie
 POST   /api/auth/logout         → smazání session cookie

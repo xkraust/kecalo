@@ -149,6 +149,11 @@ export function LeadsPageClient({ leads }: Props) {
                             {isExpanded ? "Skrýt" : "Zobrazit vše"}
                           </button>
                         )}
+                        {lead.summary && (
+                          <p className="text-[11px] leading-tight text-muted-foreground/70">
+                            Automatické shrnutí z textu klienta — neověřené.
+                          </p>
+                        )}
                       </div>
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
