@@ -720,11 +720,11 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
   - `article_match` — `section_path` obsahuje `čl. N` z `expected_source`
 - [x] Ověřeno: `in_scope` 100 % doc/article match na vzorku, `out_of_scope` 8/8 fallback, plný run 56/56 bez chyby
 
-### Krok 4 — Smysluplná metadata experimentu (navrženo) ⬜
+### Krok 4 — Smysluplná metadata experimentu ✅
 
-- [ ] **Run-level** (`experiment.run({ metadata })`, sloupec Metadata v Experiments): runtime RAG parametry (`topK`, `similarityThreshold`, `llmTemperature`) + chunking config (`chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`) natažené z `GET /api/settings`, git sha aplikace, cíl (`KECALO_BASE_URL`), CLI parametry runu — aby šlo porovnávat runy a poznat, proč se skóre liší
-- [ ] **Per-item** (`updateActiveObservation({ metadata })` uvnitř `task`): HTTP status, počet chunků, `X-Sources` — filtrovatelné v UI
-- [ ] **Run-level agregace** (`runEvaluators`): `overall_fallback_rate`, `overall_doc_match_rate` jako jedno číslo u runu
+- [x] **Run-level** (`experiment.run({ metadata })`, sloupec Metadata v Experiments): runtime RAG parametry (`topK`, `similarityThreshold`, `llmTemperature`) + chunking config (`chunkTargetSize`/`chunkBreadcrumb`/`chunkStripHeaders`) natažené z cíle přes `GET /api/settings` (admin-only → runner se nejdřív přihlásí `ADMIN_USERNAME`/`ADMIN_PASSWORD`; graceful fallback bez creds), git sha aplikace (`git rev-parse`), cíl (`KECALO_BASE_URL`), CLI parametry runu — ověřeno na runu
+- [x] **Per-item** (`updateActiveObservation({ metadata })` uvnitř `task`): HTTP status, počet chunků, `topSimilarity`, `X-Sources` — připnuto na observaci `experiment-item-run`, ověřeno
+- [x] **Run-level agregace** (`runEvaluators`): `<skóre>_rate` (např. `doc_match_rate`) — SDK je ukládá jako run-level skóre navázané na `datasetRunId` (zobrazí se jako sloupec u runu v Experiments; přes veřejné `/api/public/scores` se nevrací, to je jen pro trace/observation skóre)
 
 ### Krok 5 — LLM-as-judge (navrženo, mimo runner) ⬜
 

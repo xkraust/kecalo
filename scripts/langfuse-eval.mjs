@@ -19,10 +19,13 @@
  *   LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY  — povinné
  *   LANGFUSE_BASE_URL   — default https://cloud.langfuse.com
  *   KECALO_BASE_URL     — cíl chatu, default https://kecalo.vercel.app
+ *   ADMIN_USERNAME, ADMIN_PASSWORD  — volitelné; jen pro načtení runtime RAG
+ *     parametrů z cíle (GET /api/settings je admin-only) do metadat runu
  */
 
 import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { execSync } from "node:child_process";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { LangfuseSpanProcessor } from "@langfuse/otel";
 import { LangfuseClient } from "@langfuse/client";
@@ -30,6 +33,7 @@ import {
   setLangfuseTracerProvider,
   getActiveTraceId,
   getActiveSpanId,
+  updateActiveObservation,
 } from "@langfuse/tracing";
 
 // ---------------------------------------------------------------------------
@@ -150,6 +154,53 @@ async function callChat(question, traceparent) {
   }
 }
 
+/** Krátký git sha aplikace v době běhu — pro metadata runu. Null když není git. */
+function gitSha() {
+  try {
+    return execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Runtime RAG parametry z cíle (GET /api/settings je admin-only → nejdřív login
+ * přes ADMIN_USERNAME/ADMIN_PASSWORD, pak dotaz se session cookie). Vrací objekt
+ * settings, nebo null (chybí creds / login selhal) — metadata runu se pak jen
+ * o settings ochudí, běh pokračuje.
+ */
+async function fetchTargetSettings() {
+  const username = process.env.ADMIN_USERNAME;
+  const password = process.env.ADMIN_PASSWORD;
+  if (!username || !password) return null;
+  try {
+    const login = await fetch(`${KECALO_BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!login.ok) {
+      console.warn(`  (settings do metadat přeskočena — login ${login.status})`);
+      return null;
+    }
+    const setCookies = login.headers.getSetCookie?.() ??
+      [login.headers.get("set-cookie")].filter(Boolean);
+    const cookie = setCookies.map((c) => c.split(";")[0]).join("; ");
+    if (!cookie) return null;
+    const res = await fetch(`${KECALO_BASE}/api/settings`, {
+      headers: { Cookie: cookie },
+    });
+    if (!res.ok) {
+      console.warn(`  (settings do metadat přeskočena — /api/settings ${res.status})`);
+      return null;
+    }
+    return await res.json();
+  } catch (err) {
+    console.warn(`  (settings do metadat přeskočena — ${err.message})`);
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Deterministická skóre — z výstupu chatu + metadat položky.
 // Vrací pole Evaluation { name, value, comment, dataType }.
@@ -256,7 +307,25 @@ async function task(item) {
   const tid = getActiveTraceId?.();
   const sid = getActiveSpanId?.();
   const traceparent = tid && sid ? `00-${tid}-${sid}-01` : undefined;
-  return callChat(asText(item.input), traceparent);
+  const out = await callChat(asText(item.input), traceparent);
+
+  // Per-item metadata na observaci — filtrovatelné v UI (status, retrieval).
+  const topSimilarity = out.sources.length
+    ? Math.max(...out.sources.map((s) => s.similarity ?? 0))
+    : 0;
+  try {
+    updateActiveObservation({
+      metadata: {
+        httpStatus: out.status,
+        chunkCount: out.sources.length,
+        topSimilarity,
+        sources: out.sources,
+      },
+    });
+  } catch {
+    /* no-op mimo aktivní observaci (např. při ručním volání) */
+  }
+  return out;
 }
 
 // jediný evaluátor vrací pole deterministických skóre
@@ -264,14 +333,56 @@ async function evaluator({ output, metadata }) {
   return deterministicScores(output, metadata);
 }
 
+// run-level agregace — z per-item skóre spočítá průměrné míry (0–1) a připne je
+// jako skóre na celý run (např. doc_match_rate). Umožní porovnávat runy jedním
+// číslem místo ručního průměrování v konzoli.
+async function runEvaluator({ itemResults }) {
+  const acc = {};
+  for (const r of itemResults) {
+    for (const e of r.evaluations ?? []) {
+      acc[e.name] ??= { sum: 0, n: 0 };
+      acc[e.name].sum += e.value;
+      acc[e.name].n += 1;
+    }
+  }
+  return Object.entries(acc).map(([name, { sum, n }]) => ({
+    name: `${name}_rate`,
+    value: n ? sum / n : 0,
+    comment: `${sum}/${n}`,
+    dataType: "NUMERIC",
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // Běh
 // ---------------------------------------------------------------------------
 async function main() {
+  // Metadata runu — poznají, proti jaké konfiguraci/kódu run běžel (porovnání runů).
+  const targetSettings = DRY ? null : await fetchTargetSettings();
+  const runMetadata = {
+    target: KECALO_BASE,
+    gitSha: gitSha(),
+    cli: {
+      datasets: DATASETS,
+      only: ONLY,
+      limit: LIMIT === Infinity ? null : LIMIT,
+      delayMs: DELAY_MS,
+    },
+    settings: targetSettings, // topK/threshold/temperature + chunking (nebo null)
+  };
+
   console.log(`Run:      ${RUN_NAME}`);
   console.log(`Chat:     ${KECALO_BASE}/api/chat`);
   console.log(`Langfuse: ${process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com"}`);
   console.log(`Datasety: ${DATASETS.join(", ")}${ONLY ? `  (only=${ONLY})` : ""}`);
+  console.log(
+    `Metadata: git=${runMetadata.gitSha ?? "?"}` +
+      (targetSettings
+        ? ` topK=${targetSettings.topK} thr=${targetSettings.similarityThreshold} temp=${targetSettings.llmTemperature} chunk=${targetSettings.chunkTargetSize}/breadcrumb=${targetSettings.chunkBreadcrumb}`
+        : DRY
+        ? ""
+        : " (settings N/A)")
+  );
   console.log(DRY ? "DRY RUN — do Langfuse se nic nezapíše.\n" : "");
 
   let processed = 0;
@@ -306,9 +417,11 @@ async function main() {
         name: `kecalo-eval:${datasetName}`,
         runName: RUN_NAME,
         description: "Deterministická evaluace RAG chatbota (retrieval + fallback)",
+        metadata: runMetadata,
         data: items,
         task,
         evaluators: [evaluator],
+        runEvaluators: [runEvaluator],
         maxConcurrency: 1,
       });
       for (const r of result.itemResults) {
