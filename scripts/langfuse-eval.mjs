@@ -1,9 +1,12 @@
 #!/usr/bin/env node
+// @ts-nocheck
 /**
  * Langfuse eval runner — prožene testovací datasety přes nasazený /api/chat
  * a založí z výsledků experiment (dataset run) v Langfuse + deterministická skóre.
  *
- * Čisté Node ESM, bez nových závislostí (globální fetch, Node 18+).
+ * Zápis jde přes oficiální SDK @langfuse/client (`experiment.run`), aby se run
+ * objevil v záložce Experiments. (Ruční REST /dataset-run-items zakládal legacy
+ * runy, které UI v3.205 v Experiments nezobrazuje.)
  *
  * Použití:
  *   node scripts/langfuse-eval.mjs                       # všechny 3 datasety
@@ -20,9 +23,19 @@
 
 import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { LangfuseSpanProcessor } from "@langfuse/otel";
+import { LangfuseClient } from "@langfuse/client";
+import {
+  setLangfuseTracerProvider,
+  getActiveTraceId,
+  getActiveSpanId,
+} from "@langfuse/tracing";
 
 // ---------------------------------------------------------------------------
 // Env — načteme .env.local a .env, ale nepřepíšeme už nastavené proměnné.
+// (Musí proběhnout před konstrukcí LangfuseSpanProcessor/LangfuseClient — ty
+//  čtou klíče z prostředí.)
 // ---------------------------------------------------------------------------
 function loadEnvFile(path) {
   let raw;
@@ -58,25 +71,22 @@ const args = Object.fromEntries(
   })
 );
 
-const LANGFUSE_BASE = (
-  process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com"
-).replace(/\/$/, "");
 const KECALO_BASE = (
   args["base-url"] || process.env.KECALO_BASE_URL || "https://kecalo.vercel.app"
 ).replace(/\/$/, "");
 const PUBLIC_KEY = process.env.LANGFUSE_PUBLIC_KEY;
 const SECRET_KEY = process.env.LANGFUSE_SECRET_KEY;
 
-// Názvy datasetů včetně "složky" kecalo/ — Langfuse ji v UI zobrazí zvlášť,
-// ale API vyžaduje plný název. Prefix lze přepnout přes --prefix (default "kecalo/").
+// Názvy datasetů včetně "složky" kecalo/ — prefix lze přepnout přes --prefix.
 const PREFIX = args.prefix !== undefined ? String(args.prefix) : "kecalo/";
 const DATASETS = (
   args.dataset ? String(args.dataset).split(",") : ["obecne", "M-100", "M-200"]
 ).map((d) => (d.includes("/") ? d : PREFIX + d));
+
 const ONLY = args.only ? String(args.only) : null; // in_scope | out_of_scope | confusion
 const LIMIT = args.limit ? Number(args.limit) : Infinity;
 const DRY = Boolean(args.dry);
-const DELAY_MS = args.delay ? Number(args.delay) : 3000; // kvůli rate limitu 20/min na /api/chat
+const DELAY_MS = args.delay ? Number(args.delay) : 3000; // rate limit /api/chat = 20/min
 const RUN_NAME =
   (args.run && String(args.run)) ||
   `eval-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`;
@@ -87,9 +97,6 @@ if (!PUBLIC_KEY || !SECRET_KEY) {
   );
   process.exit(1);
 }
-
-const AUTH =
-  "Basic " + Buffer.from(`${PUBLIC_KEY}:${SECRET_KEY}`).toString("base64");
 
 // ---------------------------------------------------------------------------
 // Helpery
@@ -106,68 +113,26 @@ function norm(s) {
     .replace(/\s+/g, " ")
     .trim();
 }
-
-/** Langfuse může vrátit input jako string i jako objekt — vytáhneme text. */
+/** Jako norm(), ale ponechá diakritiku (pro regex „článek" nad section_path). */
+function norm2(s) {
+  return String(s || "").toLowerCase().replace(/\s+/g, " ");
+}
+/** Langfuse dataset item může mít input jako string i objekt — vytáhneme text. */
 function asText(v) {
   if (typeof v === "string") return v;
   if (v && typeof v === "object") return v.text || v.content || JSON.stringify(v);
   return String(v ?? "");
 }
 
-async function lf(path, method, body) {
-  const res = await fetch(`${LANGFUSE_BASE}${path}`, {
-    method,
-    headers: { Authorization: AUTH, "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(`Langfuse ${method} ${path} → ${res.status} ${t}`);
-  }
-  return res.status === 204 ? null : res.json();
-}
-
-/** Načte položky datasetu z Langfuse (input / expectedOutput / metadata). */
-async function fetchItems(datasetName) {
-  const out = [];
-  let page = 1;
-  for (;;) {
-    const q = new URLSearchParams({
-      datasetName,
-      limit: "100",
-      page: String(page),
-    });
-    const json = await lf(`/api/public/dataset-items?${q}`, "GET");
-    const data = json.data || [];
-    out.push(...data);
-    const total = json.meta?.totalPages ?? 1;
-    if (page >= total || data.length === 0) break;
-    page++;
-  }
-  // Aktivní položky, případně filtr podle kategorie.
-  return out.filter((it) => {
-    if (it.status && it.status !== "ACTIVE") return false;
-    if (ONLY && (it.metadata?.category ?? null) !== ONLY) return false;
-    return true;
-  });
-}
-
-/** Zavolá nasazený chat a vrátí { answer, sources, status, error }. */
-async function callChat(question, traceId) {
-  const spanId = hex(8);
+/** Zavolá nasazený chat, vrátí { answer, sources, status, error }. */
+async function callChat(question, traceparent) {
+  const headers = { "Content-Type": "application/json" };
+  if (traceparent) headers.traceparent = traceparent;
   try {
     const res = await fetch(`${KECALO_BASE}/api/chat`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        // Best-effort propagace: pokud server extrahuje traceparent, jeho OTel
-        // spany (retrieval → LLM) se zařadí pod stejné trace id jako náš experiment.
-        // Pokud ne, nevadí — vlastní trace-create níže zajistí viditelný trace tak jako tak.
-        traceparent: `00-${traceId}-${spanId}-01`,
-      },
-      body: JSON.stringify({
-        messages: [{ role: "user", content: question }],
-      }),
+      headers,
+      body: JSON.stringify({ messages: [{ role: "user", content: question }] }),
     });
     const answer = await res.text();
     let sources = [];
@@ -176,7 +141,7 @@ async function callChat(question, traceId) {
       try {
         sources = JSON.parse(decodeURIComponent(hdr));
       } catch {
-        /* prázdné / nevalidní → necháme [] */
+        /* prázdné / nevalidní → [] */
       }
     }
     return { answer, sources, status: res.status, error: !res.ok };
@@ -186,194 +151,171 @@ async function callChat(question, traceId) {
 }
 
 // ---------------------------------------------------------------------------
-// Deterministická evaluace — vrací pole skóre { name, value, comment }.
-// value: 1 = OK, 0 = fail (NUMERIC skóre v Langfuse).
+// Deterministická skóre — z výstupu chatu + metadat položky.
+// Vrací pole Evaluation { name, value, comment, dataType }.
+// value: 1 = OK, 0 = fail.
 // ---------------------------------------------------------------------------
-function evaluate({ metadata, answer, sources, status, error }) {
+function deterministicScores(output, metadata) {
+  const { answer = "", sources = [], status = 0, error = false } = output || {};
   const scores = [];
   const category = metadata?.category ?? "in_scope";
   const isFallback = sources.length === 0;
+  const num = (name, value, comment) =>
+    scores.push({ name, value, comment, dataType: "NUMERIC" });
 
   if (error) {
-    scores.push({
-      name: "http_ok",
-      value: 0,
-      comment: `HTTP ${status}`,
-    });
+    num("http_ok", 0, `HTTP ${status}`);
     return scores;
   }
 
   if (category === "out_of_scope") {
-    // Očekáváme fallback: retrieval nic nepustil (X-Sources prázdné). Sekundárně
-    // ověříme i text (odkaz na infolinku), kdyby přišly hraniční chunky nad prahem.
     const mentionsHotline = /infolinku|800\s?123\s?456/i.test(answer);
-    scores.push({
-      name: "fallback_correct",
-      value: isFallback || mentionsHotline ? 1 : 0,
-      comment: isFallback
+    num(
+      "fallback_correct",
+      isFallback || mentionsHotline ? 1 : 0,
+      isFallback
         ? "X-Sources prázdné → čistý fallback"
         : mentionsHotline
         ? "chunky nad prahem, ale odpověď odkazuje na infolinku"
-        : `POZOR: vrátilo ${sources.length} zdrojů a neodkazuje na infolinku (možná halucinace)`,
-    });
+        : `POZOR: ${sources.length} zdrojů a bez odkazu na infolinku (možná halucinace)`
+    );
     return scores;
   }
 
-  // in_scope + confusion: hodnotíme retrieval (dokument + článek).
-  scores.push({
-    name: "retrieved",
-    value: sources.length > 0 ? 1 : 0,
-    comment: `${sources.length} chunků`,
-  });
+  // in_scope + confusion
+  num("retrieved", sources.length > 0 ? 1 : 0, `${sources.length} chunků`);
 
   const expectedDoc = metadata?.document ? norm(metadata.document) : null;
   if (expectedDoc) {
-    const filenames = sources.map((s) => norm(s.filename));
-    const docMatch = filenames.some((f) => f.includes(expectedDoc));
-    scores.push({
-      name: "doc_match",
-      value: docMatch ? 1 : 0,
-      comment: docMatch
+    const docMatch = sources.some((s) => norm(s.filename).includes(expectedDoc));
+    num(
+      "doc_match",
+      docMatch ? 1 : 0,
+      docMatch
         ? `zdroj odpovídá ${metadata.document}`
-        : `očekáván ${metadata.document}, retrieval vrátil: ${
+        : `očekáván ${metadata.document}, vráceno: ${
             sources.map((s) => s.filename).join(" | ") || "nic"
-          }`,
-    });
+          }`
+    );
   }
 
-  // Kontrola článku — jen když je v expected_source uveden "čl. N".
   const artMatch = String(metadata?.expected_source || "").match(/čl\.?\s*(\d+)/i);
   if (artMatch) {
     const n = artMatch[1];
     const re = new RegExp(`(?:čl\\.?|článek)\\s*${n}\\b`, "i");
     const hit = sources.some((s) => re.test(norm2(s.section)));
-    scores.push({
-      name: "article_match",
-      value: hit ? 1 : 0,
-      comment: hit
+    num(
+      "article_match",
+      hit ? 1 : 0,
+      hit
         ? `sekce obsahuje čl. ${n}`
-        : `očekáván čl. ${n}; sekce zdrojů: ${
+        : `očekáván čl. ${n}; sekce: ${
             sources.map((s) => s.section).filter(Boolean).join(" | ") || "žádné"
-          }`,
-    });
+          }`
+    );
   }
 
   return scores;
 }
 
-/** Jako norm(), ale ponechá diakritiku názvů sekcí čitelnou pro regex „článek". */
-function norm2(s) {
-  return String(s || "").toLowerCase().replace(/\s+/g, " ");
+// ---------------------------------------------------------------------------
+// Agregace pro souhrn
+// ---------------------------------------------------------------------------
+const agg = {};
+function bump(scores) {
+  for (const s of scores) {
+    agg[s.name] ??= { sum: 0, n: 0 };
+    agg[s.name].sum += s.value;
+    agg[s.name].n += 1;
+  }
+}
+function printItem(category, question, scores) {
+  const flag = scores.some((s) => s.value === 0) ? "✗" : "✓";
+  const str = scores.map((s) => `${s.name}=${s.value}`).join(" ");
+  console.log(`  ${flag} [${category ?? "?"}] ${asText(question).slice(0, 58)}…  ${str}`);
 }
 
 // ---------------------------------------------------------------------------
-// Zápis do Langfuse: trace-create + score-create přes ingestion, pak run item.
+// OTel setup — bez registrovaného provideru by byl tracer NoopTracer a experiment
+// by nevytvořil žádné spany/traces. Registrujeme Langfuse span processor.
 // ---------------------------------------------------------------------------
-async function logToLangfuse({ item, dataset, question, result, scores, traceId }) {
-  const now = new Date().toISOString();
-  const batch = [
-    {
-      id: hex(8),
-      type: "trace-create",
-      timestamp: now,
-      body: {
-        id: traceId,
-        name: `eval:${dataset}`,
-        timestamp: now,
-        input: question,
-        output: result.answer,
-        metadata: {
-          ...item.metadata,
-          runName: RUN_NAME,
-          dataset,
-          httpStatus: result.status,
-          sources: result.sources,
-          expectedOutput: asText(item.expectedOutput),
-        },
-      },
-    },
-    ...scores.map((s) => ({
-      id: hex(8),
-      type: "score-create",
-      timestamp: now,
-      body: {
-        id: hex(8),
-        traceId,
-        name: s.name,
-        value: s.value,
-        dataType: "NUMERIC",
-        comment: s.comment,
-      },
-    })),
-  ];
+const spanProcessor = new LangfuseSpanProcessor({
+  exportMode: "immediate", // krátký skript — posíláme hned, nespoléháme na batch
+  shouldExportSpan: () => true,
+});
+const provider = new NodeTracerProvider({ spanProcessors: [spanProcessor] });
+provider.register();
+setLangfuseTracerProvider(provider);
 
-  await lf("/api/public/ingestion", "POST", { batch });
+const langfuse = new LangfuseClient();
 
-  // Napojení trace na experiment (dataset run).
-  await lf("/api/public/dataset-run-items", "POST", {
-    runName: RUN_NAME,
-    datasetItemId: item.id,
-    traceId,
-    metadata: { dataset },
-  });
+// task pro experiment.run — běží uvnitř aktivní observace, takže getActiveTraceId
+// vrací id experiment trace; přes traceparent vnoříme i serverové spany chatu.
+async function task(item) {
+  await sleep(DELAY_MS); // throttle kvůli rate limitu (maxConcurrency=1)
+  const tid = getActiveTraceId?.();
+  const sid = getActiveSpanId?.();
+  const traceparent = tid && sid ? `00-${tid}-${sid}-01` : undefined;
+  return callChat(asText(item.input), traceparent);
+}
+
+// jediný evaluátor vrací pole deterministických skóre
+async function evaluator({ output, metadata }) {
+  return deterministicScores(output, metadata);
 }
 
 // ---------------------------------------------------------------------------
-// Hlavní smyčka
+// Běh
 // ---------------------------------------------------------------------------
 async function main() {
   console.log(`Run:      ${RUN_NAME}`);
   console.log(`Chat:     ${KECALO_BASE}/api/chat`);
-  console.log(`Langfuse: ${LANGFUSE_BASE}`);
+  console.log(`Langfuse: ${process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com"}`);
   console.log(`Datasety: ${DATASETS.join(", ")}${ONLY ? `  (only=${ONLY})` : ""}`);
-  if (DRY) console.log("DRY RUN — do Langfuse se nic nezapíše.\n");
-  else console.log("");
-
-  const agg = {}; // { scoreName: { sum, n } }
-  const bump = (name, v) => {
-    agg[name] ??= { sum: 0, n: 0 };
-    agg[name].sum += v;
-    agg[name].n += 1;
-  };
+  console.log(DRY ? "DRY RUN — do Langfuse se nic nezapíše.\n" : "");
 
   let processed = 0;
 
-  for (const dataset of DATASETS) {
-    let items;
+  for (const datasetName of DATASETS) {
+    let dataset;
     try {
-      items = await fetchItems(dataset);
+      dataset = await langfuse.dataset.get(datasetName);
     } catch (err) {
-      console.error(`Dataset "${dataset}" nelze načíst: ${err.message}`);
+      console.error(`Dataset "${datasetName}" nelze načíst: ${err.message}`);
       continue;
     }
-    console.log(`\n=== ${dataset} (${items.length} položek) ===`);
+    let items = dataset.items;
+    if (ONLY) items = items.filter((i) => (i.metadata?.category ?? null) === ONLY);
+    if (LIMIT !== Infinity) items = items.slice(0, Math.max(0, LIMIT - processed));
+    if (items.length === 0) continue;
 
-    for (const item of items) {
-      if (processed >= LIMIT) break;
-      processed++;
+    console.log(`\n=== ${datasetName} (${items.length} položek) ===`);
 
-      const question = asText(item.input);
-      const traceId = hex(16); // 32 hex znaků — kompatibilní s OTel trace id
-      const result = await callChat(question, traceId);
-      const scores = evaluate({ ...result, metadata: item.metadata });
-
-      for (const s of scores) bump(s.name, s.value);
-
-      const flag = scores.some((s) => s.value === 0) ? "✗" : "✓";
-      const scoreStr = scores.map((s) => `${s.name}=${s.value}`).join(" ");
-      console.log(
-        `  ${flag} [${item.metadata?.category ?? "?"}] ${question.slice(0, 60)}…  ${scoreStr}`
-      );
-
-      if (!DRY) {
-        try {
-          await logToLangfuse({ item, dataset, question, result, scores, traceId });
-        } catch (err) {
-          console.error(`    ! zápis do Langfuse selhal: ${err.message}`);
-        }
+    if (DRY) {
+      // Bez SDK zápisu — jen zavoláme chat a vypíšeme skóre.
+      for (const item of items) {
+        const out = await callChat(asText(item.input));
+        const scores = deterministicScores(out, item.metadata);
+        bump(scores);
+        printItem(item.metadata?.category, item.input, scores);
+        processed++;
+        await sleep(DELAY_MS);
       }
-
-      await sleep(DELAY_MS);
+    } else {
+      const result = await langfuse.experiment.run({
+        name: `kecalo-eval:${datasetName}`,
+        runName: RUN_NAME,
+        description: "Deterministická evaluace RAG chatbota (retrieval + fallback)",
+        data: items,
+        task,
+        evaluators: [evaluator],
+        maxConcurrency: 1,
+      });
+      for (const r of result.itemResults) {
+        bump(r.evaluations);
+        printItem(r.item?.metadata?.category, r.input ?? r.item?.input, r.evaluations);
+        processed++;
+      }
     }
     if (processed >= LIMIT) break;
   }
@@ -383,14 +325,21 @@ async function main() {
     const pct = n ? Math.round((sum / n) * 100) : 0;
     console.log(`  ${name.padEnd(18)} ${sum}/${n}  (${pct} %)`);
   }
+
   if (!DRY) {
+    await langfuse.flush();
+    await spanProcessor.forceFlush();
     console.log(
       `\nHotovo. Experiment "${RUN_NAME}" najdeš v Langfuse → Datasets → <dataset> → Experiments.`
     );
   }
+  await provider.shutdown();
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error(err);
+  try {
+    await provider.shutdown();
+  } catch {}
   process.exit(1);
 });
