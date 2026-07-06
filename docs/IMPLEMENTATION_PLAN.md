@@ -2,7 +2,7 @@
 
 ## Resume
 
-Tento dokument je prováděcí checklist pro stavbu Kecala podle PRD v1.0. Sleduj ho průběžně — zaškrtávej hotové položky a po každém milníku commitni do GitHubu. Kromě přípravné Fáze 0 (prerekvizity před kurzem) se projekt dělí na 7 fází odpovídajících harmonogramu kurzu (bloky 1–7 v PRD kap. 12); každá fáze má jasný výstup (milník), který otestuješ dříve, než přejdeš dál. Fáze 8 je doplňková — vznikla po kurzu nad rámec původního harmonogramu.
+Tento dokument je prováděcí checklist pro stavbu Kecala podle PRD v1.0. Sleduj ho průběžně — zaškrtávej hotové položky a po každém milníku commitni do GitHubu. Kromě přípravné Fáze 0 (prerekvizity před kurzem) se projekt dělí na 7 fází odpovídajících harmonogramu kurzu (bloky 1–7 v PRD kap. 12); každá fáze má jasný výstup (milník), který otestuješ dříve, než přejdeš dál. Fáze 8 a následující (9–14 + balíček bezpečnostních oprav) jsou doplňkové — vznikly po kurzu nad rámec původního harmonogramu.
 
 **Stack:** Next.js 16 + React 19 + TypeScript · Tailwind CSS v4 + shadcn/ui · Vercel AI SDK · Claude API (claude-sonnet-4-6) · Voyage AI (voyage-3.5) · Supabase (Postgres + pgvector + Storage)
 
@@ -93,7 +93,7 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ### Auth admin sekce
 
-- [x] Middleware `src/middleware.ts` — ochrana `/admin` rout pomocí HMAC session cookie (`src/lib/auth.ts`)
+- [x] Middleware `src/middleware.ts` — ochrana `/admin` rout pomocí HMAC session cookie (`src/lib/auth.ts`) — pozn.: později přejmenováno na `src/proxy.ts` (konvence Next.js 16) a rozšířeno o admin API routy + druhou obrannou linii `requireAdmin()` (SEC-2)
 - [x] Stránka `/admin/login` — formulář s heslem, bez sidebaru
 - [x] Redirect po přihlášení na `/admin` (dashboard)
 - [x] Sidebar layout `src/app/admin/(authenticated)/layout.tsx` + `AdminSidebar.tsx` — navigace s aktivní položkou
@@ -288,7 +288,7 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 **Milník:** V `/admin/parameters` lze slidery nastavit `TOP_K`, `SIMILARITY_THRESHOLD` a `LLM_TEMPERATURE`; uložené hodnoty se okamžitě projeví v chatu i v testu retrievalu. Env proměnné slouží jako výchozí hodnoty / fallback.
 
-> **Pozn.:** Jde nad rámec kurzových fází 0–7. DB změny jen přes migrace. Slider stavím na Base UI (`@base-ui/react/slider`) ve stylu stávajících `ui/` primitiv. Middleware chrání jen stránky `/admin/*`, ne `/api/*` — nová `/api/settings` zůstává konzistentní s ostatními API routami (známé omezení prototypu, viz Produkční dluh).
+> **Pozn.:** Jde nad rámec kurzových fází 0–7. DB změny jen přes migrace. Slider stavím na Base UI (`@base-ui/react/slider`) ve stylu stávajících `ui/` primitiv. Middleware chrání jen stránky `/admin/*`, ne `/api/*` — nová `/api/settings` zůstává konzistentní s ostatními API routami (známé omezení prototypu, viz Produkční dluh). **Aktualizace:** od té doby vyřešeno — proxy (`src/proxy.ts`) i handler (`requireAdmin()`) chrání i admin API routy (revize `code_check.md` A1 + SEC-2).
 
 ### Úložiště — migrace `supabase/migrations/003_app_settings.sql`
 
@@ -605,6 +605,46 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ---
 
+## Fáze 14 — Poptávky: lead generation (po kurzu) ✅
+
+**Milník:** U odpovědí na produktové dotazy v chatu se návštěvníkovi nabídne karta poptávky (`LeadForm`); odeslání uloží kontakt + Haiku shrnutí konverzace do DB. Admin sekce **Poptávky** zobrazuje seznam s přechody stavů (Převzít/Uzavřít) a kartou na dashboardu. Podrobný plán viz [`docs/lead_generation_plan.md`](lead_generation_plan.md).
+
+> **Pozn.:** `POST /api/leads` je jediná veřejná mutační routa mimo chat/feedback (odeslání z chatu). Deduplikace podle kontaktu (ne jména), poptávky se nemažou (uzavření = stav `closed`). Shrnutí konverzace dělá levnější model (`claude-haiku-4-5`) a v DB nahrazuje surový dotaz. RLS zapnutá i na `leads` (osobní údaje).
+
+### DB — migrace `010_leads.sql`
+
+- [x] Tabulka `leads` (id, name, email, phone, note, summary, session_id, status, assignee, consent, created_at, updated_at); CHECK aspoň jeden kontakt (email/phone), CHECK `consent`, status `new`/`updated`/`in_progress`/`closed`
+- [x] `ALTER TABLE leads ENABLE ROW LEVEL SECURITY` (bez policy — service role bypass)
+- [x] `supabase db push` — aplikováno
+- **Dílčí milník:** tabulka `leads` existuje v Supabase
+
+### Systémový prompt + token — `prompts.ts`
+
+- [x] U dotazů na konkrétní pojistný produkt model přidá na úplný konec odpovědi samostatný řádek s tokenem `[[NABIDKA]]`; u obecných/administrativních a fallback odpovědí nikdy
+- [x] Klient token z textu odstraní a místo něj vykreslí kartu `LeadForm`
+
+### API — `POST /api/leads` (veřejné) + `PATCH /api/leads/[id]` (admin)
+
+- [x] `POST` — validace vstupu (jméno, aspoň jeden kontakt, souhlas, poznámka ≤ 500, historie ≤ 8 zpráv), rate limit 5/min, deduplikace nevyřízeného leadu podle e-mailu/telefonu, Haiku shrnutí konverzace (best-effort — při selhání se poptávka uloží bez shrnutí), 201/200
+- [x] `PATCH` — přechody stavů (in_progress/closed) jedním podmíněným updatem; 400 nevalidní cíl, 404 neexistující, 409 nepovolený přechod
+- [x] Normalizace e-mailu (lowercase/trim) a telefonu (číslice + volitelné `+`)
+
+### UI — chat karta + admin sekce
+
+- [x] `components/LeadForm.tsx` — karta poptávky pod odpovědí (jméno, e-mail/telefon, poznámka, souhlas), stavy odeslání/poděkování/chyba
+- [x] `MessageBubble` — props `showLeadForm`/`sessionId`/`conversation`; karta jen když odpověď nesla token
+- [x] `admin/(authenticated)/leads/` (server `page.tsx` + klient `client.tsx`) — tabulka poptávek, akce Převzít/Uzavřít, rozklik shrnutí/poznámky
+- [x] `components/LeadStatusBadge.tsx` — badge stavu poptávky
+- [x] Sidebar položka „Poptávky"; karta poptávek na dashboardu
+
+### Dokumentace + E2E ověření
+
+- [x] `CLAUDE.md`, `docs/IMPLEMENTATION_PLAN.md` — API routy, adresářová struktura, datový model (`leads`), migrace `010`
+- [x] `npm run lint` + `npm run build` — bez chyb
+- [x] E2E v prohlížeči: produktový dotaz → karta, neproduktový → bez karty, odeslání → poděkování, Převzít/Uzavřít, deduplikace, chybové stavy PATCH 400/404/409
+
+---
+
 ## Bezpečnostní opravy — revize `security_issues.md` (po kurzu) ✅
 
 **Milník:** Nálezy nezávislé bezpečnostní revize (`docs/security_issues.md`, 10 nálezů SEC-1 až SEC-10) opraveny a ověřeny. Podrobný plán, kroky a akceptační kritéria viz [`docs/security_correction_plan.md`](security_correction_plan.md); poznámky „opraveno" u jednotlivých nálezů přímo v [`docs/security_issues.md`](security_issues.md).
@@ -663,22 +703,31 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 | `GET` | `/api/settings` | Aktuální runtime parametry + přepínače telemetrie z DB |
 | `POST` | `/api/settings` | Uložení globálních runtime parametrů RAG (admin) |
 | `POST` | `/api/feedback` | Uložení zpětné vazby (thumbs up/down) |
+| `POST` | `/api/leads` | Uložení poptávky (veřejné) — deduplikace + Haiku shrnutí |
+| `PATCH` | `/api/leads/:id` | Změna stavu poptávky: in_progress/closed (admin) |
+| `POST` | `/api/auth/login` | Ověření údajů, nastavení session cookie |
+| `POST` | `/api/auth/logout` | Smazání session cookie |
+
+> **Autorizace:** admin routy (`/api/documents*`, `/api/leads*` mimo `POST`, `/api/settings`, `/api/retrieval-test`) chrání proxy vrstva (`src/proxy.ts`) i druhá obranná linie `requireAdmin()` přímo v handleru (SEC-2). Veřejné: `/api/chat`, `/api/feedback`, `POST /api/leads`, `/api/auth/*`.
 
 ## Adresářová struktura (aktuální stav)
 
 ```
 kecalo/
 ├── src/
-│   ├── middleware.ts                 # ochrana /admin (session cookie)
+│   ├── proxy.ts                      # ochrana /admin + admin API rout (dřív middleware.ts)
+│   ├── instrumentation.ts            # registrace OTel provideru + Langfuse processoru
 │   ├── app/
-│   │   ├── page.tsx                  # Chat UI
+│   │   ├── page.tsx                  # Chat UI (vč. karty LeadForm u produktových dotazů)
 │   │   ├── admin/
 │   │   │   ├── login/page.tsx        # Admin login (mimo route group)
-│   │   │   └── (authenticated)/     # route group chráněná middlewarem
+│   │   │   └── (authenticated)/     # route group chráněná proxy vrstvou
 │   │   │       ├── layout.tsx        # Sidebar layout (Console styl)
 │   │   │       ├── page.tsx          # Admin dashboard
 │   │   │       ├── documents/page.tsx    # server část
 │   │   │       ├── documents/client.tsx  # klientská část (upload + tabulka)
+│   │   │       ├── leads/page.tsx        # server část (načtení poptávek)
+│   │   │       ├── leads/client.tsx      # klient (tabulka + Převzít/Uzavřít)
 │   │   │       ├── retrieval-test/page.tsx
 │   │   │       ├── parameters/page.tsx    # server část (getSettings)
 │   │   │       └── parameters/client.tsx  # klient (slidery + uložení)
@@ -687,6 +736,8 @@ kecalo/
 │   │       ├── documents/route.ts
 │   │       ├── documents/[id]/route.ts
 │   │       ├── documents/[id]/reprocess/route.ts  # reindexace bez re-uploadu
+│   │       ├── leads/route.ts        # POST poptávka (veřejné) + Haiku shrnutí + dedup
+│   │       ├── leads/[id]/route.ts   # PATCH stav poptávky (admin)
 │   │       ├── retrieval-test/route.ts
 │   │       ├── settings/route.ts
 │   │       ├── feedback/route.ts
@@ -694,17 +745,23 @@ kecalo/
 │   ├── components/
 │   │   ├── MessageBubble.tsx
 │   │   ├── SourcesBlock.tsx
+│   │   ├── LeadForm.tsx              # karta poptávky pod odpovědí (token [[NABIDKA]])
 │   │   ├── UploadZone.tsx
 │   │   ├── DocumentsTable.tsx
 │   │   ├── AdminSidebar.tsx
-│   │   ├── StatusBadge.tsx
+│   │   ├── StatusBadge.tsx           # badge stavu dokumentu
+│   │   ├── LeadStatusBadge.tsx       # badge stavu poptávky
 │   │   ├── StatCard.tsx
+│   │   ├── FeedbackCard.tsx          # karta spokojenosti na dashboardu
 │   │   ├── ChunksByDocChart.tsx
 │   │   └── ui/                       # shadcn/ui primitiva
 │   └── lib/
 │       ├── config.ts
+│       ├── telemetry.ts              # OTel: span processor + withSpan/getTracer/flush
 │       ├── supabase.ts
-│       ├── auth.ts                   # podpis/ověření session cookie (HMAC)
+│       ├── auth.ts                   # podpis/ověření session cookie (HMAC), safeEqual
+│       ├── require-admin.ts          # druhá obranná linie autorizace admin API (SEC-2)
+│       ├── rate-limit.ts             # sdílený in-memory rate limit (x-real-ip)
 │       ├── settings.ts               # server: getSettings/saveSettings
 │       ├── settings-meta.ts          # sdílená metadata + validace parametrů
 │       ├── types.ts
@@ -717,15 +774,22 @@ kecalo/
 │           ├── retrieve.ts
 │           ├── prompts.ts            # systémový prompt, fallback, kontext blok
 │           └── pipeline.ts           # indexace dokumentu (processDocument)
+├── scripts/
+│   ├── langfuse-eval.mjs             # eval runner testovacích otázek přes /api/chat
+│   └── verify-rate-limit.mjs         # ověření SEC-1 (vazba limitu na x-real-ip)
 ├── supabase/
 │   └── migrations/
 │       ├── 001_init.sql              # tabulky documents/chunks + HNSW index
 │       ├── 002_match_chunks.sql      # RPC match_chunks (retrieval)
 │       ├── 003_app_settings.sql      # app_settings (runtime parametry RAG)
+│       ├── 004_enable_rls.sql        # RLS na documents/chunks/app_settings
 │       ├── 005_feedback.sql          # feedback (zpětná vazba thumbs up/down)
 │       ├── 006_telemetry_settings.sql # app_settings += telemetry_enabled, record_content
 │       ├── 007_chunk_sections.sql    # chunks += section_path, match_chunks vrací sekci
-│       └── 008_chunking_settings.sql # app_settings += chunk_*, documents += chunking_config
+│       ├── 008_chunking_settings.sql # app_settings += chunk_*, documents += chunking_config
+│       ├── 009_chunk_batch.sql       # chunks += batch_id (reindexace bez ztráty dat)
+│       └── 010_leads.sql             # tabulka leads (poptávky, vč. RLS)
+├── next.config.ts                    # serverExternalPackages (OTel) + bezpečnostní hlavičky
 ├── .env.example
 └── README.md
 ```
