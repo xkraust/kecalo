@@ -605,6 +605,51 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ---
 
+## Bezpečnostní opravy — revize `security_issues.md` (po kurzu) ✅
+
+**Milník:** Nálezy nezávislé bezpečnostní revize (`docs/security_issues.md`, 10 nálezů SEC-1 až SEC-10) opraveny a ověřeny. Podrobný plán, kroky a akceptační kritéria viz [`docs/security_correction_plan.md`](security_correction_plan.md); poznámky „opraveno" u jednotlivých nálezů přímo v [`docs/security_issues.md`](security_issues.md).
+
+> **Pozn.:** Kritický nález žádný. Bez DB migrací, bez nových závislostí. Opraveno 7 z 10 nálezů; SEC-4, SEC-7 a SEC-8 vědomě odloženy jako produkční dluh (vyžadují návrhové rozhodnutí). Práce rozdělena do balíčků A–F, každý samostatně commitnutý a ověřený (lint, build, runtime/integrační testy).
+
+### Balíček A — druhá obranná linie autorizace (SEC-2) ✅ `5e9111e`
+
+- [x] Nový helper `src/lib/require-admin.ts` (`requireAdmin()` ověří session cookie přes `verifySession`) volaný na prvním řádku všech 8 admin handlerů (documents GET/POST/DELETE/reprocess, leads/[id] PATCH, settings GET/POST, retrieval-test)
+- [x] Proxy (`src/proxy.ts`) zůstává první vrstvou; handler vrací 401 i při jejím selhání/obejití (ověřeno dočasným vyřazením routy z matcheru)
+
+### Balíček B — důvěryhodná IP a limitery (SEC-1, SEC-5) ✅ `6ae3487`
+
+- [x] `clientIp` bere `x-real-ip` → pravou (poslední) hodnotu `x-forwarded-for` → `unknown`; levá, klientem spoofovatelná hodnota XFF se nepoužívá
+- [x] `createRateLimiter` — `hits.clear()` nahrazen vystěhováním čtvrtiny klíčů (vypršelá okna → pod limitem → nouzově); zablokované klíče přetečení přežijí
+- [x] Login: strop mapy `failedAttempts` (5000) + globální strop 30 selhání / 15 min přes všechny IP (pojistka nezávislá na spoofovatelné identitě IP)
+- [x] Ověřeno unit testy i runtime; vazba na skutečnou IP potvrzena na nasazeném Vercelu skriptem `scripts/verify-rate-limit.mjs` (dávka 20 požadavků s rotující XFF → 10× 200, pak 429 podle skutečné IP)
+
+### Balíček C — generické chyby + validace (SEC-3) ✅ `da270d8`
+
+- [x] Surová `error.message` z Postgresu/Supabase nahrazena generickou hláškou + `console.error` napříč routami (feedback, documents, reprocess, leads/[id], settings, retrieval-test)
+- [x] `retrieval-test` validuje `query` jako neprázdný string ≤ 4 000 znaků (jinak 400)
+
+### Balíček D — upload whitelist přípony (SEC-6) ✅ `5ec58ee`
+
+- [x] `allowedExtension` vždy vyžaduje příponu z whitelistu `pdf|txt|md`; MIME jen druhotný signál; cesta ve Storage se sestavuje výhradně z whitelistované přípony (uzavírá i `/` v názvu)
+- [x] Deklarované PDF ověřeno magickými bajty `%PDF` → jinak 400
+
+### Balíček E — bezpečnostní HTTP hlavičky (SEC-10) ✅ `f0443af`
+
+- [x] `next.config.ts` `headers()`: `X-Frame-Options: DENY` + CSP `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` (plná CSP odložena kvůli inline skriptům Next.js)
+
+### Balíček F — sumarizace poptávek proti prompt injection (SEC-9) ✅ `05ecea9`
+
+- [x] Přepis konverzace izolován v bloku `<transcript>` jako nedůvěryhodný vstup (pokyny = data, ne instrukce); `sanitizeForTranscript` neutralizuje ostré závorky; admin UI označuje shrnutí za automatické/neověřené
+- [x] Ověřeno adversariálními vstupy (VIP priorita, tag-break + „HACKED") — shrnutí zůstala věcná
+
+### Balíček G — odloženo jako produkční dluh (SEC-4, SEC-7, SEC-8) ⏸️
+
+- [ ] SEC-4 — server-side invalidace session (logout dnes jen maže cookie, podepsaný token platí do expirace 8 h)
+- [ ] SEC-7 — serverová rekonstrukce/validace historie chatu (klient dnes posílá i `assistant` zprávy; zbytkové riziko nízké — bez nástrojů a exfiltračního kanálu)
+- [ ] SEC-8 — explicitní CSRF token (dnes zmírněno `SameSite=Lax`; žádná stavová operace není přes GET)
+
+---
+
 ## Přehled API rout
 
 | Metoda | Route | Účel |
@@ -690,8 +735,9 @@ kecalo/
 ## Produkční dluh (po MVP)
 
 - Autentizace a role (SSO, admin/editor)
-- Samostatný `SESSION_SECRET` pro podpis session cookie (dnes se podepisuje heslem `ADMIN_PASSWORD` v `api/auth/login`), aby byl podpisový klíč oddělen od přihlašovacího tajemství a rotace hesla automaticky neměnila platnost session
-- Rate limiting a ochrana proti prompt injection z dokumentů
+- ~~Samostatný `SESSION_SECRET` pro podpis session cookie~~ — **hotovo** (revize `code_check.md`, balíček A2): session se podepisuje odděleným `SESSION_SECRET`, ne heslem
+- ~~Rate limiting~~ — **hotovo** (SEC-1 + `code_check.md` B1): in-memory limitery na `/api/chat`, `/api/leads`, `/api/feedback` a loginu, identita klienta z `x-real-ip`; sdílené úložiště (Upstash/Vercel KV) místo per-instance in-memory zůstává dluh
+- Zbylé bezpečnostní nálezy odložené jako produkční dluh (viz balíček G výše): SEC-4 (server-side invalidace session), SEC-7 (serverová historie chatu), SEC-8 (CSRF token). Dále ochrana proti prompt injection z obsahu dokumentů
 - GDPR: retence konverzací, mazání dat
 - RAG evaluace — golden dataset, evals pipeline
 - Verzování dokumentů a platnost podmínek v čase
