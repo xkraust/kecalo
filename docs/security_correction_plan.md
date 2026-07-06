@@ -186,7 +186,7 @@ Tyto nálezy revize hodnotí jako nezávažné a vyžadují rozhodnutí o archit
 | 4 | D (upload whitelist) | SEC-6 | 🟡 | ✅ | |
 | 5 | E (hlavičky) | SEC-10 | 🟡 | ✅ | |
 | 6 | F (shrnutí poptávky) | SEC-9 | 🟡 | ✅ | |
-| 7 | Aktualizace CLAUDE.md + security_issues.md (poznámky „opraveno") | — | — | ⬜ | |
+| 7 | Aktualizace CLAUDE.md + security_issues.md (poznámky „opraveno") | — | — | ✅ | |
 | — | G (odloženo) | SEC-4, SEC-7, SEC-8 | ⏸️ | produkční dluh | |
 
 Balíčky C–F jsou vzájemně nezávislé (lze přehodit pořadí i sloučit commity); A je vhodné mít jako první (chrání ostatní práci), B vyžaduje po nasazení ověření na Vercelu.
