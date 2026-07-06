@@ -43,25 +43,45 @@ export async function createSessionCookie(secret: string): Promise<string> {
   return `${data}.${toHex(new Uint8Array(sig))}`;
 }
 
+/**
+ * Ověří podpis a stáří cookie a vrátí čas vydání tokenu (ms), nebo `null` když
+ * je neplatná/expirovaná. Čistá krypto (žádný I/O) → bezpečné i v edge runtime
+ * proxy. Čas vydání využívá revokace session (SEC-4): token vydaný před
+ * logoutem se odmítne, i když podpis a expirace sedí.
+ */
+export async function verifiedSessionIssuedAt(
+  value: string,
+  secret: string
+): Promise<number | null> {
+  if (!secret) return null;
+
+  const parts = value.split(".");
+  if (parts.length !== 3) return null;
+  const [ts, nonce, sigHex] = parts;
+
+  const issuedAt = parseInt(ts, 10);
+  const age = Date.now() - issuedAt;
+  if (isNaN(age) || age < 0 || age > SESSION_MAX_AGE * 1000) return null;
+
+  const sig = fromHex(sigHex);
+  if (!sig || sig.length !== 32) return null;
+
+  // crypto.subtle.verify porovnává podpis constant-time (na rozdíl od ===).
+  const key = await hmacKey(secret, "verify");
+  const ok = await crypto.subtle.verify(
+    "HMAC",
+    key,
+    sig,
+    enc.encode(`${ts}.${nonce}`)
+  );
+  return ok ? issuedAt : null;
+}
+
 export async function verifySession(
   value: string,
   secret: string
 ): Promise<boolean> {
-  if (!secret) return false;
-
-  const parts = value.split(".");
-  if (parts.length !== 3) return false;
-  const [ts, nonce, sigHex] = parts;
-
-  const age = Date.now() - parseInt(ts, 10);
-  if (isNaN(age) || age < 0 || age > SESSION_MAX_AGE * 1000) return false;
-
-  const sig = fromHex(sigHex);
-  if (!sig || sig.length !== 32) return false;
-
-  // crypto.subtle.verify porovnává podpis constant-time (na rozdíl od ===).
-  const key = await hmacKey(secret, "verify");
-  return crypto.subtle.verify("HMAC", key, sig, enc.encode(`${ts}.${nonce}`));
+  return (await verifiedSessionIssuedAt(value, secret)) !== null;
 }
 
 /**

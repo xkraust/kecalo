@@ -6,7 +6,8 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { config } from "@/lib/config";
-import { SESSION_COOKIE_NAME, verifySession } from "@/lib/auth";
+import { SESSION_COOKIE_NAME, verifiedSessionIssuedAt } from "@/lib/auth";
+import { isSessionRevoked } from "@/lib/session-revocation";
 
 function deny(): NextResponse {
   // Stejná hláška i tvar odpovědi jako v proxy — klient nerozliší, která
@@ -27,6 +28,14 @@ export async function requireAdmin(): Promise<NextResponse | null> {
   const cookie = (await cookies()).get(SESSION_COOKIE_NAME);
   if (!cookie?.value) return deny();
 
-  const valid = await verifySession(cookie.value, config.sessionSecret);
-  return valid ? null : deny();
+  const issuedAt = await verifiedSessionIssuedAt(
+    cookie.value,
+    config.sessionSecret
+  );
+  if (issuedAt === null) return deny();
+
+  // Revokace po logoutu (SEC-4) — proxy v edge ověří jen podpis+expiraci.
+  if (await isSessionRevoked(issuedAt)) return deny();
+
+  return null;
 }

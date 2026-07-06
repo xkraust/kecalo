@@ -682,9 +682,9 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [x] Přepis konverzace izolován v bloku `<transcript>` jako nedůvěryhodný vstup (pokyny = data, ne instrukce); `sanitizeForTranscript` neutralizuje ostré závorky; admin UI označuje shrnutí za automatické/neověřené
 - [x] Ověřeno adversariálními vstupy (VIP priorita, tag-break + „HACKED") — shrnutí zůstala věcná
 
-### Balíček G — odloženo jako produkční dluh (SEC-4, SEC-7, SEC-8) ⏸️
+### Balíček G — SEC-4 opraveno; SEC-7, SEC-8 odloženo
 
-- [ ] SEC-4 — server-side invalidace session (logout dnes jen maže cookie, podepsaný token platí do expirace 8 h)
+- [x] **SEC-4 — server-side invalidace session** ✅: „token epoch" — migrace `011_auth_state.sql` (`sessions_invalid_before`), `src/lib/session-revocation.ts`, `verifiedSessionIssuedAt` v `auth.ts`; logout posune hranici na `now()`, `requireAdmin()` (API) i admin layout (stránky) odmítnou token vydaný dřív. Fail-open bez tabulky. Ověřen fail-open; E2E revokace čeká na `supabase db push` migrace `011`
 - [ ] SEC-7 — serverová rekonstrukce/validace historie chatu (klient dnes posílá i `assistant` zprávy; zbytkové riziko nízké — bez nástrojů a exfiltračního kanálu)
 - [ ] SEC-8 — explicitní CSRF token (dnes zmírněno `SameSite=Lax`; žádná stavová operace není přes GET)
 
@@ -761,6 +761,7 @@ kecalo/
 │       ├── supabase.ts
 │       ├── auth.ts                   # podpis/ověření session cookie (HMAC), safeEqual
 │       ├── require-admin.ts          # druhá obranná linie autorizace admin API (SEC-2)
+│       ├── session-revocation.ts     # server-side revokace session po logoutu (SEC-4)
 │       ├── rate-limit.ts             # sdílený in-memory rate limit (x-real-ip)
 │       ├── settings.ts               # server: getSettings/saveSettings
 │       ├── settings-meta.ts          # sdílená metadata + validace parametrů
@@ -788,7 +789,8 @@ kecalo/
 │       ├── 007_chunk_sections.sql    # chunks += section_path, match_chunks vrací sekci
 │       ├── 008_chunking_settings.sql # app_settings += chunk_*, documents += chunking_config
 │       ├── 009_chunk_batch.sql       # chunks += batch_id (reindexace bez ztráty dat)
-│       └── 010_leads.sql             # tabulka leads (poptávky, vč. RLS)
+│       ├── 010_leads.sql             # tabulka leads (poptávky, vč. RLS)
+│       └── 011_auth_state.sql        # auth_state (revokace session po logoutu, SEC-4)
 ├── next.config.ts                    # serverExternalPackages (OTel) + bezpečnostní hlavičky
 ├── .env.example
 └── README.md

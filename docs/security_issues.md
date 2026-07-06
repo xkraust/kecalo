@@ -9,9 +9,9 @@ Doplněny nálezy SEC-9 a SEC-10, rozšíření SEC-1 (reset limiteru přes `hit
 k SEC-3 (validace vstupu `retrieval-test`) a SEC-6 (sanitizace přípony v cestě Storage).
 
 **Stav oprav (6. 7. 2026):** balíčky A–F z [`security_correction_plan.md`](security_correction_plan.md)
-hotové a ověřené — opraveno 7 nálezů (SEC-1, SEC-2, SEC-3, SEC-5, SEC-6, SEC-9, SEC-10). Nálezy
-SEC-4, SEC-7 a SEC-8 zůstávají vědomě odložené jako produkční dluh (vyžadují návrhové rozhodnutí —
-session store, serverová historie, CSRF token; balíček G plánu). Stav u každého nálezu níže.
+hotové a ověřené — opraveno 7 nálezů (SEC-1, SEC-2, SEC-3, SEC-5, SEC-6, SEC-9, SEC-10). Následně
+opraven i **SEC-4** (server-side revokace session; migrace `011`). Odložené zůstávají jen SEC-7 a SEC-8
+(serverová historie chatu, CSRF token — vyžadují návrhové rozhodnutí, balíček G plánu). Stav u každého nálezu níže.
 
 Tento dokument je podkladem pro implementační plán oprav. Každý nález má stabilní ID
 (`SEC-x`), lokaci, popis, dopad, konkrétní kroky nápravy a akceptační kritéria, aby
@@ -25,7 +25,7 @@ z něj šlo přímo vytvořit úkoly. Doporučené pořadí implementace viz sek
 | SEC-1 | 🟠 Vážné | Rate-limiting staví na spoofovatelné hlavičce `X-Forwarded-For` | ✅ Opraveno | `src/lib/rate-limit.ts`, `src/app/api/auth/login/route.ts`, `src/app/api/chat/route.ts`, `src/app/api/leads/route.ts`, `src/app/api/feedback/route.ts` |
 | SEC-2 | 🟠 Vážné | Admin autorizace stojí výhradně na proxy vrstvě (chybí druhá obranná linie) | ✅ Opraveno | `src/proxy.ts`, `src/app/api/documents/**`, `src/app/api/leads/[id]/route.ts`, `src/app/api/settings/route.ts`, `src/app/api/retrieval-test/route.ts` |
 | SEC-3 | 🟡 Nezávažné | Únik DB chybových hlášek na veřejné routě | ✅ Opraveno | `src/app/api/feedback/route.ts` (+ admin routy) |
-| SEC-4 | 🟡 Nezávažné | Logout neinvaliduje token na serveru | ⏸️ Odloženo | `src/lib/auth.ts`, `src/app/api/auth/logout/route.ts` |
+| SEC-4 | 🟡 Nezávažné | Logout neinvaliduje token na serveru | ✅ Opraveno | `src/lib/auth.ts`, `src/lib/session-revocation.ts`, `src/app/api/auth/logout/route.ts`, `src/lib/require-admin.ts`, admin layout, migrace `011` |
 | SEC-5 | 🟡 Nezávažné | Neomezený růst mapy `failedAttempts` u loginu | ✅ Opraveno | `src/app/api/auth/login/route.ts` |
 | SEC-6 | 🟡 Nezávažné | `application/octet-stream` obchází kontrolu přípony u uploadu | ✅ Opraveno | `src/app/api/documents/route.ts` |
 | SEC-7 | 🟡 Nezávažné | Klient posílá plnou historii vč. `assistant` zpráv (prompt injection) | ⏸️ Odloženo | `src/app/api/chat/route.ts`, `src/lib/rag/prompts.ts` |
@@ -186,10 +186,13 @@ i po odhlášení.
 - Po logoutu je dříve platná cookie odmítnuta (401) i před vypršením 8 h.
 
 ### Stav opravy
-⏸️ **Odloženo** (balíček G — produkční dluh). Vyžaduje návrhové rozhodnutí (server-side session store /
-revokační seznam vs. zkrácení TTL + rotace). Pro prototyp ponecháno současné zmírnění: TTL 8 h,
-zdokumentované omezení. Doporučení pro produkci: tabulka aktivních session (jti) s kontrolou při
-`verifySession`.
+✅ **Opraveno** (balíček G, SEC-4). Zvolena varianta „token epoch": jednořádková tabulka `auth_state`
+(migrace `011`) drží `sessions_invalid_before`; logout ho posune na `now()`, takže token vydaný dřív
+(nese čas vydání v `ts`) se odmítne i před vypršením 8 h. Kontrola běží v Node runtimu —
+`requireAdmin()` pro admin API a admin layout pro stránky (`isSessionRevoked`); proxy v edge zůstává
+rychlým podpisovým gatem. Nová `verifiedSessionIssuedAt` v `auth.ts` vrací ověřený čas vydání
+(`verifySession` na ni navázán). Fail-open při chybějící tabulce → bezpečné nasazení před migrací.
+Ověřen fail-open (login/admin/logout beze změny); E2E revokace čeká na `supabase db push` migrace `011`.
 
 ---
 
