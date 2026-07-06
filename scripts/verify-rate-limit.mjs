@@ -14,9 +14,9 @@
  * takže není potřeba žádný token ani .env.
  *
  * Použití:
- *   node scripts/verify-rate-limit.mjs                              # default doména
- *   node scripts/verify-rate-limit.mjs --base=https://moje.vercel.app
- *   node scripts/verify-rate-limit.mjs --count=15                   # velikost dávky
+ *   node scripts/verify-rate-limit.mjs                # default: kecalo.vercel.app, dávka 20
+ *   node scripts/verify-rate-limit.mjs --count=30     # větší dávka
+ *   node scripts/verify-rate-limit.mjs --base=https://jina.vercel.app
  *
  * Pozn.: limiter je per-instance in-memory. Když 429 nepřijde napoprvé, spusť
  * skript ještě jednou — Vercel mohl požadavky rozprostřít mezi víc instancí
@@ -31,7 +31,7 @@ const args = Object.fromEntries(
 );
 
 const BASE = (args.base || "https://kecalo.vercel.app").replace(/\/$/, "");
-const COUNT = Number(args.count) || 12;
+const COUNT = Number(args.count) || 20;
 const SESSION_ID = args.sessionId || "rl-test";
 
 const randomIp = () =>
