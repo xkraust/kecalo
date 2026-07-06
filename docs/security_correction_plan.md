@@ -34,7 +34,7 @@ Navazuje na bezpečnostní revizi [security_issues.md](security_issues.md) (5. 7
 
 ---
 
-## Balíček B — Identita klienta a rate-limiting (SEC-1 + SEC-5) 🟠 ✅ HOTOVO (zbývá ověření na Vercelu)
+## Balíček B — Identita klienta a rate-limiting (SEC-1 + SEC-5) 🟠 ✅ HOTOVO
 
 ### B1. Důvěryhodná IP klienta ✅
 
@@ -70,7 +70,7 @@ Navazuje na bezpečnostní revizi [security_issues.md](security_issues.md) (5. 7
 3. Runtime T2: 30 pokusů s **rotující** `x-real-ip` → per-IP limit se rotací míjí (401), ale globální strop vrátil 429 přesně na 26. pokusu (5 selhání z T1 + 25 = 30 globálních).
 4. Po restartu serveru (vyčištění testovacích počítadel) legitimní login → 200, admin routy s cookie → 200, `/api/chat` beze změny (400 na nevalidní tělo).
 5. `npm run lint` i `npm run build` bez chyb.
-6. ⏳ Po nasazení na Vercel: ověřit reálným klientem, že `x-real-ip` je přítomná a limit se váže na skutečnou IP (2 zařízení / mobilní data vs. wifi) — zbývá uživateli.
+6. ✅ Na Vercelu ověřeno skriptem `scripts/verify-rate-limit.mjs` (20 požadavků na `/api/feedback` s rotující `X-Forwarded-For`): prvních 10 → 200, zbylých 10 → 429. 429 navzdory různým XFF potvrzuje vazbu na `x-real-ip`.
 
 ---
 
@@ -181,7 +181,7 @@ Tyto nálezy revize hodnotí jako nezávažné a vyžadují rozhodnutí o archit
 | Krok | Balíček | Nálezy | Závažnost | Stav | Commit |
 |---|---|---|---|---|---|
 | 1 | A (require-admin) | SEC-2 | 🟠 | ✅ | `5e9111e` |
-| 2 | B (IP + limitery) | SEC-1, SEC-5 | 🟠 | ✅ (⏳ Vercel) | |
+| 2 | B (IP + limitery) | SEC-1, SEC-5 | 🟠 | ✅ | |
 | 3 | C (generické chyby + validace) | SEC-3 | 🟡 | ✅ | |
 | 4 | D (upload whitelist) | SEC-6 | 🟡 | ✅ | |
 | 5 | E (hlavičky) | SEC-10 | 🟡 | ✅ | |

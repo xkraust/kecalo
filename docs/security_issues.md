@@ -88,7 +88,8 @@ limity všem legitimním klientům.
 klíčů s prioritou (vypršelá okna → pod limitem → nouzově), takže zablokované klíče přetečení přežijí.
 Login má navíc globální strop 30 selhání / 15 min přes všechny IP (pojistka nezávislá na identitě IP).
 Ověřeno unit testy (vč. přežití zablokovaného klíče při 7 000 junk klíčích) i runtime (per-IP i
-globální 429). ⏳ Zbývá: ověření vazby na skutečnou IP na Vercelu po nasazení.
+globální 429). Na Vercelu ověřeno skriptem `scripts/verify-rate-limit.mjs` (dávka s rotující
+`X-Forwarded-For` → 429 podle skutečné IP).
 
 ---
 
