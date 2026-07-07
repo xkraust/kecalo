@@ -300,14 +300,23 @@ setLangfuseTracerProvider(provider);
 
 const langfuse = new LangfuseClient();
 
+// Živý postup napříč datasety — task/evaluator SDK volá postupně (maxConcurrency: 1),
+// takže prostý čítač stačí. Nastaveno v main() před každým experiment.run().
+let itemIndex = 0;
+let itemTotal = 0;
+
 // task pro experiment.run — běží uvnitř aktivní observace, takže getActiveTraceId
 // vrací id experiment trace; přes traceparent vnoříme i serverové spany chatu.
 async function task(item) {
+  itemIndex++;
+  const question = asText(item.input);
+  console.log(`  → (${itemIndex}/${itemTotal}) odesílám: ${question.slice(0, 70)}…`);
+
   await sleep(DELAY_MS); // throttle kvůli rate limitu (maxConcurrency=1)
   const tid = getActiveTraceId?.();
   const sid = getActiveSpanId?.();
   const traceparent = tid && sid ? `00-${tid}-${sid}-01` : undefined;
-  const out = await callChat(asText(item.input), traceparent);
+  const out = await callChat(question, traceparent);
 
   // Per-item metadata na observaci — filtrovatelné v UI (status, retrieval).
   const topSimilarity = out.sources.length
@@ -328,9 +337,13 @@ async function task(item) {
   return out;
 }
 
-// jediný evaluátor vrací pole deterministických skóre
-async function evaluator({ output, metadata }) {
-  return deterministicScores(output, metadata);
+// jediný evaluátor — počítá skóre a hned je vypíše (SDK ho volá ihned po task()
+// pro danou položku, takže výsledek je vidět bez čekání na celý dataset).
+async function evaluator({ input, output, metadata }) {
+  const scores = deterministicScores(output, metadata);
+  bump(scores);
+  printItem(metadata?.category, input, scores);
+  return scores;
 }
 
 // run-level agregace — z per-item skóre spočítá průměrné míry (0–1) a připne je
@@ -413,6 +426,10 @@ async function main() {
         await sleep(DELAY_MS);
       }
     } else {
+      // itemIndex/itemTotal řídí živý průběh v task() — SDK zpracovává položky
+      // postupně (maxConcurrency: 1), task+evaluator tisknou hned po každé z nich.
+      itemIndex = 0;
+      itemTotal = items.length;
       const result = await langfuse.experiment.run({
         name: `kecalo-eval:${datasetName}`,
         runName: RUN_NAME,
@@ -424,11 +441,7 @@ async function main() {
         runEvaluators: [runEvaluator],
         maxConcurrency: 1,
       });
-      for (const r of result.itemResults) {
-        bump(r.evaluations);
-        printItem(r.item?.metadata?.category, r.input ?? r.item?.input, r.evaluations);
-        processed++;
-      }
+      processed += result.itemResults.length;
     }
     if (processed >= LIMIT) break;
   }
