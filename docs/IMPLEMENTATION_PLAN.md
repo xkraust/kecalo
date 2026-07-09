@@ -690,11 +690,11 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ---
 
-## Fáze 15 — Evaluace: Langfuse datasety + eval runner (po kurzu) 🟡
+## Fáze 15 — Evaluace: Langfuse datasety + eval runner (po kurzu) ✅
 
 **Milník:** Testovací otázky z `docs/testovaci_otazky*.md` jsou v Langfuse jako datasety a lze je jedním příkazem prohnat nasazeným chatbotem, který založí **experiment (dataset run)** s deterministickými skóre — regresní měření kvality RAG při ladění parametrů/chunkování. Bez změny aplikace (jen eval nástroj).
 
-> **Pozn.:** Základ (datasety + runner + deterministická skóre) je **hotový a ověřený** (plný run 56 otázek, 0 errors); rozšíření metadat a LLM-as-judge jsou **navržená, zatím neimplementovaná**.
+> **Pozn.:** Kompletně hotové a ověřené — datasety + runner + deterministická skóre (plný run 56 otázek, 0 errors), metadata experimentu i LLM-as-judge (Krok 5, evaluátor Correctness v Langfuse UI).
 
 ### Krok 1 — CSV datasety z testovacích otázek ✅
 
@@ -726,9 +726,13 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [x] **Per-item** (`updateActiveObservation({ metadata })` uvnitř `task`): HTTP status, počet chunků, `topSimilarity`, `X-Sources` — připnuto na observaci `experiment-item-run`, ověřeno
 - [x] **Run-level agregace** (`runEvaluators`): `<skóre>_rate` (např. `doc_match_rate`) — SDK je ukládá jako run-level skóre navázané na `datasetRunId` (zobrazí se jako sloupec u runu v Experiments; přes veřejné `/api/public/scores` se nevrací, to je jen pro trace/observation skóre)
 
-### Krok 5 — LLM-as-judge (navrženo, mimo runner) ⬜
+### Krok 5 — LLM-as-judge (mimo runner) ✅
 
-- [ ] Konfigurace evaluátoru v Langfuse UI (**Evaluators**) — věcná správnost odpovědi proti `expected_output` tam, kde parafráze potřebuje „porozumění" (deterministická skóre neumí). Feature Langfuse Cloud, bez kódu
+- [x] Konfigurace evaluátoru v Langfuse UI (**Evaluators**) — věcná správnost odpovědi proti `expected_output` tam, kde parafráze potřebuje „porozumění" (deterministická skóre neumí). Feature Langfuse Cloud, bez kódu
+- [x] Nastavení (9. 7. 2026): managed šablona **Correctness** (`query`/`generation`/`ground_truth`), judge model Anthropic přes LLM connection v projektu; target **Experiments** (run on new experiments), filtr `datasetId any of` všechny 3 kecalo datasety, sampling 100 %
+- [x] Mapování proměnných: `query` ← item Input, `generation` ← trace Output s JsonPath **`$.answer`** (output tasku je JSON `{answer, sources, ...}`), `ground_truth` ← item Expected Output
+- [x] Ověřeno E2E na runu `judge-test` (5 otázek): všech 5 položek má skóre `Correctness` (4× 1.0, 1× 0.9) se smysluplným reasoningem; správně skóruje i `out_of_scope` otázku (odmítnutí bez halucinace = 1.0)
+- Pozn.: šablona **Faithfulness** (odpověď vs. kontext) zatím nasadit nejde — trace nenese obsah chunků (`record_content` default vypnuto, `X-Sources` jen metadata zdrojů)
 
 ### Gotchas
 
