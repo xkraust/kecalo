@@ -190,6 +190,9 @@ export async function POST(request: Request) {
       messages: trimmedMessages,
       temperature: settings.llmTemperature,
       maxOutputTokens: 1500,
+      // Odpojení klienta (zavřená záložka, abort z useChat) se propaguje jako abort
+      // streamu — bez toho by generování běželo dál a span by zůstal neukončený.
+      abortSignal: request.signal,
       experimental_telemetry: {
         isEnabled: settings.telemetryEnabled,
         functionId: "chat-rag",
@@ -206,6 +209,12 @@ export async function POST(request: Request) {
       onError({ error }) {
         console.error("Claude stream selhal:", error);
         endSpan(false, error);
+      },
+      // Při abortu se nevolá onFinish ani onError — bez tohoto callbacku by span
+      // zůstal neukončený a trace by se (v immediate režimu) neexportovala.
+      onAbort() {
+        span.setAttribute("chat.aborted", true);
+        endSpan(true);
       },
       onFinish({ usage }) {
         span.setAttributes({
