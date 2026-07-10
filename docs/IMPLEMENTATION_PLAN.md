@@ -732,6 +732,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [x] Nastavení (9. 7. 2026): managed šablona **Correctness** (`query`/`generation`/`ground_truth`), judge model Anthropic přes LLM connection v projektu; target **Experiments** (run on new experiments), filtr `datasetId any of` všechny 3 kecalo datasety, sampling 100 %
 - [x] Mapování proměnných: `query` ← item Input, `generation` ← trace Output s JsonPath **`$.answer`** (output tasku je JSON `{answer, sources, ...}`), `ground_truth` ← item Expected Output
 - [x] Ověřeno E2E na runu `judge-test` (5 otázek): všech 5 položek má skóre `Correctness` (4× 1.0, 1× 0.9) se smysluplným reasoningem; správně skóruje i `out_of_scope` otázku (odmítnutí bez halucinace = 1.0)
+- [x] Český reasoning (10. 7. 2026): managed šablona nahrazena projektovou kopií **Correctness (project-level)** s instrukcí „Odůvodnění piš vždy česky." v promptu i v popisu pole `reasoning`; pravidlo **Correctness in Czech** (stejný filtr, mapování i sampling; skóre se nově jmenuje `Correctness in Czech`). Ověřeno na runu `judge-cz-test` (3/3 skóre s českým odůvodněním)
 - Pozn.: šablona **Faithfulness** (odpověď vs. kontext) zatím nasadit nejde — trace nenese obsah chunků (`record_content` default vypnuto, `X-Sources` jen metadata zdrojů)
 
 ### Gotchas
