@@ -733,6 +733,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [x] Mapování proměnných: `query` ← item Input, `generation` ← trace Output s JsonPath **`$.answer`** (output tasku je JSON `{answer, sources, ...}`), `ground_truth` ← item Expected Output
 - [x] Ověřeno E2E na runu `judge-test` (5 otázek): všech 5 položek má skóre `Correctness` (4× 1.0, 1× 0.9) se smysluplným reasoningem; správně skóruje i `out_of_scope` otázku (odmítnutí bez halucinace = 1.0)
 - [x] Český reasoning (10. 7. 2026): managed šablona nahrazena projektovou kopií **Correctness (project-level)** s instrukcí „Odůvodnění piš vždy česky." v promptu i v popisu pole `reasoning`; pravidlo **Correctness in Czech** (stejný filtr, mapování i sampling; skóre se nově jmenuje `Correctness in Czech`). Ověřeno na runu `judge-cz-test` (3/3 skóre s českým odůvodněním)
+- [x] Kalibrace šablony (v3, 10. 7. 2026): plně český prompt s explicitním pravidlem „informace nad rámec ground truth nepenalizuj, pokud jí neodporují" + dva few-shot příklady (rozpor → 0.1, korektní detaily navíc → 1.0) — reakce na rozptyl skóre 0.6 vs. 1.0 u téže otázky (judge dřív nekonzistentně penalizoval detaily nad rámec stručné ground truth). Ověřeno 2 runy × 3 otázky (`judge-cz-v3a/b`): 6/6 skóre 1.0, reasoning explicitně aplikuje nové pravidlo
 - Pozn.: šablona **Faithfulness** (odpověď vs. kontext) zatím nasadit nejde — trace nenese obsah chunků (`record_content` default vypnuto, `X-Sources` jen metadata zdrojů)
 
 ### Gotchas
