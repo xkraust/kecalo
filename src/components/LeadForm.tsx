@@ -14,15 +14,43 @@ export interface ConversationMessage {
   content: string;
 }
 
+/** Varianta karty: `produkt` = nabídka po tokenu [[NABIDKA]], `hodnoceni` =
+ * nabídka kontaktu po palci dolů (jiné texty, lead typu 'hodnoceni'). */
+export type LeadFormVariant = "produkt" | "hodnoceni";
+
+const COPY: Record<
+  LeadFormVariant,
+  { heading: string; success: string; submit: string }
+> = {
+  produkt: {
+    heading: "Chcete podmínky šité na míru? Zanechte kontakt a ozveme se.",
+    success: "Děkujeme, ozveme se co nejdříve.",
+    submit: "Odeslat poptávku",
+  },
+  hodnoceni: {
+    heading:
+      "Děkujeme za Vaši zpětnou vazbu, pomáhá nám se zlepšovat. Pokud nám na sebe zanecháte kontakt, náš specialista se Vám ozve a Váš dotaz rád vyřeší osobně.",
+    success:
+      "Děkujeme! Náš specialista se Vám co nejdříve ozve a Váš dotaz společně vyřešíte.",
+    submit: "Předat specialistovi",
+  },
+};
+
 interface LeadFormProps {
   sessionId: string;
   /** Posledních max 8 zpráv konverzace — jen pro serverovou komprimaci. */
   conversation: ConversationMessage[];
+  variant?: LeadFormVariant;
 }
 
 type FormState = "idle" | "sending" | "done";
 
-export function LeadForm({ sessionId, conversation }: LeadFormProps) {
+export function LeadForm({
+  sessionId,
+  conversation,
+  variant = "produkt",
+}: LeadFormProps) {
+  const copy = COPY[variant];
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -34,7 +62,7 @@ export function LeadForm({ sessionId, conversation }: LeadFormProps) {
   if (state === "done") {
     return (
       <div className="mt-2 rounded-lg border border-border bg-card px-4 py-3 text-sm">
-        Děkujeme, ozveme se co nejdříve.
+        {copy.success}
       </div>
     );
   }
@@ -78,6 +106,7 @@ export function LeadForm({ sessionId, conversation }: LeadFormProps) {
           phone: phone.trim() || undefined,
           note: note.trim() || undefined,
           consent,
+          type: variant,
           sessionId,
           messages: conversation,
         }),
@@ -104,9 +133,7 @@ export function LeadForm({ sessionId, conversation }: LeadFormProps) {
       onSubmit={handleSubmit}
       className="mt-2 rounded-lg border border-border bg-card px-4 py-3.5 space-y-2.5"
     >
-      <p className="text-sm font-medium">
-        Chcete podmínky šité na míru? Zanechte kontakt a ozveme se.
-      </p>
+      <p className="text-sm font-medium">{copy.heading}</p>
 
       <Input
         value={name}
@@ -166,7 +193,7 @@ export function LeadForm({ sessionId, conversation }: LeadFormProps) {
         size="sm"
         disabled={!consent || state === "sending"}
       >
-        {state === "sending" ? "Odesílám…" : "Odeslat poptávku"}
+        {state === "sending" ? "Odesílám…" : copy.submit}
       </Button>
     </form>
   );

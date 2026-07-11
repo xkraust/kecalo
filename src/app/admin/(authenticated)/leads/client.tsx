@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { LeadStatusBadge } from "@/components/LeadStatusBadge";
+import { LeadTypeBadge } from "@/components/LeadTypeBadge";
 import type { Lead, LeadStatus } from "@/lib/types";
 
 const dateFormat = new Intl.DateTimeFormat("cs-CZ", {
@@ -87,6 +88,7 @@ export function LeadsPageClient({ leads }: Props) {
               <TableHead>Jméno</TableHead>
               <TableHead>Kontakt</TableHead>
               <TableHead className="w-[38%]">Shrnutí</TableHead>
+              <TableHead>Typ</TableHead>
               <TableHead>Stav</TableHead>
               <TableHead>Zpracovatel</TableHead>
               <TableHead className="text-right">Akce</TableHead>
@@ -158,6 +160,9 @@ export function LeadsPageClient({ leads }: Props) {
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <LeadTypeBadge type={lead.type} />
                   </TableCell>
                   <TableCell>
                     <LeadStatusBadge status={lead.status} />

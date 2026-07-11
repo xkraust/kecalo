@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { getSettings } from "@/lib/settings";
 import { createRateLimiter, clientIp } from "@/lib/rate-limit";
 import { withSpan, flushTelemetry } from "@/lib/telemetry";
-import type { Lead } from "@/lib/types";
+import type { Lead, LeadType } from "@/lib/types";
 
 export const maxDuration = 30;
 
@@ -39,6 +39,7 @@ interface LeadInput {
   email: string | null;
   phone: string | null;
   note: string | null;
+  type: LeadType;
   sessionId: string | null;
   messages: ConversationMessage[];
 }
@@ -76,15 +77,17 @@ function parseConversation(raw: unknown): ConversationMessage[] | null {
 /** Validace těla požadavku — vrací vstup poptávky, nebo chybovou hlášku. */
 function parseLeadInput(body: unknown): LeadInput | string {
   if (!body || typeof body !== "object") return "Neplatný vstup.";
-  const { name, email, phone, note, consent, sessionId, messages } = body as {
-    name?: unknown;
-    email?: unknown;
-    phone?: unknown;
-    note?: unknown;
-    consent?: unknown;
-    sessionId?: unknown;
-    messages?: unknown;
-  };
+  const { name, email, phone, note, consent, type, sessionId, messages } =
+    body as {
+      name?: unknown;
+      email?: unknown;
+      phone?: unknown;
+      note?: unknown;
+      consent?: unknown;
+      type?: unknown;
+      sessionId?: unknown;
+      messages?: unknown;
+    };
 
   if (consent !== true) {
     return "Bez souhlasu se zpracováním osobních údajů nelze poptávku odeslat.";
@@ -121,6 +124,12 @@ function parseLeadInput(body: unknown): LeadInput | string {
     return "Vyplňte alespoň jeden kontakt — e-mail nebo telefon.";
   }
 
+  // Typ poptávky: bez pole → 'produkt' (zpětná kompatibilita), jiná hodnota
+  // než whitelist → 400. DB CHECK (migrace 012) je druhá obranná linie.
+  if (type !== undefined && type !== "produkt" && type !== "hodnoceni") {
+    return "Neplatný vstup.";
+  }
+
   if (
     sessionId !== undefined &&
     (typeof sessionId !== "string" || sessionId.length > MAX_SESSION_ID_LENGTH)
@@ -139,6 +148,7 @@ function parseLeadInput(body: unknown): LeadInput | string {
       typeof note === "string" && note.trim()
         ? note.trim().slice(0, MAX_NOTE_LENGTH)
         : null,
+    type: type === "hodnoceni" ? "hodnoceni" : "produkt",
     sessionId: typeof sessionId === "string" && sessionId ? sessionId : null,
     messages: conversation,
   };
@@ -222,10 +232,13 @@ function appendText(
 
 /** Najde nejnovější nevyřízený lead se shodným e-mailem nebo telefonem.
  * Dva samostatné dotazy (ne PostgREST `.or()`) — hodnoty kontaktů by v OR
- * filtru vyžadovaly escapování, takhle jdou jako parametr `.eq()`. */
+ * filtru vyžadovaly escapování, takhle jdou jako parametr `.eq()`.
+ * Dedupuje se jen v rámci téhož typu — hodnocení se nesmí slít do otevřené
+ * produktové poptávky téže osoby (a naopak; jiné workflow zpracování). */
 async function findOpenLead(
   email: string | null,
-  phone: string | null
+  phone: string | null,
+  type: LeadType
 ): Promise<Lead | null> {
   const candidates: Lead[] = [];
   for (const [column, value] of [
@@ -237,6 +250,7 @@ async function findOpenLead(
       .from("leads")
       .select("*")
       .eq(column, value)
+      .eq("type", type)
       .in("status", ["new", "updated", "in_progress"])
       .order("created_at", { ascending: false })
       .limit(1);
@@ -268,9 +282,10 @@ export async function POST(request: Request) {
     // Deduplikace podle kontaktu (nikdy podle jména): nevyřízený lead se
     // rozšíří místo založení duplicity. Shoda přepne na `updated` i lead
     // „Ve zpracování" — záměr, zpracovatel má nové informace zaregistrovat.
-    const existing = await findOpenLead(input.email, input.phone);
+    const existing = await findOpenLead(input.email, input.phone, input.type);
 
     if (existing) {
+      // `type` se nezapisuje — dedup je type-scoped, existing.type === input.type.
       const { error } = await supabase
         .from("leads")
         .update({
@@ -293,6 +308,7 @@ export async function POST(request: Request) {
       phone: input.phone,
       note: input.note,
       summary,
+      type: input.type,
       session_id: input.sessionId,
       consent: true,
     });

@@ -85,7 +85,27 @@ export function MessageBubble({
             >
               <ThumbsDown size={14} />
             </button>
+            {feedbackRating === "up" && (
+              <span className="text-xs text-muted-foreground">
+                Děkujeme za zpětnou vazbu, jsme rádi, že odpověď pomohla.
+              </span>
+            )}
+            {feedbackRating === "down" && showLeadForm && (
+              <span className="text-xs text-muted-foreground">
+                Děkujeme za zpětnou vazbu.
+              </span>
+            )}
           </div>
+        )}
+        {/* Palec dolů → nabídka kontaktu (lead typu hodnoceni). Když je nad
+            tlačítky už produktový formulář, druhý se nevykresluje — kontakt
+            sbírá ten produktový, hlas se do /api/feedback uloží tak jako tak. */}
+        {feedbackRating === "down" && sessionId && !showLeadForm && (
+          <LeadForm
+            variant="hodnoceni"
+            sessionId={sessionId}
+            conversation={conversation ?? []}
+          />
         )}
       </div>
     </div>

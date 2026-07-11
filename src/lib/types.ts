@@ -17,6 +17,9 @@ export interface DocumentRecord {
 /** `new` → `in_progress` → `closed`; `updated` = rozšířeno deduplikací (viz POST /api/leads). */
 export type LeadStatus = "new" | "updated" | "in_progress" | "closed";
 
+/** `produkt` = zájem o produkt (token [[NABIDKA]]); `hodnoceni` = kontakt po palci dolů. */
+export type LeadType = "produkt" | "hodnoceni";
+
 export interface Lead {
   id: string;
   name: string;
@@ -27,6 +30,7 @@ export interface Lead {
   summary: string | null;
   session_id: string | null;
   status: LeadStatus;
+  type: LeadType;
   /** Jméno zpracovatele (zatím jen "admin"; příprava na CRM). */
   assignee: string | null;
   consent: boolean;

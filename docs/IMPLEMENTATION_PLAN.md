@@ -753,6 +753,15 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ---
 
+## Fáze 16 — Zpětná vazba → lead typu „hodnocení" ✅
+
+**Milník:** Palce nahoru/dolů u odpovědi mají návaznou akci — nahoru poděkování, dolů karta kontaktu vedoucí na lead nového typu `hodnoceni` (dosavadní produktové leady = `produkt`). Typ vidí zpracovatel v adminu. Podrobný checklist a texty: `docs/lead_generation_plan.md` (sekce „Fáze 2 — Zpětná vazba → lead typu hodnocení").
+
+- [x] Migrace `012_lead_type.sql` (`leads` += `type` `produkt`/`hodnoceni`, DEFAULT `produkt`), typy, API (`type` ve validaci + type-scoped dedup + INSERT), `LeadForm` varianta `hodnoceni`, `MessageBubble` (poděkování/formulář dle hlasu, ošetřená kolize s produktovou kartou), `LeadTypeBadge` + sloupec Typ v adminu
+- [x] Ověřeno E2E v prohlížeči (palce, obě varianty formuláře, kolize, admin badge), API (`type` default/whitelist/400), dedup (type-scoped: cross-type nový řádek, same-type merge). Haiku shrnutí běží pro oba typy. Testovací poptávky po ověření smazány z DB
+
+---
+
 ## Přehled API rout
 
 | Metoda | Route | Účel |

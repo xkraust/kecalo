@@ -113,3 +113,55 @@ Commit po každém kroku (po potvrzení uživatelem).
 5. Deduplikace: druhé odeslání se stejným e-mailem (jiné jméno/poznámka) → žádný nový řádek, stávající má status „Rozšířená", doplněný kontakt a připojené shrnutí; odeslání se shodou jen na `closed` leadu → nový samostatný řádek.
 6. Bezpečnost: `POST /api/leads` bez cookie → 201 (veřejné) + 429 po 5/min; `PATCH /api/leads/<id>` bez cookie → 401; `consent: false` → 400; PATCH s cílovým stavem `new`/`updated` → 400; PATCH na uzavřený lead → 409.
 7. Úklid testovacích poptávek z DB po ověření (přímý delete přes service-role klienta — aplikace mazání záměrně nenabízí).
+
+---
+
+# Fáze 2 — Zpětná vazba → lead typu „hodnocení" (Fáze 16)
+
+Rozšíření reakce na palce nahoru/dolů (dnes jen přebarví ikonu): palec nahoru zobrazí
+poděkování, palec dolů nabídne zanechání kontaktu (`LeadForm` s vlídnějším textem) a
+založí lead nového **typu `hodnoceni`**; dosavadní leady dostanou typ **`produkt`**.
+Typ je vidět v admin tabulce Poptávky. Haiku shrnutí konverzace běží pro oba typy
+(handler `/api/leads` ho volá bez ohledu na typ).
+
+## Kroky implementace
+
+- [x] **1. Migrace `012_lead_type.sql`** — `alter table leads add column type text not null
+  default 'produkt' check (type in ('produkt','hodnoceni'))`; aplikováno `supabase db push`
+  **před nasazením kódu**. ASCII `hodnoceni` v DB, diakritika jen v UI.
+- [x] **2. Typy (`src/lib/types.ts`)** — `LeadType = "produkt" | "hodnoceni"` + pole
+  `type: LeadType` v `Lead`.
+- [x] **3. API (`src/app/api/leads/route.ts`)** — `parseLeadInput` přijme volitelné `type`
+  (default `produkt`, jiné hodnoty → 400); `findOpenLead` dedupuje jen v rámci téhož typu
+  (`.eq("type", …)`); INSERT ukládá `type`; UPDATE větev typ nemění (dedup je type-scoped).
+- [x] **4. Formulář (`src/components/LeadForm.tsx`)** — prop `variant` (`produkt` default /
+  `hodnoceni`) přepíná nadpis, úspěšnou hlášku a text tlačítka; POST body += `type`.
+  Texty hodnocení: nadpis „Děkujeme za Vaši zpětnou vazbu, pomáhá nám se zlepšovat. Pokud
+  nám na sebe zanecháte kontakt, náš specialista se Vám ozve a Váš dotaz rád vyřeší
+  osobně.", úspěch „Děkujeme! Náš specialista se Vám co nejdříve ozve a Váš dotaz společně
+  vyřešíte.", tlačítko „Předat specialistovi".
+- [x] **5. Chat (`src/components/MessageBubble.tsx`)** — palec nahoru → inline poděkování
+  „Děkujeme za zpětnou vazbu, jsme rádi, že odpověď pomohla."; palec dolů → `LeadForm
+  variant="hodnoceni"` pod tlačítky; když je zobrazený produktový formulář, druhý se
+  nevykresluje (jen krátké poděkování). Viditelnost odvozená od `feedbackRating`
+  (přepnutí hlasu formulář skryje/zobrazí). `page.tsx` a `/api/feedback` beze změny.
+- [x] **6. Admin** — nová `src/components/LeadTypeBadge.tsx` (vzor `LeadStatusBadge`;
+  `produkt` šedá `#F1EFE8`/`#5F5E5A`, `hodnoceni` korálová `#FAECE7`/`#C24E29`, fallback
+  na `produkt`); sloupec **Typ** v `admin/(authenticated)/leads/client.tsx` před „Stav".
+- [x] **7. Dokumentace** — CLAUDE.md (datový model, migrace 012, komponenty, flow palce
+  dolů), `docs/IMPLEMENTATION_PLAN.md` (Fáze 16, odkaz sem), zaškrtnutí tohoto checklistu.
+
+## Ověření
+
+- [x] `npm run lint` + `npm run build` (build OK po vyčištění `.next` cache; lint jen 2 známé
+  staré nálezy v `scripts/langfuse-eval.mjs`, nesouvisí).
+- [x] E2E v prohlížeči: palec nahoru → poděkování; přepnutí na dolů → formulář hodnocení;
+  odeslání → úspěšná hláška; `/admin/leads` řádek s badge „Hodnocení"; zpráva s
+  produktovým formulářem + palec dolů → jen produktový formulář + krátké poděkování (bez
+  druhého formuláře); přeznačení palce dolů→nahoru formulář skryje.
+- [x] API: POST bez `type` → 201 + `produkt`; `type:"hodnoceni"` → 201; `type:"x"` → 400.
+- [x] Dedup: hodnocení s kontaktem otevřené produktové poptávky → nový řádek (Test CrossType);
+  opakované hodnocení se stejným kontaktem → merge (`updated`), typ zůstává `hodnoceni`.
+- [x] Lead hodnocení má Haiku `summary` (handler `summarizeConversation` běží bez ohledu
+  na typ — kód beze změny).
+- [x] Úklid testovacích poptávek z DB po ověření (3 řádky smazány přes service-role klienta).

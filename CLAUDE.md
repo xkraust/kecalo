@@ -10,7 +10,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0–15 jsou **hotové a ověřené end-to-end** (poslední: Fáze 15 — evaluace přes Langfuse datasety, eval runner `scripts/langfuse-eval.mjs` a LLM-as-judge „Correctness in Czech" nakonfigurovaný v Langfuse UI; šablona Faithfulness zatím nejde — trace nenese obsah chunků, `record_content` default off). Hotové a ověřené jsou i všechny opravy z revize kódu (`docs/code_check.md`, 15 nálezů, balíčky A–E dle `docs/issues_correction_plan.md`) a z bezpečnostní revize (`docs/security_issues.md`, SEC-1 až SEC-6 + SEC-9 + SEC-10, balíčky A–F dle `docs/security_correction_plan.md`; následně i SEC-4 — server-side revokace session). SEC-7 a SEC-8 (serverová historie chatu, CSRF token) zůstávají vědomě odložené jako produkční dluh. Migrace `001`–`011` jsou aplikované na Supabase.
+Fáze 0–16 jsou **hotové a ověřené end-to-end** (poslední: Fáze 16 — zpětná vazba u odpovědi: palec nahoru poděkování, palec dolů karta kontaktu → lead typu `hodnoceni`; migrace `012_lead_type.sql` aplikovaná. Fáze 15 — evaluace přes Langfuse datasety, eval runner `scripts/langfuse-eval.mjs` a LLM-as-judge „Correctness in Czech" nakonfigurovaný v Langfuse UI; šablona Faithfulness zatím nejde — trace nenese obsah chunků, `record_content` default off). Hotové a ověřené jsou i všechny opravy z revize kódu (`docs/code_check.md`, 15 nálezů, balíčky A–E dle `docs/issues_correction_plan.md`) a z bezpečnostní revize (`docs/security_issues.md`, SEC-1 až SEC-6 + SEC-9 + SEC-10, balíčky A–F dle `docs/security_correction_plan.md`; následně i SEC-4 — server-side revokace session). SEC-7 a SEC-8 (serverová historie chatu, CSRF token) zůstávají vědomě odložené jako produkční dluh. Migrace `001`–`012` jsou aplikované na Supabase.
 
 Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživatel nahraje přes admin UI) a fallback otázky mimo bázi dál vracejí chunky nad prahem 0,35 (čisté odmítnutí zajišťuje systémový prompt; případně zvýšit práh v `/admin/parameters`).
 
@@ -91,7 +91,7 @@ supabase init                    # jednorázová inicializace Supabase projektu
 supabase db push                 # aplikuje migrace na Supabase (vyžaduje DATABASE_URL)
 ```
 
-Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `004_enable_rls.sql` (zapnutí Row-Level Security na `documents`/`chunks`/`app_settings` — bez policy pro anon; app používá service-role klíč, který RLS obchází), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu), `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`), `009_chunk_batch.sql` (`chunks` += `batch_id` — reindexace bez ztráty dat, oprava C1), `010_leads.sql` (tabulka `leads` — poptávky/lead generation, včetně RLS) a `011_auth_state.sql` (jednořádková tabulka `auth_state` — revokace admin session po logoutu, oprava SEC-4; vč. RLS).
+Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `004_enable_rls.sql` (zapnutí Row-Level Security na `documents`/`chunks`/`app_settings` — bez policy pro anon; app používá service-role klíč, který RLS obchází), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu), `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`), `009_chunk_batch.sql` (`chunks` += `batch_id` — reindexace bez ztráty dat, oprava C1), `010_leads.sql` (tabulka `leads` — poptávky/lead generation, včetně RLS), `011_auth_state.sql` (jednořádková tabulka `auth_state` — revokace admin session po logoutu, oprava SEC-4; vč. RLS) a `012_lead_type.sql` (`leads` += `type` — `produkt`/`hodnoceni`, Fáze 16; stávající řádky `produkt` přes DEFAULT).
 
 ## Proměnné prostředí
 
@@ -140,7 +140,7 @@ POST   /api/retrieval-test      → vrátí top-k chunků se skóre (pouze admin
 GET    /api/settings            → vrátí aktuální runtime parametry + přepínače telemetrie z DB
 POST   /api/settings            → uloží globální runtime parametry RAG do app_settings
 POST   /api/feedback            → uloží zpětnou vazbu (thumbs up/down); limity vstupu + rate limit 10/min
-POST   /api/leads               → uloží poptávku (veřejné); rate limit 5/min, deduplikace podle kontaktu, Haiku shrnutí konverzace (přepis izolován v bloku <transcript> jako nedůvěryhodný vstup — oprava SEC-9)
+POST   /api/leads               → uloží poptávku (veřejné); rate limit 5/min, pole `type` (`produkt`/`hodnoceni`, default `produkt`; jiná hodnota → 400), deduplikace podle kontaktu **v rámci téhož typu**, Haiku shrnutí konverzace pro oba typy (přepis izolován v bloku <transcript> jako nedůvěryhodný vstup — oprava SEC-9)
 PATCH  /api/leads/[id]          → změna stavu poptávky (pouze admin): in_progress/closed; 400/404/409
 POST   /api/auth/login          → ověření username + password, nastavení session cookie
 POST   /api/auth/logout         → smazání session cookie
@@ -180,12 +180,13 @@ src/
 ├── components/
 │   ├── MessageBubble.tsx
 │   ├── SourcesBlock.tsx
-│   ├── LeadForm.tsx                  # karta poptávky pod odpovědí (token [[NABIDKA]])
+│   ├── LeadForm.tsx                  # karta poptávky pod odpovědí (varianty produkt/hodnoceni)
 │   ├── UploadZone.tsx
 │   ├── DocumentsTable.tsx
 │   ├── AdminSidebar.tsx              # navigace admin sekce
 │   ├── StatusBadge.tsx               # badge stavu dokumentu
 │   ├── LeadStatusBadge.tsx           # badge stavu poptávky
+│   ├── LeadTypeBadge.tsx             # badge typu poptávky (Produkt/Hodnocení)
 │   ├── StatCard.tsx                  # metrická karta dashboardu
 │   ├── FeedbackCard.tsx              # karta spokojenosti (% + poměrový pruh)
 │   ├── ChunksByDocChart.tsx          # graf chunků (CSS bary)
@@ -257,7 +258,9 @@ Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4
 
 **Fallback:** pokud `retrieve` vrátí 0 chunků, route vrací `FALLBACK_MESSAGE` („nenacházím odpověď, kontaktujte infolinku 800 123 456") jako statickou `text/plain` odpověď s prázdným `X-Sources` — Claude se nevolá (oprava B3; dřív se volal jen kvůli doslovnému opsání hlášky).
 
-**Systémový prompt** (`prompts.ts`): bot odpovídá výhradně z poskytnutých chunků, česky, v každé odpovědi cituje zdrojový dokument, neposkytuje poradenství nad rámec citovaných podmínek a nesjednává produkty. U dotazů na konkrétní pojistný produkt — včetně procedurálně formulovaných dotazů na krytí/limity/výluky a dotazů na cenu či sjednání (ty i při nenalezené informaci) — přidá na úplný konec odpovědi samostatný řádek s tokenem `[[NABIDKA]]`; u administrativních dotazů a ostatních odpovědí bez nalezené informace nikdy — klient token z textu odstraní a místo něj vykreslí kartu poptávky (`LeadForm`); viz Fáze 14 / `docs/lead_generation_plan.md`.
+**Systémový prompt** (`prompts.ts`): bot odpovídá výhradně z poskytnutých chunků, česky, v každé odpovědi cituje zdrojový dokument, neposkytuje poradenství nad rámec citovaných podmínek a nesjednává produkty. U dotazů na konkrétní pojistný produkt — včetně procedurálně formulovaných dotazů na krytí/limity/výluky a dotazů na cenu či sjednání (ty i při nenalezené informaci) — přidá na úplný konec odpovědi samostatný řádek s tokenem `[[NABIDKA]]`; u administrativních dotazů a ostatních odpovědí bez nalezené informace nikdy — klient token z textu odstraní a místo něj vykreslí kartu poptávky (`LeadForm` varianta `produkt`); viz Fáze 14 / `docs/lead_generation_plan.md`.
+
+**Zpětná vazba u odpovědi** (`MessageBubble.tsx`, Fáze 16): palec nahoru → inline poděkování; palec dolů → karta `LeadForm` varianta `hodnoceni` (vlídnější text, lead typu `hodnoceni`). Když je u zprávy už produktová karta (token `[[NABIDKA]]`), palec dolů druhou kartu nevykresluje — jen krátké poděkování (kontakt sbírá produktová). Hlas se vždy ukládá do `/api/feedback` beze změny. Viz `docs/lead_generation_plan.md` (Fáze 2 / Fáze 16).
 
 ## Datový model
 
@@ -292,11 +295,14 @@ feedback (id uuid PK, session_id text, message_index int, rating text CHECK ('up
 leads (id uuid PK, name text, email text NULL, phone text NULL, note text NULL,
        summary text NULL, session_id text NULL,
        status text DEFAULT 'new' CHECK ('new'/'updated'/'in_progress'/'closed'),
+       type text DEFAULT 'produkt' CHECK ('produkt'/'hodnoceni'),
        assignee text NULL, consent boolean CHECK (consent),
        created_at timestamptz, updated_at timestamptz)
 -- poptávky (lead generation, Fáze 14); CHECK (email OR phone) — aspoň jeden kontakt
 -- note ≤ 5000 (limit 500/poznámka vynucuje API; sloupec vyšší kvůli připojování při dedup)
 -- summary = Haiku shrnutí konverzace (nahrazuje surový dotaz); RLS zapnuté (migrace 010)
+-- type (migrace 012, Fáze 16): 'produkt' = zájem o produkt (token [[NABIDKA]]),
+--   'hodnoceni' = kontakt zanechaný po palci dolů; deduplikace je type-scoped
 -- poptávky se nemažou — uzavření jen nastaví status closed
 
 auth_state (id smallint PK CHECK (id = 1),
