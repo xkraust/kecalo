@@ -257,7 +257,7 @@ Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4
 
 **Fallback:** pokud `retrieve` vrátí 0 chunků, route vrací `FALLBACK_MESSAGE` („nenacházím odpověď, kontaktujte infolinku 800 123 456") jako statickou `text/plain` odpověď s prázdným `X-Sources` — Claude se nevolá (oprava B3; dřív se volal jen kvůli doslovnému opsání hlášky).
 
-**Systémový prompt** (`prompts.ts`): bot odpovídá výhradně z poskytnutých chunků, česky, v každé odpovědi cituje zdrojový dokument, neposkytuje poradenství nad rámec citovaných podmínek a nesjednává produkty. U dotazů na konkrétní pojistný produkt přidá na úplný konec odpovědi samostatný řádek s tokenem `[[NABIDKA]]` (jinak nikdy) — klient token z textu odstraní a místo něj vykreslí kartu poptávky (`LeadForm`); viz Fáze 14 / `docs/lead_generation_plan.md`.
+**Systémový prompt** (`prompts.ts`): bot odpovídá výhradně z poskytnutých chunků, česky, v každé odpovědi cituje zdrojový dokument, neposkytuje poradenství nad rámec citovaných podmínek a nesjednává produkty. U dotazů na konkrétní pojistný produkt — včetně procedurálně formulovaných dotazů na krytí/limity/výluky a dotazů na cenu či sjednání (ty i při nenalezené informaci) — přidá na úplný konec odpovědi samostatný řádek s tokenem `[[NABIDKA]]`; u administrativních dotazů a ostatních odpovědí bez nalezené informace nikdy — klient token z textu odstraní a místo něj vykreslí kartu poptávky (`LeadForm`); viz Fáze 14 / `docs/lead_generation_plan.md`.
 
 ## Datový model
 

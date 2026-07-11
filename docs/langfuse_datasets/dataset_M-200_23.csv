@@ -17,6 +17,6 @@ input,expected_output,category,document,expected_source,expects_offer
 "Co znamená pojištění na novou cenu?","Plnění odpovídá nákladům na znovupořízení nové srovnatelné věci. Pokud zůstatková hodnota klesla pod 30 % nové ceny, plní se v časové ceně.","in_scope","VPP M-200_23","čl. 26 a čl. 29 odst. 3",
 "Jaký je roční souhrnný limit u pojištění odpovědnosti?","Maximálně dvojnásobek limitu plnění sjednaného ve smlouvě za pojistný rok.","in_scope","VPP M-200_23","čl. 42 odst. 2",true
 "Vztahuje se pojištění odpovědnosti na újmu způsobenou úmyslně?","Ne — úmyslně způsobená újma (včetně svévole/škodolibosti) je vyloučena.","in_scope","VPP M-200_23","čl. 38 odst. 1 písm. a",true
-"Kolik stojí pojištění bytového domu o ploše 800 m²?","Fallback — dokument neuvádí žádné ceny/sazby pojistného, jen pravidla. Chatbot nesmí vymyslet částku.","out_of_scope","VPP M-200_23","",false
+"Kolik stojí pojištění bytového domu o ploše 800 m²?","Fallback — dokument neuvádí žádné ceny/sazby pojistného, jen pravidla. Chatbot nesmí vymyslet částku.","out_of_scope","VPP M-200_23","",true
 "Vztahuje se toto pojištění i na pojištění vozidel obyvatel domu?","Fallback — dokument se týká bytového domu, movitých předmětů ke správě a odpovědnosti; pojištění vozidel obyvatel zde řešeno není.","out_of_scope","VPP M-200_23","",false
 "Jaká je spoluúčast u pojištění skel?","Fallback / opatrná odpověď — čl. 31 (připojištění skel) konkrétní spoluúčast neuvádí (řeší se limitem plnění a smlouvou). Chatbot by neměl spoluúčast vymyslet.","out_of_scope","VPP M-200_23","čl. 31",false
