@@ -23,9 +23,25 @@ Kódování UTF-8, oddělovač čárka, textová pole v uvozovkách (RFC 4180).
 | `category` | Metadata | `in_scope` / `out_of_scope` (fallback) / `confusion` (záměna M-100 ↔ M-200) |
 | `document` | Metadata | dokument, ze kterého má retrieval čerpat (prázdné u fallbacku) |
 | `expected_source` | Metadata | očekávaná citace (článek/odstavec) — kontrola, zda míří na správný zdroj |
+| `expects_offer` | Metadata | `true` = produktový dotaz, odpověď MÁ nést token `[[NABIDKA]]`; `false` = fallback/administrativní dotaz, token NESMÍ; prázdné = šedá zóna (definiční/confusion otázky) — skóre `offer_correct` se nepočítá |
 
 `category` umožňuje v Langfuse filtrovat běhy: u `in_scope` hodnotíme věcnou správnost
 a citaci, u `out_of_scope` naopak očekáváme fallback (chatbot NESMÍ halucinovat číslo).
+
+## Sync metadat do Langfuse (bez re-importu)
+
+Změny metadat (např. `expects_offer`) se do existujících Langfuse items promítají skriptem:
+
+```bash
+node scripts/langfuse-sync-metadata.mjs          # všechny 3 datasety
+node scripts/langfuse-sync-metadata.mjs --dry    # jen výpis, bez zápisu
+```
+
+Skript páruje CSV řádky s items podle `input` (exact match; při nespárování skončí chybou)
+a provede upsert podle `id` — **datasety se nesmí vytvářet znovu** (na jejich `datasetId`
+je navázaný filtr LLM-as-judge pravidla „Correctness in Czech") a re-import CSV přes UI
+by založil duplicitní položky. Pozn.: upsert obnovuje `createdAt` položky, takže mění
+pořadí items v UI/`--limit` výběru.
 
 ## Import do Langfuse
 

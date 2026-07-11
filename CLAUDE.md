@@ -82,7 +82,7 @@ node scripts/langfuse-eval.mjs --dataset=M-100 --run=baseline
 node scripts/langfuse-eval.mjs --only=out_of_scope
 ```
 
-`scripts/langfuse-eval.mjs` (Node ESM) prožene testovací otázky z Langfuse datasetů (`kecalo/obecne`/`M-100`/`M-200`) nasazeným `/api/chat` (`KECALO_BASE_URL`, default Vercel), založí **experiment** přes SDK `@langfuse/client` (`experiment.run`) a připojí deterministická skóre. Čte `LANGFUSE_*` z `.env.local`. Výsledky: Langfuse → Datasets → dataset → **Experiments**. Zdrojová CSV a postup importu viz `docs/langfuse_datasets/` (Fáze 15).
+`scripts/langfuse-eval.mjs` (Node ESM) prožene testovací otázky z Langfuse datasetů (`kecalo/obecne`/`M-100`/`M-200`) nasazeným `/api/chat` (`KECALO_BASE_URL`, default Vercel), založí **experiment** přes SDK `@langfuse/client` (`experiment.run`) a připojí deterministická skóre (`fallback_correct`/`retrieved`/`doc_match`/`article_match` + `offer_correct` — kontrola tokenu `[[NABIDKA]]` proti metadatu `expects_offer`; runner token z `answer` odstraňuje a vystavuje jako `offerToken`, aby ho LLM-judge neviděl). Čte `LANGFUSE_*` z `.env.local`. Výsledky: Langfuse → Datasets → dataset → **Experiments**. Zdrojová CSV a postup importu viz `docs/langfuse_datasets/` (Fáze 15). Změny metadat items (např. `expects_offer`) se do Langfuse promítají skriptem `scripts/langfuse-sync-metadata.mjs` (upsert podle `id`, bez re-importu — viz README datasetů).
 
 ### Databáze
 
@@ -225,6 +225,7 @@ supabase/
     └── 011_auth_state.sql            # auth_state (revokace session po logoutu, SEC-4)
 scripts/
 ├── langfuse-eval.mjs                 # eval runner (Fáze 15) — experiment.run nad Langfuse datasety
+├── langfuse-sync-metadata.mjs        # sync metadat items (expects_offer) do Langfuse — upsert podle id
 └── verify-rate-limit.mjs             # ověření SEC-1 rate-limitu na Vercelu
 docs/
 └── langfuse_datasets/                # CSV datasety testovacích otázek pro Langfuse + README (Fáze 15)

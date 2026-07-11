@@ -736,6 +736,14 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [x] Kalibrace šablony (v3, 10. 7. 2026): plně český prompt s explicitním pravidlem „informace nad rámec ground truth nepenalizuj, pokud jí neodporují" + dva few-shot příklady (rozpor → 0.1, korektní detaily navíc → 1.0) — reakce na rozptyl skóre 0.6 vs. 1.0 u téže otázky (judge dřív nekonzistentně penalizoval detaily nad rámec stručné ground truth). Ověřeno 2 runy × 3 otázky (`judge-cz-v3a/b`): 6/6 skóre 1.0, reasoning explicitně aplikuje nové pravidlo
 - Pozn.: šablona **Faithfulness** (odpověď vs. kontext) zatím nasadit nejde — trace nenese obsah chunků (`record_content` default vypnuto, `X-Sources` jen metadata zdrojů)
 
+### Krok 6 — Evaluace tokenu [[NABIDKA]] (11. 7. 2026) ✅
+
+- [x] **CSV**: nový sloupec `expects_offer` ve všech 3 datasetech — `true` = produktový dotaz (odpověď MÁ nést token; 28 položek), `false` = fallback/administrativní (token NESMÍ; 14), prázdné = šedá zóna (definiční/confusion; 14 — skóre se nepočítá)
+- [x] **Sync do Langfuse**: `scripts/langfuse-sync-metadata.mjs` (CLI `--dataset`/`--dry`) — RFC4180 parser, párování s items exact-match podle `input` (fail loudly), **upsert podle `id`** přes public API (žádný re-import → zachované `datasetId` pro filtr judge pravidla, žádné duplicity). Idempotentní; pozn.: upsert obnovuje `createdAt` → mění pořadí items pro `--limit`
+- [x] **Runner**: `callChat` token z `answer` odstraňuje (zrcadlí `stripLeadToken` klienta) a vystavuje jako `offerToken` v outputu + per-item metadatech — LLM-judge přes `$.answer` dál dostává čistý text; nové deterministické skóre **`offer_correct`** (před větvením kategorie → skóruje `in_scope` i `out_of_scope`; položky bez příznaku se přeskakují), run-level `offer_correct_rate` vzniká automaticky
+- [x] Ověřeno: sync 42/42 spárováno a zapsáno, idempotence (2. běh beze změny); plný run `offer-test` (56 otázek, 0 errors) — **`offer_correct` 35/42 (83 %)**: obecne 11/11, M-100+M-200 24/31; judge `Correctness in Czech` nedotčen (skóruje čistý `$.answer` bez tokenu, ověřeno v trace outputu)
+- [x] **Nálezy z prvního měření (chování promptu, ne evalu):** token chybí u 4 věcně produktových otázek M-200 formulovaných procedurálně (zachraňovací náklady, územní platnost, povodeň do 10 dnů, úmyslná újma); token přebývá u 3 `out_of_scope` otázek na cenu/spoluúčast (model částečně odpoví z chunků a přidá token). Případné doladění promptu (sekce Nabídka kontaktu) je vědomě odloženo — eval teď poskytuje regresní metriku `offer_correct_rate`
+
 ### Gotchas
 
 - **Legacy dataset-run-items ≠ Experiments** — ruční REST runy se v UI v3.205 nezobrazí; nutný SDK experiment formát (viz Krok 2)

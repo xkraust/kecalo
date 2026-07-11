@@ -108,6 +108,16 @@ if (!PUBLIC_KEY || !SECRET_KEY) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hex = (n) => randomBytes(n).toString("hex");
 
+/** Skrytá značka nabídky od modelu — shodná s klientem (src/app/page.tsx). */
+const LEAD_TOKEN = "[[NABIDKA]]";
+
+/** Metadata expects_offer → true/false/null (zvládne boolean i string z UI importu). */
+function parseOfferFlag(v) {
+  if (v === true || v === "true") return true;
+  if (v === false || v === "false") return false;
+  return null;
+}
+
 /** Odstraní diakritiku a sjednotí mezery/velikost — pro robustní porovnávání. */
 function norm(s) {
   return String(s || "")
@@ -128,7 +138,10 @@ function asText(v) {
   return String(v ?? "");
 }
 
-/** Zavolá nasazený chat, vrátí { answer, sources, status, error }. */
+/** Zavolá nasazený chat, vrátí { answer, offerToken, sources, status, error }.
+ * Token [[NABIDKA]] se z answer odstraňuje (zrcadlí stripLeadToken klienta) a
+ * vystavuje jako příznak offerToken — LLM-judge tak přes $.answer dostane čistý
+ * text a nemůže token penalizovat jako nepodložený obsah. */
 async function callChat(question, traceparent) {
   const headers = { "Content-Type": "application/json" };
   if (traceparent) headers.traceparent = traceparent;
@@ -138,7 +151,9 @@ async function callChat(question, traceparent) {
       headers,
       body: JSON.stringify({ messages: [{ role: "user", content: question }] }),
     });
-    const answer = await res.text();
+    let answer = await res.text();
+    const offerToken = answer.includes(LEAD_TOKEN);
+    if (offerToken) answer = answer.replaceAll(LEAD_TOKEN, "").trimEnd();
     let sources = [];
     const hdr = res.headers.get("x-sources");
     if (hdr) {
@@ -148,9 +163,15 @@ async function callChat(question, traceparent) {
         /* prázdné / nevalidní → [] */
       }
     }
-    return { answer, sources, status: res.status, error: !res.ok };
+    return { answer, offerToken, sources, status: res.status, error: !res.ok };
   } catch (err) {
-    return { answer: String(err), sources: [], status: 0, error: true };
+    return {
+      answer: String(err),
+      offerToken: false,
+      sources: [],
+      status: 0,
+      error: true,
+    };
   }
 }
 
@@ -217,6 +238,19 @@ function deterministicScores(output, metadata) {
   if (error) {
     num("http_ok", 0, `HTTP ${status}`);
     return scores;
+  }
+
+  // Token nabídky [[NABIDKA]] — skóruje se jen u položek s příznakem
+  // expects_offer (true/false); položky bez příznaku (šedá zóna) se přeskakují.
+  // Před větvením kategorie, aby se skórovaly i out_of_scope položky.
+  const expectsOffer = parseOfferFlag(metadata?.expects_offer);
+  if (expectsOffer !== null) {
+    const hasToken = Boolean(output?.offerToken);
+    num(
+      "offer_correct",
+      hasToken === expectsOffer ? 1 : 0,
+      `token ${hasToken ? "je" : "chybí"}, očekáváno ${expectsOffer ? "ano" : "ne"}`
+    );
   }
 
   if (category === "out_of_scope") {
@@ -328,6 +362,7 @@ async function task(item) {
         httpStatus: out.status,
         chunkCount: out.sources.length,
         topSimilarity,
+        offerToken: out.offerToken,
         sources: out.sources,
       },
     });
