@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -10,21 +11,42 @@ import {
   SlidersHorizontal,
   MessageSquare,
   LogOut,
+  ChevronRight,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+interface NavItem {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  external?: boolean;
+  /** Rozbalitelná skupina (styl platform.claude.com) — Fáze 17. */
+  children?: { label: string; href: string }[];
+}
+
+const navItems: NavItem[] = [
   { label: "Přehled", href: "/admin", icon: LayoutDashboard },
   { label: "Dokumenty", href: "/admin/documents", icon: FileText },
   { label: "Poptávky", href: "/admin/leads", icon: Inbox },
   { label: "Test retrievalu", href: "/admin/retrieval-test", icon: Search },
-  { label: "Parametry", href: "/admin/parameters", icon: SlidersHorizontal },
+  {
+    label: "Parametry",
+    href: "/admin/parameters",
+    icon: SlidersHorizontal,
+    children: [
+      { label: "RAG parametry", href: "/admin/parameters" },
+      { label: "Prompty", href: "/admin/parameters/prompts" },
+    ],
+  },
   { label: "Chat", href: "/", icon: MessageSquare, external: true },
 ];
 
 export function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  // Explicitní toggly uživatele; bez záznamu platí auto-expand aktivní skupiny.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   function isActive(href: string) {
     if (href === "/admin") return pathname === "/admin";
@@ -50,7 +72,64 @@ export function AdminSidebar() {
       <nav className="flex flex-1 flex-col gap-1 px-3">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const active = !("external" in item) && isActive(item.href);
+
+          if (item.children) {
+            const groupActive = isActive(item.href);
+            const isExpanded = expanded[item.href] ?? groupActive;
+
+            return (
+              <div key={item.href}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpanded((prev) => ({
+                      ...prev,
+                      [item.href]: !isExpanded,
+                    }))
+                  }
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+                    // Rodič skupiny se zvýrazňuje jen textem — accent pozadí
+                    // patří konkrétní aktivní podsekci níže.
+                    groupActive
+                      ? "font-medium text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+                  )}
+                >
+                  <Icon size={18} />
+                  {item.label}
+                  <ChevronRight
+                    size={14}
+                    className={cn(
+                      "ml-auto transition-transform",
+                      isExpanded && "rotate-90"
+                    )}
+                  />
+                </button>
+                {isExpanded &&
+                  item.children.map((child) => {
+                    // Exact match — prefix by rozsvítil „RAG parametry" i na /prompts.
+                    const childActive = pathname === child.href;
+                    return (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className={cn(
+                          "mt-0.5 flex items-center rounded-md py-1.5 pl-[42px] pr-3 text-sm transition-colors",
+                          childActive
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        {child.label}
+                      </Link>
+                    );
+                  })}
+              </div>
+            );
+          }
+
+          const active = !item.external && isActive(item.href);
 
           return (
             <Link

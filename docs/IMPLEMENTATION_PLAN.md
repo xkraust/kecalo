@@ -762,41 +762,41 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ---
 
-## Fáze 17 — Správa promptů v adminu (rozbalitelná sekce Parametry) ⬜
+## Fáze 17 — Správa promptů v adminu (rozbalitelná sekce Parametry) ✅
 
 **Milník:** Systémový prompt chatu (`SYSTEM_PROMPT`) a prompt Haiku shrnutí poptávek (dnes inline `SUMMARY_SYSTEM_PROMPT` v leads route) jsou editovatelné za běhu v admin sekci — bez deploye. Sekce **Parametry** se v sidebaru mění na **rozbalitelnou skupinu** (styl platform.claude.com) s podsekcemi **„RAG parametry"** (dnešní obsah) a **„Prompty"** (nová stránka `/admin/parameters/prompts`).
 
 **Klíčová rozhodnutí (se zadavatelem):** rozbalovací sidebar à la Console · **NULL = výchozí z kódu** — DB sloupce nullable, dokud admin prompt neupraví, platí konstanta v kódu a její vylepšení se propisují s deployi; „Obnovit výchozí" vrací NULL (záměrná odchylka od konvence app_settings NOT NULL+default — kopie v DB by po deployi tiše zastarala).
 
-### Krok 1 — Migrace `013_prompt_settings.sql` ⬜
-- [ ] `app_settings` += `system_prompt text NULL CHECK (≤ 8000)`, `lead_summary_prompt text NULL CHECK (≤ 4000)`; komentář vysvětlující NULL sémantiku; limity = `maxLength` v settings-meta. Aplikace `supabase db push` (uživatel) **před nasazením kódu**
+### Krok 1 — Migrace `013_prompt_settings.sql` ✅
+- [x] `app_settings` += `system_prompt text NULL CHECK (≤ 8000)`, `lead_summary_prompt text NULL CHECK (≤ 4000)`; komentář vysvětlující NULL sémantiku; limity = `maxLength` v settings-meta. Aplikováno `supabase db push` (uživatel) **před nasazením kódu**
 
-### Krok 2 — Přesun summary promptu ⬜
-- [ ] `SUMMARY_SYSTEM_PROMPT` z `api/leads/route.ts` → `export const LEAD_SUMMARY_PROMPT` v `src/lib/rag/prompts.ts` (vč. SEC-9 komentáře); soubor zůstává bez server-only importů → smí ho importovat klient (zobrazení defaultů)
+### Krok 2 — Přesun summary promptu ✅
+- [x] `SUMMARY_SYSTEM_PROMPT` z `api/leads/route.ts` → `export const LEAD_SUMMARY_PROMPT` v `src/lib/rag/prompts.ts` (vč. SEC-9 komentáře); soubor zůstává bez server-only importů → smí ho importovat klient (zobrazení defaultů)
 
-### Krok 3 — Settings vrstva (třetí druh pole: text) ⬜
-- [ ] `settings-meta.ts`: `TextField {key, column, label, description, maxLength, warning?}` + `PROMPT_FIELDS` (2 pole; varování: system prompt — token `[[NABIDKA]]` řídí kartu poptávky a metriku `offer_correct`; summary prompt — SEC-9 formulace, oslabení = prompt injection do admin UI); `SettingsValues` += `systemPrompt`/`leadSummaryPrompt` (`string | null`, override-or-null); `parseTextField` (ne-string/prázdný → null; jinak trim + slice) zapojený do `parseSettingsInput`; `DEFAULT_SETTINGS` += nully
-- [ ] `settings.ts`: `SELECT_COLUMNS`/`SettingsRow`/`fromRow` += 2 sloupce; `saveSettings` += spread `PROMPT_FIELDS`; `/api/settings` beze změny
+### Krok 3 — Settings vrstva (třetí druh pole: text) ✅
+- [x] `settings-meta.ts`: `TextField {key, column, label, description, maxLength, warning?}` + `PROMPT_FIELDS` (2 pole; varování: system prompt — token `[[NABIDKA]]` řídí kartu poptávky a metriku `offer_correct`; summary prompt — SEC-9 formulace, oslabení = prompt injection do admin UI); `SettingsValues` += `systemPrompt`/`leadSummaryPrompt` (`string | null`, override-or-null); `parseTextField` (ne-string/prázdný → null; jinak trim + slice) zapojený do `parseSettingsInput`; `DEFAULT_SETTINGS` += nully
+- [x] `settings.ts`: `SELECT_COLUMNS`/`SettingsRow`/`fromRow` += 2 sloupce; `saveSettings` += spread `PROMPT_FIELDS`; `/api/settings` beze změny
 
-### Krok 4 — Konzumenti ⬜
-- [ ] `chat/route.ts`: `settings.systemPrompt ?? SYSTEM_PROMPT` v `systemWithContext`
-- [ ] `leads/route.ts`: `settings.leadSummaryPrompt ?? LEAD_SUMMARY_PROMPT` v `summarizeConversation`; `<transcript>` wrapping + `sanitizeForTranscript` zůstávají v kódu
+### Krok 4 — Konzumenti ✅
+- [x] `chat/route.ts`: `settings.systemPrompt ?? SYSTEM_PROMPT` v `systemWithContext`
+- [x] `leads/route.ts`: `settings.leadSummaryPrompt ?? LEAD_SUMMARY_PROMPT` v `summarizeConversation`; `<transcript>` wrapping + `sanitizeForTranscript` zůstávají v kódu
 
-### Krok 5 — Rozbalitelný sidebar ⬜
-- [ ] `AdminSidebar.tsx`: `NavItem` += `children?`; „Parametry" → skupina s dětmi „RAG parametry" (`/admin/parameters`) a „Prompty" (`/admin/parameters/prompts`); rodič = button s chevronem (rotate transition), auto-expand při aktivním dítěti; **děti exact match** (jinak by „RAG parametry" svítily i na `/prompts`), rodič jen zvýrazněný text při prefix shodě; sub-linky odsazené, bez nových závislostí
+### Krok 5 — Rozbalitelný sidebar ✅
+- [x] `AdminSidebar.tsx`: `NavItem` += `children?`; „Parametry" → skupina s dětmi „RAG parametry" (`/admin/parameters`) a „Prompty" (`/admin/parameters/prompts`); rodič = button s chevronem (rotate transition), auto-expand při aktivním dítěti; **děti exact match** (jinak by „RAG parametry" svítily i na `/prompts`), rodič jen zvýrazněný text při prefix shodě; sub-linky odsazené, bez nových závislostí
 
-### Krok 6 — Stránka Prompty ⬜
-- [ ] `parameters/prompts/page.tsx` (server, force-dynamic, `getSettings()`) + `client.tsx`: `PromptCard` per pole — badge **Výchozí** (šedá) / **Vlastní** (korálová), `textarea font-mono` s efektivním textem (`values[key] ?? DEFAULTS[key]`), počítadlo znaků, per-card „Obnovit výchozí" (→ null), žluté varování z `field.warning`; **normalizace při save** (text shodný s defaultem po trim → null); patička Uložit + „Uloženo" (vzor parameters/client)
-- [ ] `/admin/parameters`: h1 „Parametry" → „RAG parametry"
+### Krok 6 — Stránka Prompty ✅
+- [x] `parameters/prompts/page.tsx` (server, force-dynamic, `getSettings()`) + `client.tsx`: `PromptCard` per pole — badge **Výchozí** (šedá) / **Vlastní** (korálová), `textarea font-mono` s efektivním textem (`values[key] ?? DEFAULTS[key]`), počítadlo znaků, per-card „Obnovit výchozí" (→ null), žluté varování z `field.warning`; **normalizace při save** (text shodný s defaultem po trim → null); patička Uložit + „Uloženo" (vzor parameters/client)
+- [x] `/admin/parameters`: h1 „Parametry" → „RAG parametry" + **oprava resetu** (Obnovit výchozí na RAG stránce zachovává prompt overridy — jinak by je uložení tiše smazalo)
 
-### Krok 7 — Dokumentace ⬜
-- [ ] CLAUDE.md (stav, routy, strom, datový model app_settings + NULL sémantika, migrace 013, sekce Runtime parametry / Systémový prompt / api-leads) + zaškrtnutí této fáze
+### Krok 7 — Dokumentace ✅
+- [x] CLAUDE.md (stav, routy, strom, datový model app_settings + NULL sémantika, migrace 013, sekce Runtime parametry / Systémový prompt / api-leads) + zaškrtnutí této fáze
 
-### Ověření ⬜
-- [ ] lint + build; migrace aplikovaná
-- [ ] E2E: sidebar (rozbalení, auto-expand, exact active), markerová instrukce v system promptu → okamžitě v odpovědi chatu → reset; úprava summary promptu → shrnutí leadu ji odráží → reset; ruční vrácení textu na default → po uložení badge „Výchozí"; uložení slideru na RAG parametrech nezruší prompt override
-- [ ] API: GET vrací `systemPrompt`/`leadSummaryPrompt` (null/string), POST s null resetuje
-- [ ] Úklid testovacích overridů po ověření
+### Ověření ✅
+- [x] lint + build (jen 2 známé staré nálezy v eval skriptu); migrace aplikovaná
+- [x] E2E (12. 7. 2026): sidebar (rozbalení, auto-expand, exact active — RAG parametry nesvítí na /prompts a naopak), markerová instrukce „zakonči slovem KONTROLA" v system promptu → okamžitě v odpovědi chatu → reset → null; override summary promptu → shrnutí testovacího leadu = „TESTSHRNUTI" → reset; uložení na RAG parametrech prompt override zachovalo (normalizace ručního vrácení na default pokryta logikou handleSave — porovnání po trim)
+- [x] API: GET vrací `systemPrompt`/`leadSummaryPrompt` (null/string), POST s null resetuje (ověřeno)
+- [x] Úklid testovacích overridů i testovacího leadu po ověření
 
 ---
 

@@ -9,7 +9,7 @@ export default async function ParametersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-medium">Parametry</h1>
+        <h1 className="text-xl font-medium">RAG parametry</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Globální nastavení RAG pro chat i test retrievalu. Změny se po uložení
           projeví okamžitě.

@@ -178,7 +178,9 @@ export async function POST(request: Request) {
     }
 
     const contextBlock = buildContextBlock(chunks);
-    const systemWithContext = `${SYSTEM_PROMPT}\n\n<context>\n${contextBlock}\n</context>`;
+    // Runtime override z /admin/parameters/prompts; null = výchozí z kódu (Fáze 17).
+    const systemPrompt = settings.systemPrompt ?? SYSTEM_PROMPT;
+    const systemWithContext = `${systemPrompt}\n\n<context>\n${contextBlock}\n</context>`;
 
     const trimmedMessages = messages.slice(-MAX_HISTORY);
 

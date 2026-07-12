@@ -148,7 +148,13 @@ export function ParametersClient({ initial }: Props) {
   }
 
   function handleReset() {
-    setValues(DEFAULT_SETTINGS);
+    // Reset se týká jen skupin této stránky — prompt overridy (spravované
+    // v podsekci Prompty) musí přežít, jinak by je uložení tiše smazalo.
+    setValues((prev) => ({
+      ...DEFAULT_SETTINGS,
+      systemPrompt: prev.systemPrompt,
+      leadSummaryPrompt: prev.leadSummaryPrompt,
+    }));
     setStatus("idle");
   }
 

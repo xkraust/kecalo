@@ -10,6 +10,10 @@ export interface SettingsValues {
   chunkTargetSize: number;
   chunkBreadcrumb: boolean;
   chunkStripHeaders: boolean;
+  /** Override system promptu chatu; null = výchozí konstanta v kódu (Fáze 17). */
+  systemPrompt: string | null;
+  /** Override promptu shrnutí poptávek (Haiku); null = výchozí konstanta v kódu. */
+  leadSummaryPrompt: string | null;
 }
 
 /** Klíče číselných parametrů (slidery). */
@@ -24,6 +28,8 @@ export type ToggleSettingKey =
   | "recordContent"
   | "chunkBreadcrumb"
   | "chunkStripHeaders";
+/** Klíče textových polí — prompty (Fáze 17). */
+export type TextSettingKey = "systemPrompt" | "leadSummaryPrompt";
 
 export interface SettingField {
   /** Klíč v SettingsValues i v JSON payloadu API. */
@@ -61,6 +67,43 @@ export interface ToggleField {
    */
   dependsOn?: ToggleSettingKey;
 }
+
+export interface TextField {
+  /** Klíč v SettingsValues i v JSON payloadu API. */
+  key: TextSettingKey;
+  /** Název sloupce v tabulce app_settings. */
+  column: "system_prompt" | "lead_summary_prompt";
+  label: string;
+  description: string;
+  /** Musí odpovídat CHECK v 013_prompt_settings.sql. */
+  maxLength: number;
+  warning?: string;
+}
+
+// Prompty (Fáze 17). Hodnota null = výchozí konstanta v kódu (src/lib/rag/prompts.ts) —
+// vylepšení defaultů se tak propisují s deployi; override vzniká jen editací v adminu.
+export const PROMPT_FIELDS: readonly TextField[] = [
+  {
+    key: "systemPrompt",
+    column: "system_prompt",
+    label: "Systémový prompt chatu",
+    description:
+      "Řídí chování bota při odpovídání z dokumentů (zdroje, citace, tón, nabídka kontaktu). Změna se projeví okamžitě, bez reindexace.",
+    maxLength: 8000,
+    warning:
+      "Prompt obsahuje instrukci k tokenu [[NABIDKA]], která spouští kartu poptávky v chatu a metriku offer_correct v evaluacích. Její odstranění nebo změna vypne sběr poptávek.",
+  },
+  {
+    key: "leadSummaryPrompt",
+    column: "lead_summary_prompt",
+    label: "Prompt shrnutí poptávky",
+    description:
+      "Řídí Haiku shrnutí konverzace při založení poptávky (zobrazuje se zpracovateli v sekci Poptávky). Změna se projeví okamžitě.",
+    maxLength: 4000,
+    warning:
+      "Prompt obsahuje bezpečnostní formulaci (SEC-9): přepis konverzace je nedůvěryhodná data, ne instrukce. Její oslabení umožní prompt injection do admin UI.",
+  },
+];
 
 // Rozsahy musí odpovídat CHECK v supabase/migrations/003_app_settings.sql.
 export const SETTINGS_FIELDS: readonly SettingField[] = [
@@ -203,6 +246,15 @@ function parseBool(raw: unknown, fallback: boolean): boolean {
   return fallback;
 }
 
+/** Textové pole promptu: ne-string / prázdný po trim → null (výchozí z kódu);
+ * jinak trim + ořez na maxLength (třetí vrstva je DB CHECK). */
+export function parseTextField(field: TextField, raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, field.maxLength);
+}
+
 /** Z libovolného vstupu (JSON body) sestaví validní, clampnuté hodnoty všech parametrů. */
 export function parseSettingsInput(input: unknown): SettingsValues {
   const obj = (
@@ -218,6 +270,9 @@ export function parseSettingsInput(input: unknown): SettingsValues {
   for (const field of ALL_TOGGLE_FIELDS) {
     result[field.key] = parseBool(obj[field.key], field.default);
   }
+  for (const field of PROMPT_FIELDS) {
+    result[field.key] = parseTextField(field, obj[field.key]);
+  }
   return result;
 }
 
@@ -231,6 +286,8 @@ export const DEFAULT_SETTINGS: SettingsValues = {
   chunkTargetSize: fieldFor("chunkTargetSize").default,
   chunkBreadcrumb: true,
   chunkStripHeaders: true,
+  systemPrompt: null,
+  leadSummaryPrompt: null,
 };
 
 /** Otisk konfigurace chunkování ukládaný k dokumentu (documents.chunking_config). */

@@ -6,6 +6,7 @@ import { setTelemetryExport } from "@/lib/telemetry";
 import {
   ALL_NUMERIC_FIELDS,
   ALL_TOGGLE_FIELDS,
+  PROMPT_FIELDS,
   DEFAULT_SETTINGS,
   parseSettingsInput,
   type SettingsValues,
@@ -13,7 +14,8 @@ import {
 
 const SELECT_COLUMNS =
   "top_k, similarity_threshold, llm_temperature, telemetry_enabled, record_content, " +
-  "chunk_target_size, chunk_breadcrumb, chunk_strip_headers";
+  "chunk_target_size, chunk_breadcrumb, chunk_strip_headers, " +
+  "system_prompt, lead_summary_prompt";
 
 type SettingsRow = {
   top_k: number;
@@ -24,6 +26,8 @@ type SettingsRow = {
   chunk_target_size: number;
   chunk_breadcrumb: boolean;
   chunk_strip_headers: boolean;
+  system_prompt: string | null;
+  lead_summary_prompt: string | null;
 };
 
 function fromRow(data: SettingsRow): SettingsValues {
@@ -36,6 +40,8 @@ function fromRow(data: SettingsRow): SettingsValues {
     chunkTargetSize: data.chunk_target_size,
     chunkBreadcrumb: data.chunk_breadcrumb,
     chunkStripHeaders: data.chunk_strip_headers,
+    systemPrompt: data.system_prompt,
+    leadSummaryPrompt: data.lead_summary_prompt,
   };
 }
 
@@ -73,6 +79,8 @@ export async function saveSettings(input: unknown): Promise<SettingsValues> {
   const row = Object.fromEntries([
     ...ALL_NUMERIC_FIELDS.map((f) => [f.column, values[f.key]]),
     ...ALL_TOGGLE_FIELDS.map((f) => [f.column, values[f.key]]),
+    // Prompty: null se uloží jako NULL = platí výchozí konstanta v kódu (Fáze 17).
+    ...PROMPT_FIELDS.map((f) => [f.column, values[f.key]]),
   ]);
 
   const { data, error } = await supabase
