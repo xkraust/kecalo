@@ -788,6 +788,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 ### Krok 6 — Stránka Prompty ✅
 - [x] `parameters/prompts/page.tsx` (server, force-dynamic, `getSettings()`) + `client.tsx`: `PromptCard` per pole — badge **Výchozí** (šedá) / **Vlastní** (korálová), `textarea font-mono` s efektivním textem (`values[key] ?? DEFAULTS[key]`), počítadlo znaků, per-card „Obnovit výchozí" (→ null), žluté varování z `field.warning`; **normalizace při save** (text shodný s defaultem po trim → null); patička Uložit + „Uloženo" (vzor parameters/client)
 - [x] `/admin/parameters`: h1 „Parametry" → „RAG parametry" + **oprava resetu** (Obnovit výchozí na RAG stránce zachovává prompt overridy — jinak by je uložení tiše smazalo)
+- [x] **Zámek editace (dodatek, 12. 7. 2026):** karta promptu je ve výchozím stavu zamčená (readOnly + hint) — editaci aktivuje **Upravit**, **Zamknout** zahodí neuložené změny (návrat na poslední uložený stav ze `savedValues`), „Obnovit výchozí" jen odemčené, po Uložit se karty opět zamknou. Ochrana proti náhodnému přepsání — overridy nemají historii, „Obnovit výchozí" ztracený vlastní text nevrátí. Ověřeno E2E (readOnly, zahození změn, uložení, reset)
 
 ### Krok 7 — Dokumentace ✅
 - [x] CLAUDE.md (stav, routy, strom, datový model app_settings + NULL sémantika, migrace 013, sekce Runtime parametry / Systémový prompt / api-leads) + zaškrtnutí této fáze

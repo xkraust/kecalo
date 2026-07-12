@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Pencil, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SYSTEM_PROMPT, LEAD_SUMMARY_PROMPT } from "@/lib/rag/prompts";
 import {
@@ -20,13 +21,31 @@ interface PromptCardProps {
   field: TextField;
   /** Override, nebo null = výchozí z kódu. */
   value: string | null;
+  /** Karta je odemčená k editaci (ochrana proti náhodnému přepsání). */
+  editing: boolean;
   disabled: boolean;
   onChange: (key: TextSettingKey, value: string | null) => void;
+  onStartEdit: (key: TextSettingKey) => void;
+  onCancelEdit: (key: TextSettingKey) => void;
 }
 
-function PromptCard({ field, value, disabled, onChange }: PromptCardProps) {
+function PromptCard({
+  field,
+  value,
+  editing,
+  disabled,
+  onChange,
+  onStartEdit,
+  onCancelEdit,
+}: PromptCardProps) {
   const isDefault = value === null;
   const effective = value ?? DEFAULTS[field.key];
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Po odemčení přesunout fokus do textarey.
+  useEffect(() => {
+    if (editing) textareaRef.current?.focus();
+  }, [editing]);
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">
@@ -54,29 +73,64 @@ function PromptCard({ field, value, disabled, onChange }: PromptCardProps) {
             {field.description}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={disabled || isDefault}
-          onClick={() => onChange(field.key, null)}
-        >
-          Obnovit výchozí
-        </Button>
+        <div className="flex shrink-0 gap-1.5">
+          {editing ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              onClick={() => onCancelEdit(field.key)}
+            >
+              <Lock size={14} className="mr-1" />
+              Zamknout
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              onClick={() => onStartEdit(field.key)}
+            >
+              <Pencil size={14} className="mr-1" />
+              Upravit
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={disabled || !editing || isDefault}
+            onClick={() => onChange(field.key, null)}
+          >
+            Obnovit výchozí
+          </Button>
+        </div>
       </div>
 
       <textarea
+        ref={textareaRef}
         value={effective}
         onChange={(e) => onChange(field.key, e.target.value)}
+        readOnly={!editing}
         maxLength={field.maxLength}
         rows={14}
         disabled={disabled}
         aria-label={field.label}
-        className="w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs leading-relaxed outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+        className={
+          "w-full rounded-md border border-input px-3 py-2 font-mono text-xs leading-relaxed outline-none disabled:opacity-50 " +
+          (editing
+            ? "bg-transparent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+            : "cursor-default bg-secondary/30 text-muted-foreground")
+        }
       />
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] text-muted-foreground">
           {effective.length} / {field.maxLength} znaků
         </p>
+        {!editing && (
+          <p className="text-[11px] text-muted-foreground">
+            Prompt je zamčený proti náhodné úpravě — klikněte na Upravit.
+          </p>
+        )}
       </div>
 
       {field.warning && (
@@ -98,12 +152,29 @@ interface Props {
 export function PromptsClient({ initial }: Props) {
   // Celý objekt nastavení — POST posílá vše, číselné hodnoty se nesmí ztratit.
   const [values, setValues] = useState<SettingsValues>(initial);
+  // Poslední uložený stav — „Zamknout" na něj vrací neuložené změny karty.
+  const [savedValues, setSavedValues] = useState<SettingsValues>(initial);
+  const [editing, setEditing] = useState<Record<TextSettingKey, boolean>>({
+    systemPrompt: false,
+    leadSummaryPrompt: false,
+  });
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
   const [error, setError] = useState("");
 
   function update(key: TextSettingKey, value: string | null) {
     setValues((prev) => ({ ...prev, [key]: value }));
+    setStatus("idle");
+  }
+
+  function startEdit(key: TextSettingKey) {
+    setEditing((prev) => ({ ...prev, [key]: true }));
+  }
+
+  function cancelEdit(key: TextSettingKey) {
+    // Zahodit neuložené změny karty a zamknout.
+    setValues((prev) => ({ ...prev, [key]: savedValues[key] }));
+    setEditing((prev) => ({ ...prev, [key]: false }));
     setStatus("idle");
   }
 
@@ -139,6 +210,9 @@ export function PromptsClient({ initial }: Props) {
 
       const saved = (await res.json()) as SettingsValues;
       setValues(saved);
+      setSavedValues(saved);
+      // Po úspěšném uložení se karty opět zamknou.
+      setEditing({ systemPrompt: false, leadSummaryPrompt: false });
       setStatus("saved");
     } catch {
       setError("Chyba připojení");
@@ -156,8 +230,11 @@ export function PromptsClient({ initial }: Props) {
             key={field.key}
             field={field}
             value={values[field.key]}
+            editing={editing[field.key]}
             disabled={saving}
             onChange={update}
+            onStartEdit={startEdit}
+            onCancelEdit={cancelEdit}
           />
         ))}
       </div>
