@@ -4,9 +4,21 @@
 
 Prototypový experiment: nahradit Claude Haiku 4.5 v jedné úzké úloze — shrnutí
 konverzace při založení poptávky, funkce `summarizeConversation()` v
-`src/app/api/leads/route.ts:168-209` — voláním **hostovaného Mistral agenta**
-(`https://console.mistral.ai`, Beta Agents/Conversations API). Vše ostatní (chat, RAG,
+`src/app/api/leads/route.ts:168-209` — voláním Mistralu. Vše ostatní (chat, RAG,
 retrieval, systémový prompt chatu) zůstává na Claude/Anthropicu beze změny.
+
+> **Dvě varianty implementace — vyber jednu:**
+> - **Varianta A — hostovaný agent** (Kroky 0–4 níže): volání **agenta podle ID**
+>   přes `@mistralai/mistralai` + Beta Conversations API. Testuje vhodnost
+>   *hostovaného agenta* (konfigurace promptu mimo git v Mistral konzoli, vestavěné
+>   nástroje). Větší změna; **telemetrická regrese** (mizí generation span, viz Rizika).
+> - **Varianta B — volání modelu** (samostatná sekce na konci): výměna providera na
+>   `@ai-sdk/mistral` ve stávajícím `generateText`. Testuje jen vhodnost Mistral
+>   *modelu* pro úlohu. **~3–4 řádky, telemetrie zůstává beze změny, Krok 0 odpadá.**
+>   Doporučeno jako **první, levný suitability test**, pokud cílem není přímo agent.
+>
+> Kroky 0–4 a jejich Rizika/Verifikace popisují **Variantu A**. Varianta B je
+> autonomní alternativa — když se zvolí, Kroky 0–4 se nepoužijí.
 
 **Zásadní architektonické rozhodnutí (upřesněno v konverzaci):** nejde o prosté volání
 Mistral modelu (`chat/completions`), ale o volání **konkrétního agenta podle ID**
@@ -52,6 +64,39 @@ zobrazena v plném detailu):
 - Agenta si uživatel vytvoří sám v Mistral konzoli/API; kód se odkazuje na jeho ID.
 - Způsob přepnutí: **přepsáno natvrdo** — žádný provider-přepínač/config flag pro návrat
   k Haiku. Experiment; revert = vrátit příslušný commit.
+
+---
+
+## Provozní kontext (mimo rozsah tohoto experimentu): billing per tenant
+
+> **Vědomě odloženo — ve fázi prototypu se neřeší.** Zaznamenáno jen proto, že jde
+> o podstatné rozhodnutí, které se musí udělat na vyšší (produktové/architektonické)
+> úrovni, ne v tomto experimentu. Nemá vliv na kroky 1–4 níže.
+
+**Terminologie (ustálená v konverzaci):**
+- **Zákazník** = provozovatel Kecala (pojišťovna A, B, C…) — subjekt, kterému se účtuje.
+- **Návštěvník / uživatel** = ten, kdo komunikuje s botem.
+
+**Zamýšlený model účtování:** každý zákazník (pojišťovna) má **vlastní Mistral
+workspace + API klíč používaný výhradně jím**. Spotřeba toho workspace pak = přesně
+jeho náklad na Mistralu, přímo přeúčtovatelná (v ideálním případě přeposláním faktury
+za daný workspace). Izolace platí jen dokud klíč nikde jinde neprosákne.
+
+**Proč to není součást tohoto experimentu (a co předpokládá):**
+- **Kecalo je dnes single-tenant** — jedna instance, jeden server-side klíč pro
+  všechny. „Klíč na zákazníka" vyžaduje buď **samostatný deploy na tenanta** (každý
+  svůj env), nebo **tenant-aware výběr klíče per request** — architektonický krok,
+  který dnes neexistuje.
+- **Experiment je tenant-agnostický** — výměna Haiku → Mistral funguje stejně, ať jsou
+  klíče sdílené nebo per-tenant.
+- **Dominantní náklad je Anthropic** (chat/RAG, řádově dražší než toto shrnutí) —
+  reálný per-tenant billing proto potřebuje **tutéž izolaci i na Anthropicu**
+  (vlastní klíč/organizace na pojišťovnu). Tohle shrnutí je jen malý zlomek.
+
+**Alternativa pro jemnější granularitu (kdyby workspace-level souhrn nestačil):**
+zachytávat `usage` **per volání ve vlastní DB**, klíčované na tenanta (real-time,
+per-interakce, exportovatelné pro fakturaci — přesnější než dashboard). Pro prototyp
+není nutné; poznamenáno jako budoucí možnost.
 
 ---
 
@@ -413,8 +458,88 @@ citlivý/interní identifikátor — jen potvrzení, že proces proběhl).
 
 ---
 
+## Varianta B — rychlý test vhodnosti modelu (`@ai-sdk/mistral`)
+
+**Autonomní alternativa k Variantě A (Kroky 0–4).** Když se zvolí B, Kroky 0–4 se
+nepoužijí. Cíl: ověřit, zda je Mistral **model** pro shrnutí kvalitou dostatečný a
+levnější — s minimální změnou a bez ztráty observability. Nezkouší hostovaného agenta
+(žádný `agent_id`, žádná konfigurace v Mistral konzoli); prompt zůstává v kódu/adminu
+jako dnes.
+
+**Proč je to malá změna:** `@ai-sdk/mistral` je provider Vercel AI SDK — zapadá do
+**stávajícího** volání `generateText` v `summarizeConversation`. Mění se jen provider
+modelu; `system`, `prompt`, `temperature`, `maxOutputTokens`, `try/catch`, SEC-9
+sanitizace, `experimental_telemetry` i `record_content` zůstávají **beze změny**. Tím
+pádem **nevzniká telemetrická regrese** z Varianty A — generation span dál emituje AI
+SDK, Langfuse dál ukazuje model, tokeny a (po definici custom modelu) cenu.
+
+### B.1 — Závislost a env
+
+```bash
+npm install @ai-sdk/mistral
+```
+`.env.local`: přidat `MISTRAL_API_KEY=<klíč>`. **Pozn.:** provider `@ai-sdk/mistral`
+čte `MISTRAL_API_KEY` z env **automaticky** (na rozdíl od `@mistralai/mistralai` ve
+Variantě A) — do `config.ts` se klíč zavádět nemusí. Do `.env.example` přidat
+zakomentovaný placeholder. Na Vercelu přidat do **Project** env + redeploy (stejná
+gotcha jako `LANGFUSE_*`).
+
+### B.2 — `src/lib/config.ts`
+
+`summaryModel` **zůstává** (na rozdíl od Varianty A), jen se změní default na Mistral
+model — aby volba modelu zůstala konfigurovatelná přes env:
+```ts
+// Sumarizace konverzace u poptávek — prototypový test Mistral modelu (Varianta B).
+summaryModel: process.env.SUMMARY_MODEL ?? "mistral-small-latest",
+```
+(Env proměnná `SUMMARY_MODEL` a řádek tak přežívají; `.env.example` komentář jen
+přeznačit z Haiku na Mistral. Úklid `SUMMARY_MODEL` z Varianty A se **neprovádí**.)
+
+### B.3 — `src/app/api/leads/route.ts`
+
+Import na řádku 1 `import { anthropic } from "@ai-sdk/anthropic";` nahradit za
+`import { mistral } from "@ai-sdk/mistral";`. `generateText` z `ai` (řádek 2)
+**zůstává**. Uvnitř `summarizeConversation` změnit jediný řádek volání:
+```ts
+model: anthropic(config.summaryModel),   // →
+model: mistral(config.summaryModel),
+```
+Vše ostatní v bloku `generateText({ ... })` (system, prompt, temperature,
+maxOutputTokens, experimental_telemetry, setAttributes usage) **beze změny** — usage
+z AI SDK má stabilní tvar (`inputTokens`/`outputTokens`), takže span atributy
+`llm.input_tokens`/`llm.output_tokens` fungují dál bez ověřování (na rozdíl od
+Varianty A).
+
+### B.4 — Dokumentace a texty
+
+- `CLAUDE.md`: v tabulce env i technologickém stacku změnit „shrnutí poptávek: Haiku"
+  → „shrnutí poptávek: Mistral model (`SUMMARY_MODEL`, default `mistral-small-latest`,
+  přes `@ai-sdk/mistral`) — prototypový test, viz tento dokument". Zmínky o Haiku u
+  shrnutí (řádky dle Kroku 4.2) přeznačit; historické dokumenty se nepřepisují.
+- Komentáře „(Haiku)" v `settings-meta.ts:15,101` a `prompts.ts:40` přeznačit jako
+  v Kroku 3.4.
+
+### B.5 — Verifikace (Varianta B)
+
+1. `npm run lint` + `npm run build` — bez nových chyb.
+2. E2E test obou variant leadu (produkt/hodnocení) → `summary` vyplněné, česky, věcné.
+3. Chybová cesta: zneplatnit `MISTRAL_API_KEY` → lead vznikne, `summary = null`.
+4. **Telemetrie:** v Langfuse span `lead.summarize` **je i nadále generace** s modelem
+   `mistral-small-latest`, tokeny a (po definici custom modelu v Langfuse — stejná
+   gotcha jako `voyage-3.5`) cenou. `record_content` řídí I/O panely jako dřív.
+5. SEC-9 test prompt injection (jako A.5).
+6. Runtime override promptu z `/admin/parameters/prompts` se v `summary` projeví.
+7. Úklid testovacích leadů + vrácení změn promptu v adminu.
+
+---
+
 ## Stav
 
-⬜ Neimplementováno — čeká na krok 0 (uživatel vytvoří agenta v Mistral konzoli a
-předá `MISTRAL_API_KEY`/`MISTRAL_AGENT_ID`), poté na schválení a zahájení
-implementace kroků 1–4.
+⬜ Neimplementováno — uživatel zatím k implementaci nepřistupuje.
+
+- **Varianta A (agent):** čeká na Krok 0 (uživatel vytvoří agenta v Mistral konzoli a
+  předá `MISTRAL_API_KEY`/`MISTRAL_AGENT_ID`), poté na schválení a Kroky 1–4.
+- **Varianta B (model):** připravena; lze spustit bez prerekvizit (stačí
+  `MISTRAL_API_KEY`). Doporučena jako první, levný suitability test.
+- **Billing per tenant:** vědomě odloženo (viz „Provozní kontext") — mimo tento
+  experiment, rozhodnutí na produktové/architektonické úrovni.
