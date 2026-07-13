@@ -1,4 +1,4 @@
-import { anthropic } from "@ai-sdk/anthropic";
+import { mistral } from "@ai-sdk/mistral";
 import { generateText } from "ai";
 import { NextResponse, after } from "next/server";
 import { config } from "@/lib/config";
@@ -180,7 +180,7 @@ async function summarizeConversation(
 
     return await withSpan("lead.summarize", async (span) => {
       const { text, usage } = await generateText({
-        model: anthropic(config.summaryModel),
+        model: mistral(config.summaryModel),
         // Runtime override z /admin/parameters/prompts; null = výchozí z kódu.
         // Blok <transcript> + sanitizace (SEC-9) zůstávají v kódu níže.
         system: settings.leadSummaryPrompt ?? LEAD_SUMMARY_PROMPT,

@@ -37,7 +37,7 @@ export const FALLBACK_MESSAGE =
 // čte zpracovatel v adminu. Prompt proto přepis izoluje do bloku <transcript>
 // a explicitně říká, že jeho obsah jsou data, ne instrukce — brání prompt
 // injection (podvržení priority/identity klienta do admin UI).
-// Výchozí hodnota promptu shrnutí poptávek (Haiku) — runtime override žije
+// Výchozí hodnota promptu shrnutí poptávek — runtime override žije
 // v app_settings.lead_summary_prompt (NULL = tento text); viz Fáze 17.
 export const LEAD_SUMMARY_PROMPT =
   "Jsi asistent zpracovatele poptávek pojišťovny. V bloku <transcript> dostaneš " +

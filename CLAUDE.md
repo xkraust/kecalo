@@ -14,6 +14,8 @@ Fáze 0–17 jsou **hotové a ověřené end-to-end** (poslední: Fáze 17 — s
 
 Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživatel nahraje přes admin UI) a fallback otázky mimo bázi dál vracejí chunky nad prahem 0,35 (čisté odmítnutí zajišťuje systémový prompt; případně zvýšit práh v `/admin/parameters`).
 
+**Probíhající experiment (mimo číslované fáze):** shrnutí poptávek přepnuto z Claude Haiku na Mistral model (`mistral-small-latest` přes `@ai-sdk/mistral`) — prototypový test levnějšího modelu, Varianta B dle `docs/mistral_summary_experiment_plan.md`. **Hotové a E2E ověřené** (13. 7. 2026): happy-path vrací věcné české shrnutí, SEC-9 injection drží, v Langfuse zachován generation span s modelem `mistral-small-latest` a tokeny (cena = 0, dokud se model nedefinuje v Langfuse — stejné jako `voyage-3.5`). Telemetrie beze změny (generation span dál z AI SDK, protože `@ai-sdk/mistral` je provider Vercel AI SDK). Chat, RAG i retrieval zůstávají na Claude/Anthropicu. `MISTRAL_API_KEY` je nasazený i na Vercel Project env. Volitelně zbývá jen definovat `mistral-small-latest` v Langfuse Settings → Models kvůli výpočtu ceny.
+
 Podrobná historie fází, měření a průběžný stav: `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
@@ -25,7 +27,7 @@ Podrobná historie fází, měření a průběžný stav: `docs/IMPLEMENTATION_P
 - **Framework:** Next.js 16 (App Router) + React 19 + TypeScript, adresářová struktura se `src/`
 - **UI:** Tailwind CSS v4 (konfigurace přes `@theme` v `globals.css`, bez `tailwind.config.ts`) + shadcn/ui
 - **AI orchestrace:** Vercel AI SDK (`useChat`, streamování)
-- **LLM:** Claude API — `claude-sonnet-4-6` (chat); `claude-haiku-4-5` (shrnutí poptávek — levnější kompresní úloha)
+- **LLM:** Claude API — `claude-sonnet-4-6` (chat); shrnutí poptávek běží přes Mistral `mistral-small-latest` (`@ai-sdk/mistral`) — prototypový test levnějšího modelu (Varianta B, viz `docs/mistral_summary_experiment_plan.md`)
 - **Embeddingy:** Voyage AI — `voyage-3.5` (1024 dimenzí)
 - **Vektorová DB + úložiště:** Supabase (Postgres + rozšíření pgvector + Storage)
 - **Parsování PDF:** `unpdf`
@@ -111,7 +113,8 @@ Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabas
 | `SIMILARITY_THRESHOLD` | Výchozí práh kosinové podobnosti (0.35) |
 | `LLM_TEMPERATURE` | Výchozí teplota Claude (0.2) |
 | `CHAT_MODEL` | Model pro chat (volitelný, default `claude-sonnet-4-6`) |
-| `SUMMARY_MODEL` | Model pro shrnutí poptávek (volitelný, default `claude-haiku-4-5`) |
+| `MISTRAL_API_KEY` | Mistral API klíč pro shrnutí poptávek (prototypový test — Varianta B; chybějící → shrnutí degraduje na `null`, lead se uloží; čte ho `@ai-sdk/mistral` z env) |
+| `SUMMARY_MODEL` | Model pro shrnutí poptávek (volitelný, default `mistral-small-latest`, přes `@ai-sdk/mistral`) |
 | `LANGFUSE_SECRET_KEY` | Langfuse server klíč (volitelný — bez něj app funguje, jen se neloguje) |
 | `LANGFUSE_PUBLIC_KEY` | Langfuse veřejný klíč (volitelný) |
 | `LANGFUSE_BASE_URL` | URL Langfuse instance (default `https://cloud.langfuse.com`) |
@@ -141,7 +144,7 @@ POST   /api/retrieval-test      → vrátí top-k chunků se skóre (pouze admin
 GET    /api/settings            → vrátí aktuální runtime parametry + přepínače telemetrie z DB
 POST   /api/settings            → uloží globální runtime parametry RAG do app_settings
 POST   /api/feedback            → uloží zpětnou vazbu (thumbs up/down); limity vstupu + rate limit 10/min
-POST   /api/leads               → uloží poptávku (veřejné); rate limit 5/min, pole `type` (`produkt`/`hodnoceni`, default `produkt`; jiná hodnota → 400), deduplikace podle kontaktu **v rámci téhož typu**, Haiku shrnutí konverzace pro oba typy (prompt `LEAD_SUMMARY_PROMPT` z `lib/rag/prompts.ts`, runtime override v `app_settings.lead_summary_prompt`; přepis izolován v bloku <transcript> jako nedůvěryhodný vstup — oprava SEC-9, wrapping i sanitizace zůstávají v kódu)
+POST   /api/leads               → uloží poptávku (veřejné); rate limit 5/min, pole `type` (`produkt`/`hodnoceni`, default `produkt`; jiná hodnota → 400), deduplikace podle kontaktu **v rámci téhož typu**, shrnutí konverzace pro oba typy Mistral modelem (`@ai-sdk/mistral`, `SUMMARY_MODEL` default `mistral-small-latest` — prototypový test, Varianta B; prompt `LEAD_SUMMARY_PROMPT` z `lib/rag/prompts.ts`, runtime override v `app_settings.lead_summary_prompt`; přepis izolován v bloku <transcript> jako nedůvěryhodný vstup — oprava SEC-9, wrapping i sanitizace zůstávají v kódu)
 PATCH  /api/leads/[id]          → změna stavu poptávky (pouze admin): in_progress/closed; 400/404/409
 POST   /api/auth/login          → ověření username + password, nastavení session cookie
 POST   /api/auth/logout         → smazání session cookie
@@ -173,7 +176,7 @@ src/
 │       ├── documents/route.ts
 │       ├── documents/[id]/route.ts
 │       ├── documents/[id]/reprocess/route.ts  # reindexace bez re-uploadu
-│       ├── leads/route.ts            # POST poptávka (veřejné) + Haiku shrnutí + deduplikace
+│       ├── leads/route.ts            # POST poptávka (veřejné) + shrnutí (Mistral) + deduplikace
 │       ├── leads/[id]/route.ts       # PATCH stav poptávky (admin)
 │       ├── retrieval-test/route.ts
 │       ├── settings/route.ts
@@ -306,7 +309,7 @@ leads (id uuid PK, name text, email text NULL, phone text NULL, note text NULL,
        created_at timestamptz, updated_at timestamptz)
 -- poptávky (lead generation, Fáze 14); CHECK (email OR phone) — aspoň jeden kontakt
 -- note ≤ 5000 (limit 500/poznámka vynucuje API; sloupec vyšší kvůli připojování při dedup)
--- summary = Haiku shrnutí konverzace (nahrazuje surový dotaz); RLS zapnuté (migrace 010)
+-- summary = shrnutí konverzace Mistral modelem (nahrazuje surový dotaz); RLS zapnuté (migrace 010)
 -- type (migrace 012, Fáze 16): 'produkt' = zájem o produkt (token [[NABIDKA]]),
 --   'hodnoceni' = kontakt zanechaný po palci dolů; deduplikace je type-scoped
 -- poptávky se nemažou — uzavření jen nastaví status closed
@@ -339,7 +342,7 @@ Parametry laditelné za běhu bez redeploye. **Pozor na zásadní rozdíl:** par
 | `chunk_breadcrumb` | bool | breadcrumb hlavička na začátku chunku (při indexaci) |
 | `chunk_strip_headers` | bool | odstraňování záhlaví/patiček stránek (při indexaci) |
 | `system_prompt` | text ≤ 8000, NULL = výchozí | system prompt chatu (při dotazu; Fáze 17) |
-| `lead_summary_prompt` | text ≤ 4000, NULL = výchozí | prompt Haiku shrnutí poptávek (při založení leadu) |
+| `lead_summary_prompt` | text ≤ 4000, NULL = výchozí | prompt shrnutí poptávek (Mistral model; při založení leadu) |
 
 - **Úložiště:** jednořádková tabulka `app_settings` (id = 1), migrace `003_app_settings.sql` (+ `006`, `008`, `013`).
 - **Server:** `lib/settings.ts` — `getSettings()` (čte přes service-role klienta; fallback na env `config` / tovární defaulty při chybějící tabulce / chybě DB) a `saveSettings()` (validace + clamp + uložení).

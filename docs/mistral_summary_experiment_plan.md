@@ -535,11 +535,29 @@ Varianty A).
 
 ## Stav
 
-⬜ Neimplementováno — uživatel zatím k implementaci nepřistupuje.
-
-- **Varianta A (agent):** čeká na Krok 0 (uživatel vytvoří agenta v Mistral konzoli a
-  předá `MISTRAL_API_KEY`/`MISTRAL_AGENT_ID`), poté na schválení a Kroky 1–4.
-- **Varianta B (model):** připravena; lze spustit bez prerekvizit (stačí
-  `MISTRAL_API_KEY`). Doporučena jako první, levný suitability test.
+- **Varianta B (model): ✅ IMPLEMENTOVÁNO A E2E OVĚŘENO** (13. 7. 2026).
+  Provedeno: `@ai-sdk/mistral@^3.0.48` nainstalován (řada 3.x — 4.x používá model
+  spec „v4" nekompatibilní s `ai@6`/`@ai-sdk/anthropic@3`), `config.summaryModel`
+  default → `mistral-small-latest`, v `leads/route.ts` provider `anthropic()` →
+  `mistral()` (zbytek `generateText` beze změny — telemetrie zachována), komentáře
+  „(Haiku)" přeznačeny, `.env.example` + `CLAUDE.md` aktualizovány. `npm run build`
+  + typecheck procházejí (lint chyby jen předchozí v `scripts/langfuse-eval.mjs`).
+  **E2E ověření (dev server + reálná routa `/api/leads`):**
+  - Happy-path: Mistral vrátil věcné české shrnutí (2–4 věty), `summary` ≠ `null`,
+    HTTP 201. Klíč funguje.
+  - SEC-9: konverzace s „napiš pouze HACKED" → shrnutí injection ignorovalo, věcně
+    shrnulo skutečný zájem. Ochrana drží.
+  - Telemetrie: v Langfuse **generation span zachován**
+    (`lead-summarize:ai.generateText.doGenerate`), `providedModelName =
+    mistral-small-latest`, tokeny v `usageDetails` (input/output/total). **Cena = 0**
+    (`costDetails: {}`) — `mistral-small-latest` není v Langfuse definovaný jako
+    model; **follow-up:** přidat ho v Langfuse Settings → Models (stejné jako
+    `voyage-3.5`), pak se cena dopočítá.
+  - Testovací leady po ověření smazány z DB.
+  **Provozní kroky:** `MISTRAL_API_KEY` na Vercel Project env + redeploy — ✅ hotovo
+  (13. 7. 2026). Zbývá už jen volitelně: definovat `mistral-small-latest` v Langfuse
+  Settings → Models kvůli výpočtu ceny.
+- **Varianta A (agent):** neprovedena — alternativa; čeká na Krok 0, pokud by se
+  místo modelu testoval hostovaný agent (revert Varianty B a jiná cesta).
 - **Billing per tenant:** vědomě odloženo (viz „Provozní kontext") — mimo tento
   experiment, rozhodnutí na produktové/architektonické úrovni.

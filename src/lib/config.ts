@@ -13,8 +13,10 @@ export const config = {
   anthropicApiKey: required("ANTHROPIC_API_KEY"),
   voyageApiKey: required("VOYAGE_API_KEY"),
   chatModel: process.env.CHAT_MODEL ?? "claude-sonnet-4-6",
-  // Sumarizace konverzace u poptávek — jednoduchá kompresní úloha, stačí Haiku.
-  summaryModel: process.env.SUMMARY_MODEL ?? "claude-haiku-4-5",
+  // Sumarizace konverzace u poptávek — prototypový test Mistral modelu (Varianta B,
+  // viz docs/mistral_summary_experiment_plan.md). Levnější kompresní úloha; volá se
+  // přes @ai-sdk/mistral, klíč MISTRAL_API_KEY čte provider z env automaticky.
+  summaryModel: process.env.SUMMARY_MODEL ?? "mistral-small-latest",
   topK: parseInt(process.env.TOP_K ?? "5", 10),
   similarityThreshold: parseFloat(process.env.SIMILARITY_THRESHOLD ?? "0.35"),
   llmTemperature: parseFloat(process.env.LLM_TEMPERATURE ?? "0.2"),

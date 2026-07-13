@@ -12,7 +12,7 @@ export interface SettingsValues {
   chunkStripHeaders: boolean;
   /** Override system promptu chatu; null = výchozí konstanta v kódu (Fáze 17). */
   systemPrompt: string | null;
-  /** Override promptu shrnutí poptávek (Haiku); null = výchozí konstanta v kódu. */
+  /** Override promptu shrnutí poptávek; null = výchozí konstanta v kódu. */
   leadSummaryPrompt: string | null;
 }
 
@@ -98,7 +98,7 @@ export const PROMPT_FIELDS: readonly TextField[] = [
     column: "lead_summary_prompt",
     label: "Prompt shrnutí poptávky",
     description:
-      "Řídí Haiku shrnutí konverzace při založení poptávky (zobrazuje se zpracovateli v sekci Poptávky). Změna se projeví okamžitě.",
+      "Řídí shrnutí konverzace při založení poptávky (Mistral model; zobrazuje se zpracovateli v sekci Poptávky). Změna se projeví okamžitě.",
     maxLength: 4000,
     warning:
       "Prompt obsahuje bezpečnostní formulaci (SEC-9): přepis konverzace je nedůvěryhodná data, ne instrukce. Její oslabení umožní prompt injection do admin UI.",
