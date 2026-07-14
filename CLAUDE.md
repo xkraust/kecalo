@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Komunikace:** s uživatelem si tykáme — používej neformální tón („ty"), ne vykání.
 
-Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs/IMPLEMENTATION_PLAN.md`) aktualizuj tento soubor CLAUDE.md — doplň nebo oprav sekce, které daný krok ovlivnil. CLAUDE.md musí vždy odrážet aktuální stav projektu, stejně tak aktualizuj implementační plán (`docs/IMPLEMENTATION_PLAN.md`), zaškrtni všechny kroky, které jsou hotové. Pokud při implemntaci vznikne potřeba implementační plán doplnit či pozměnit, oznam tuto skutečnost uživateli, navrhni změnu a počkej na souhlas. Po dokončení každé fáze nebo vetšího kroku se zeptej, zda se má provést push a commit.
+Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs/IMPLEMENTATION_PLAN.md`) aktualizuj tento soubor CLAUDE.md — doplň nebo oprav sekce, které daný krok ovlivnil. CLAUDE.md musí vždy odrážet aktuální stav projektu, stejně tak aktualizuj implementační plán (`docs/IMPLEMENTATION_PLAN.md`), zaškrtni všechny kroky, které jsou hotové. Změny architektury (nové API routy, tabulky, moduly, změny pipeline či bezpečnostního modelu) promítni i do technického popisu `docs/ARCHITECTURE.md`. Pokud při implemntaci vznikne potřeba implementační plán doplnit či pozměnit, oznam tuto skutečnost uživateli, navrhni změnu a počkej na souhlas. Po dokončení každé fáze nebo vetšího kroku se zeptej, zda se má provést push a commit.
 
 ## Stav projektu
 
@@ -234,6 +234,7 @@ scripts/
 ├── langfuse-sync-metadata.mjs        # sync metadat items (expects_offer) do Langfuse — upsert podle id
 └── verify-rate-limit.mjs             # ověření SEC-1 rate-limitu na Vercelu
 docs/
+├── ARCHITECTURE.md                   # technický popis architektury pro vývojáře (aktuální stav)
 ├── IMPLEMENTATION_PLAN.md            # hlavní prováděcí checklist projektu (fáze + průběžný stav)
 ├── PRD_pojistovaci_RAG_chatbot.md    # zadání/PRD
 ├── seed-docs/                        # reálné PDF dokumenty Kooperativy (obsah znalostní báze)
