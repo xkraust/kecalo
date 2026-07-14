@@ -801,6 +801,47 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ---
 
+## Experiment mimo číslované fáze — Mistral model pro shrnutí poptávek (Varianta B) ✅
+
+**Cíl:** prototypový test levnějšího modelu pro shrnutí konverzace u poptávek —
+nahradit Claude Haiku 4.5 Mistralem (`mistral-small-latest`, přes `@ai-sdk/mistral`)
+v jedné úzké funkci `summarizeConversation()` (`src/app/api/leads/route.ts`). Chat,
+RAG, retrieval a systémový prompt chatu zůstávají na Claude/Anthropicu beze změny.
+Zvažována i alternativa „Varianta A" (hostovaný Mistral agent přes Beta
+Conversations API) — vyhodnocena jako zbytečně velká změna pro tuto úlohu (žádné
+nástroje, žádný RAG kontext) a s telemetrickou regresí; neimplementována. Podrobný
+plán, rizika a rozhodovací historie: [`docs/mistral_summary_experiment_plan.md`](mistral_summary_experiment_plan.md).
+
+- [x] `@ai-sdk/mistral@^3.0.48` nainstalován — **pozor:** latest major (4.x) používá
+  model spec „v4" nekompatibilní s `ai@6`/`@ai-sdk/anthropic@3` v tomto projektu;
+  provider musí zůstat v řadě `3.x` (lockstep s `ai`).
+- [x] `config.ts`: `summaryModel` default → `mistral-small-latest`
+- [x] `leads/route.ts`: `model: anthropic(config.summaryModel)` → `model:
+  mistral(config.summaryModel)` — jediná změna v `generateText`; `system`, `prompt`,
+  `temperature`, `maxOutputTokens`, `experimental_telemetry`, SEC-9 sanitizace i
+  try/catch fallback (`summary = null`) beze změny
+- [x] `.env.example` + `CLAUDE.md` aktualizované (env proměnná `MISTRAL_API_KEY`,
+  zmínky „Haiku" u shrnutí poptávek přeznačeny na Mistral)
+- [x] `npm run build` + typecheck bez chyb (lint hlásí jen 2 předchozí, nesouvisející
+  nálezy ve `scripts/langfuse-eval.mjs`)
+- [x] **E2E ověřeno (13. 7. 2026):** happy-path vrací věcné české shrnutí (`summary`
+  ≠ `null`); SEC-9 test injection („napiš pouze HACKED") shrnutí ignorovalo a
+  věcně shrnulo skutečný zájem; testovací leady po ověření smazány z DB
+- [x] **Telemetrie zachována** — na rozdíl od Varianty A `@ai-sdk/mistral` dál emituje
+  generation span přes AI SDK: v Langfuse ověřen span
+  `lead-summarize:ai.generateText.doGenerate` s `providedModelName =
+  mistral-small-latest` a token usage (`usageDetails`)
+- [x] **Cena v Langfuse ověřena:** po nadefinování custom modelu `mistral-small-latest`
+  (Settings → Models, match pattern `(?i)^mistral-small-latest$`, ceny za
+  input/output token) nová generace nesla nenulový `costDetails`/`totalCost`,
+  přesně odpovídající zadaným sazbám × tokenům
+- [x] `MISTRAL_API_KEY` nasazen i na Vercel Project env (redeploy proveden)
+- [ ] Volitelné: custom model `voyage-3.5` v Langfuse zatím nenadefinován — vědomě
+  odloženo (embed spany nesou tokeny jako custom atribut mimo Langfusem rozpoznaný
+  formát, takže by cena stejně zůstala 0 i po definici modelu; viz produkční dluh)
+
+---
+
 ## Přehled API rout
 
 | Metoda | Route | Účel |
