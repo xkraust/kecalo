@@ -16,6 +16,8 @@ Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživat
 
 **Probíhající experiment (mimo číslované fáze):** shrnutí poptávek přepnuto z Claude Haiku na Mistral model (`mistral-small-latest` přes `@ai-sdk/mistral`) — prototypový test levnějšího modelu, Varianta B dle `docs/plans/mistral_summary_experiment_plan.md`. **Hotové a E2E ověřené** (13. 7. 2026): happy-path vrací věcné české shrnutí, SEC-9 injection drží, v Langfuse zachován generation span s modelem `mistral-small-latest` a tokeny (cena = 0, dokud se model nedefinuje v Langfuse — stejné jako `voyage-3.5`). Telemetrie beze změny (generation span dál z AI SDK, protože `@ai-sdk/mistral` je provider Vercel AI SDK). Chat, RAG i retrieval zůstávají na Claude/Anthropicu. `MISTRAL_API_KEY` je nasazený i na Vercel Project env. Volitelně zbývá jen definovat `mistral-small-latest` v Langfuse Settings → Models kvůli výpočtu ceny.
 
+**Widget mini Kecalo (mimo číslované fáze):** vysouvací chat widget v rohu obrazovky (bublina → panel) na nové demo stránce `/demo`, která simuluje web „Pojišťovny Jistota" — dle `docs/plans/widget_mini_kecalo_plan.md`. **Hotové a E2E ověřené** (14. 7. 2026): chatová logika vytažena do sdíleného hooku `useKecaloChat()` a komponenty `ChatMessages` (fullscreen `/` beze změny chování), nová komponenta `ChatWidget` (panel vždy namountovaný — konverzace i běžící stream přežijí minimalizaci). Ověřeno stream/zdroje/karta poptávky (obě varianty)/persistence/mobilní šířka/konzole bez chyb. Žádná nová API routa ani útočná plocha — widget používá jen existující veřejné routy. Fáze 2 (embeddovatelný widget na cizí web přes `/widget` + `public/embed.js`) zůstává vědomě neimplementovaná.
+
 Podrobná historie fází, měření a průběžný stav: `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
@@ -126,7 +128,8 @@ Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabas
 ### Stránky a API routy
 
 ```
-/                       → Chat UI (hook useChat, streamování, blok zdrojů, disclaimer)
+/                       → Chat UI (hook useKecaloChat, streamování, blok zdrojů, disclaimer)
+/demo                   → Demo stránka „Pojišťovny Jistota" s vysouvacím widgetem ChatWidget
 /admin                  → Dashboard (přehled znalostní báze — metrické karty + grafy)
 /admin/documents        → Upload + tabulka dokumentů
 /admin/leads            → Poptávky (tabulka + akce Převzít/Uzavřít)
@@ -157,7 +160,8 @@ src/
 ├── proxy.ts                          # ochrana /admin + admin API rout (session cookie; API → 401)
 ├── instrumentation.ts                # registrace OTel provideru + Langfuse processoru (Node.js runtime)
 ├── app/
-│   ├── page.tsx                      # Chat UI
+│   ├── page.tsx                      # Chat UI (fullscreen)
+│   ├── demo/page.tsx                 # Demo stránka „Pojišťovny Jistota" s <ChatWidget />
 │   ├── admin/
 │   │   ├── login/page.tsx            # Login (mimo route group — nechráněno)
 │   │   └── (authenticated)/         # route group chráněná proxy vrstvou
@@ -183,7 +187,9 @@ src/
 │       ├── feedback/route.ts
 │       └── auth/{login,logout}/route.ts
 ├── components/
-│   ├── MessageBubble.tsx
+│   ├── MessageBubble.tsx              # vrací null pro prázdný content (vyhne se dvojité bublině s tečkami)
+│   ├── ChatMessages.tsx               # scrollovatelná oblast zpráv, sdílená mezi / a widgetem (prop compact)
+│   ├── ChatWidget.tsx                 # vysouvací widget: bublina v rohu → panel, vždy namountovaný
 │   ├── SourcesBlock.tsx
 │   ├── LeadForm.tsx                  # karta poptávky pod odpovědí (varianty produkt/hodnoceni)
 │   ├── UploadZone.tsx
@@ -197,6 +203,7 @@ src/
 │   ├── ChunksByDocChart.tsx          # graf chunků (CSS bary)
 │   └── ui/                           # shadcn/ui primitiva
 └── lib/
+    ├── use-kecalo-chat.ts             # hook useKecaloChat() — sdílená chat logika (/ i ChatWidget)
     ├── config.ts                     # konstanty z env, default hodnoty
     ├── telemetry.ts                  # OTel: singleton span processoru + withSpan/getTracer/flushTelemetry
     ├── supabase.ts                   # Supabase client (service role)
@@ -274,6 +281,19 @@ Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4
 **Systémový prompt** (`prompts.ts`; od Fáze 17 **runtime editovatelný** v `/admin/parameters/prompts` — chat používá `settings.systemPrompt ?? SYSTEM_PROMPT`, NULL = výchozí z kódu): bot odpovídá výhradně z poskytnutých chunků, česky, v každé odpovědi cituje zdrojový dokument, neposkytuje poradenství nad rámec citovaných podmínek a nesjednává produkty. U dotazů na konkrétní pojistný produkt — včetně procedurálně formulovaných dotazů na krytí/limity/výluky a dotazů na cenu či sjednání (ty i při nenalezené informaci) — přidá na úplný konec odpovědi samostatný řádek s tokenem `[[NABIDKA]]`; u administrativních dotazů a ostatních odpovědí bez nalezené informace nikdy — klient token z textu odstraní a místo něj vykreslí kartu poptávky (`LeadForm` varianta `produkt`); viz Fáze 14 / `docs/plans/lead_generation_plan.md`.
 
 **Zpětná vazba u odpovědi** (`MessageBubble.tsx`, Fáze 16): palec nahoru → inline poděkování; palec dolů → karta `LeadForm` varianta `hodnoceni` (vlídnější text, lead typu `hodnoceni`). Když je u zprávy už produktová karta (token `[[NABIDKA]]`), palec dolů druhou kartu nevykresluje — jen krátké poděkování (kontakt sbírá produktová). Hlas se vždy ukládá do `/api/feedback` beze změny. Viz `docs/plans/lead_generation_plan.md` (Fáze 2 / Fáze 16).
+
+### Chat UI — fullscreen `/` a widget (mimo číslované fáze, `docs/plans/widget_mini_kecalo_plan.md`)
+
+Chatová logika je sdílená mezi fullscreen stránkou a vysouvacím widgetem přes jeden hook, aby se každá oprava propsala do obou:
+
+- `src/lib/use-kecalo-chat.ts` — hook `useKecaloChat()`: stav zpráv, streamování z `POST /api/chat`, strip tokenu `[[NABIDKA]]`, `getSessionId`, feedback, nová konverzace s abortem, auto-scroll. Kód je doslovný přesun z původního `page.tsx` (fáze refactoru byla ověřená kontrolním bodem před psaním widgetu — žádná regrese ve streamování).
+- `src/components/ChatMessages.tsx` — scrollovatelná oblast zpráv (prázdný stav, vzorové otázky, mapování na `MessageBubble`); prop `compact` pro menší widget layout.
+- `src/app/page.tsx` (`/`) — skelet nad hookem + `<ChatMessages />`, beze změny chování oproti stavu před refactorem.
+- `src/components/ChatWidget.tsx` — vysouvací widget: bublina 56 px v rohu (`fixed bottom-4 right-4`) → panel `380×600px` s korálovou hlavičkou. Panel je **vždy namountovaný**, přepínání čistě CSS (`opacity/translate/scale` + `inert`/`aria-hidden`) — konverzace i běžící stream přežijí minimalizaci (na rozdíl od „Nová konverzace", která stream abortuje).
+- `src/app/demo/page.tsx` (`/demo`) — statická demo stránka „Pojišťovny Jistota" s `<ChatWidget />`, simuluje nasazení na reálném webu pojišťovny; veřejná stránka mimo proxy vrstvu.
+- `MessageBubble.tsx` vrací `null` pro prázdný `content` — jinak by se u asistentské zprávy těsně po odeslání (než dorazí první token streamu) zobrazila prázdná bublina zároveň s „píšícími" tečkami z `ChatMessages`.
+
+Widget nepřidává žádnou API routu ani útočnou plochu — používá výhradně existující veřejné routy (`/api/chat`, `/api/feedback`, `POST /api/leads`) se stávajícími rate limity. Fáze 2 (embeddovatelný widget na cizí web přes `/widget` + `public/embed.js`) je vědomě odložená — viz „Výhled fáze 2" v plánu.
 
 ## Datový model
 

@@ -40,6 +40,11 @@ export function MessageBubble({
     );
   }
 
+  // Prázdná asistentská zpráva (těsně po odeslání, než dorazí první token)
+  // se nevykresluje — „píšící" tečky v ChatMessages ji reprezentují, jinak
+  // by se zobrazila prázdná bublina zároveň s tečkami.
+  if (!content) return null;
+
   const showFeedback =
     content.length > 0 && messageIndex !== undefined && onFeedback;
 

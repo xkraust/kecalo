@@ -142,7 +142,23 @@ Parametry se ladí za běhu v `/admin/parameters` (+ podsekce `/admin/parameters
 
 **Evaluace (`npm run eval`):** [`scripts/langfuse-eval.mjs`](../scripts/langfuse-eval.mjs) prožene otázky z Langfuse datasetů nasazeným `/api/chat` a založí experiment s deterministickými skóre (`fallback_correct`, `retrieved`, `doc_match`, `article_match`, `offer_correct` — kontrola tokenu `[[NABIDKA]]`). LLM-as-judge „Correctness in Czech" běží v Langfuse. Zdrojová CSV a postup: [evaluation/langfuse_datasets/](evaluation/langfuse_datasets/).
 
-## 9. Známá omezení
+## 9. Frontend chat UI — fullscreen + widget
+
+Chatová logika je sdílená mezi dvěma vstupními body přes jeden hook, aby se oprava/úprava chatu propsala do obou:
+
+| Modul | Odpovědnost |
+|---|---|
+| [`src/lib/use-kecalo-chat.ts`](../src/lib/use-kecalo-chat.ts) | hook `useKecaloChat()` — stav zpráv, streamování z `POST /api/chat`, strip tokenu `[[NABIDKA]]`, `getSessionId` (localStorage `kecalo_session_id`), feedback, nová konverzace s abortem, auto-scroll |
+| [`src/components/ChatMessages.tsx`](../src/components/ChatMessages.tsx) | scrollovatelná oblast zpráv (prázdný stav, vzorové otázky, mapování na `MessageBubble`); prop `compact` pro menší widget layout |
+| [`src/app/page.tsx`](../src/app/page.tsx) | `/` — fullscreen chat, skelet nad `useKecaloChat()` + `<ChatMessages />` |
+| [`src/components/ChatWidget.tsx`](../src/components/ChatWidget.tsx) | vysouvací widget (bublina v rohu → panel `380×600px`, vždy namountovaný, minimalizace čistě CSS + `inert`); `useKecaloChat()` žije v komponentě, takže konverzace i běžící stream přežijí minimalizaci |
+| [`src/app/demo/page.tsx`](../src/app/demo/page.tsx) | `/demo` — statická demo stránka „Pojišťovny Jistota" s `<ChatWidget />`, simuluje nasazení na reálném webu; veřejná, mimo proxy vrstvu |
+
+`MessageBubble.tsx` vrací `null` pro prázdný `content` (asistentská zpráva těsně po odeslání, než dorazí první token) — jinak by se zobrazila prázdná bublina zároveň s „píšícími" tečkami z `ChatMessages`.
+
+Widget nepřidává žádnou útočnou plochu ani API — používá výhradně existující veřejné routy (`/api/chat`, `/api/feedback`, `POST /api/leads`) se stávajícími rate limity. Detailní plán a průběh ověření: [plans/widget_mini_kecalo_plan.md](plans/widget_mini_kecalo_plan.md).
+
+## 10. Známá omezení
 
 - **Autentizace prototypu** — jedna admin identita, HMAC cookie; pro produkci nahradit plnohodnotnou auth (SSO/JWT).
 - **In-memory rate limity** — per instance; na serverless škálování napříč instancemi nedrží globální stropy přesně (dokumentované zmírnění, ne eliminace).
