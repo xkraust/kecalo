@@ -5,7 +5,7 @@
  * jejich datasetId používá filtr judge pravidla „Correctness in Czech";
  * re-import CSV přes UI by navíc založil duplicitní položky).
  *
- * Zdroj pravdy: docs/langfuse_datasets/*.csv (sloupec expects_offer).
+ * Zdroj pravdy: docs/evaluation/langfuse_datasets/*.csv (sloupec expects_offer).
  * Párování s Langfuse items je exact-match podle input (po trim) — při
  * nespárování nebo duplicitní shodě skript skončí chybou a nic nezapíše.
  *
@@ -194,7 +194,7 @@ async function upsertItem(datasetName, item, metadata) {
 // Běh
 // ---------------------------------------------------------------------------
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
-const csvDir = join(scriptsDir, "..", "docs", "langfuse_datasets");
+const csvDir = join(scriptsDir, "..", "docs", "evaluation", "langfuse_datasets");
 
 async function main() {
   console.log(`Langfuse: ${BASE_URL}${DRY ? "   (DRY RUN — bez zápisu)" : ""}`);

@@ -10,24 +10,24 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0–17 jsou **hotové a ověřené end-to-end** (poslední: Fáze 17 — správa promptů v adminu: system prompt chatu a prompt shrnutí poptávek editovatelné za běhu v `/admin/parameters/prompts`, NULL = výchozí z kódu; migrace `013_prompt_settings.sql` aplikovaná. Fáze 16 — zpětná vazba u odpovědi: palec nahoru poděkování, palec dolů karta kontaktu → lead typu `hodnoceni`; migrace `012_lead_type.sql` aplikovaná. Fáze 15 — evaluace přes Langfuse datasety, eval runner `scripts/langfuse-eval.mjs` a LLM-as-judge „Correctness in Czech" nakonfigurovaný v Langfuse UI; šablona Faithfulness zatím nejde — trace nenese obsah chunků, `record_content` default off). Hotové a ověřené jsou i všechny opravy z revize kódu (`docs/code_check.md`, 15 nálezů, balíčky A–E dle `docs/issues_correction_plan.md`) a z bezpečnostní revize (`docs/security_issues.md`, SEC-1 až SEC-6 + SEC-9 + SEC-10, balíčky A–F dle `docs/security_correction_plan.md`; následně i SEC-4 — server-side revokace session). SEC-7 a SEC-8 (serverová historie chatu, CSRF token) zůstávají vědomě odložené jako produkční dluh. Migrace `001`–`013` jsou aplikované na Supabase.
+Fáze 0–17 jsou **hotové a ověřené end-to-end** (poslední: Fáze 17 — správa promptů v adminu: system prompt chatu a prompt shrnutí poptávek editovatelné za běhu v `/admin/parameters/prompts`, NULL = výchozí z kódu; migrace `013_prompt_settings.sql` aplikovaná. Fáze 16 — zpětná vazba u odpovědi: palec nahoru poděkování, palec dolů karta kontaktu → lead typu `hodnoceni`; migrace `012_lead_type.sql` aplikovaná. Fáze 15 — evaluace přes Langfuse datasety, eval runner `scripts/langfuse-eval.mjs` a LLM-as-judge „Correctness in Czech" nakonfigurovaný v Langfuse UI; šablona Faithfulness zatím nejde — trace nenese obsah chunků, `record_content` default off). Hotové a ověřené jsou i všechny opravy z revize kódu (`docs/reviews/code_check.md`, 15 nálezů, balíčky A–E dle `docs/reviews/issues_correction_plan.md`) a z bezpečnostní revize (`docs/reviews/security_issues.md`, SEC-1 až SEC-6 + SEC-9 + SEC-10, balíčky A–F dle `docs/reviews/security_correction_plan.md`; následně i SEC-4 — server-side revokace session). SEC-7 a SEC-8 (serverová historie chatu, CSRF token) zůstávají vědomě odložené jako produkční dluh. Migrace `001`–`013` jsou aplikované na Supabase.
 
 Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživatel nahraje přes admin UI) a fallback otázky mimo bázi dál vracejí chunky nad prahem 0,35 (čisté odmítnutí zajišťuje systémový prompt; případně zvýšit práh v `/admin/parameters`).
 
-**Probíhající experiment (mimo číslované fáze):** shrnutí poptávek přepnuto z Claude Haiku na Mistral model (`mistral-small-latest` přes `@ai-sdk/mistral`) — prototypový test levnějšího modelu, Varianta B dle `docs/mistral_summary_experiment_plan.md`. **Hotové a E2E ověřené** (13. 7. 2026): happy-path vrací věcné české shrnutí, SEC-9 injection drží, v Langfuse zachován generation span s modelem `mistral-small-latest` a tokeny (cena = 0, dokud se model nedefinuje v Langfuse — stejné jako `voyage-3.5`). Telemetrie beze změny (generation span dál z AI SDK, protože `@ai-sdk/mistral` je provider Vercel AI SDK). Chat, RAG i retrieval zůstávají na Claude/Anthropicu. `MISTRAL_API_KEY` je nasazený i na Vercel Project env. Volitelně zbývá jen definovat `mistral-small-latest` v Langfuse Settings → Models kvůli výpočtu ceny.
+**Probíhající experiment (mimo číslované fáze):** shrnutí poptávek přepnuto z Claude Haiku na Mistral model (`mistral-small-latest` přes `@ai-sdk/mistral`) — prototypový test levnějšího modelu, Varianta B dle `docs/plans/mistral_summary_experiment_plan.md`. **Hotové a E2E ověřené** (13. 7. 2026): happy-path vrací věcné české shrnutí, SEC-9 injection drží, v Langfuse zachován generation span s modelem `mistral-small-latest` a tokeny (cena = 0, dokud se model nedefinuje v Langfuse — stejné jako `voyage-3.5`). Telemetrie beze změny (generation span dál z AI SDK, protože `@ai-sdk/mistral` je provider Vercel AI SDK). Chat, RAG i retrieval zůstávají na Claude/Anthropicu. `MISTRAL_API_KEY` je nasazený i na Vercel Project env. Volitelně zbývá jen definovat `mistral-small-latest` v Langfuse Settings → Models kvůli výpočtu ceny.
 
 Podrobná historie fází, měření a průběžný stav: `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
 
-**Kecalo** je prototyp RAG chatbota pro pojišťovnu, vytvořený jako projekt jednodenního kurzu vibecodingu. V UI vystupuje jako „Pojišťovna Jistota", znalostní báze ale čerpá z reálných dokumentů Kooperativy ze složky `docs/`. Uživatelé kladou otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
+**Kecalo** je prototyp RAG chatbota pro pojišťovnu, vytvořený jako projekt jednodenního kurzu vibecodingu. V UI vystupuje jako „Pojišťovna Jistota", znalostní báze ale čerpá z reálných dokumentů Kooperativy ze složky `docs/seed-docs/`. Uživatelé kladou otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
 
 ## Technologický stack
 
 - **Framework:** Next.js 16 (App Router) + React 19 + TypeScript, adresářová struktura se `src/`
 - **UI:** Tailwind CSS v4 (konfigurace přes `@theme` v `globals.css`, bez `tailwind.config.ts`) + shadcn/ui
 - **AI orchestrace:** Vercel AI SDK (`useChat`, streamování)
-- **LLM:** Claude API — `claude-sonnet-4-6` (chat); shrnutí poptávek běží přes Mistral `mistral-small-latest` (`@ai-sdk/mistral`) — prototypový test levnějšího modelu (Varianta B, viz `docs/mistral_summary_experiment_plan.md`)
+- **LLM:** Claude API — `claude-sonnet-4-6` (chat); shrnutí poptávek běží přes Mistral `mistral-small-latest` (`@ai-sdk/mistral`) — prototypový test levnějšího modelu (Varianta B, viz `docs/plans/mistral_summary_experiment_plan.md`)
 - **Embeddingy:** Voyage AI — `voyage-3.5` (1024 dimenzí)
 - **Vektorová DB + úložiště:** Supabase (Postgres + rozšíření pgvector + Storage)
 - **Parsování PDF:** `unpdf`
@@ -84,7 +84,7 @@ node scripts/langfuse-eval.mjs --dataset=M-100 --run=baseline
 node scripts/langfuse-eval.mjs --only=out_of_scope
 ```
 
-`scripts/langfuse-eval.mjs` (Node ESM) prožene testovací otázky z Langfuse datasetů (`kecalo/obecne`/`M-100`/`M-200`) nasazeným `/api/chat` (`KECALO_BASE_URL`, default Vercel), založí **experiment** přes SDK `@langfuse/client` (`experiment.run`) a připojí deterministická skóre (`fallback_correct`/`retrieved`/`doc_match`/`article_match` + `offer_correct` — kontrola tokenu `[[NABIDKA]]` proti metadatu `expects_offer`; runner token z `answer` odstraňuje a vystavuje jako `offerToken`, aby ho LLM-judge neviděl). Čte `LANGFUSE_*` z `.env.local`. Výsledky: Langfuse → Datasets → dataset → **Experiments**. Zdrojová CSV a postup importu viz `docs/langfuse_datasets/` (Fáze 15). Změny metadat items (např. `expects_offer`) se do Langfuse promítají skriptem `scripts/langfuse-sync-metadata.mjs` (upsert podle `id`, bez re-importu — viz README datasetů).
+`scripts/langfuse-eval.mjs` (Node ESM) prožene testovací otázky z Langfuse datasetů (`kecalo/obecne`/`M-100`/`M-200`) nasazeným `/api/chat` (`KECALO_BASE_URL`, default Vercel), založí **experiment** přes SDK `@langfuse/client` (`experiment.run`) a připojí deterministická skóre (`fallback_correct`/`retrieved`/`doc_match`/`article_match` + `offer_correct` — kontrola tokenu `[[NABIDKA]]` proti metadatu `expects_offer`; runner token z `answer` odstraňuje a vystavuje jako `offerToken`, aby ho LLM-judge neviděl). Čte `LANGFUSE_*` z `.env.local`. Výsledky: Langfuse → Datasets → dataset → **Experiments**. Zdrojová CSV a postup importu viz `docs/evaluation/langfuse_datasets/` (Fáze 15). Změny metadat items (např. `expects_offer`) se do Langfuse promítají skriptem `scripts/langfuse-sync-metadata.mjs` (upsert podle `id`, bez re-importu — viz README datasetů).
 
 ### Databáze
 
@@ -234,7 +234,14 @@ scripts/
 ├── langfuse-sync-metadata.mjs        # sync metadat items (expects_offer) do Langfuse — upsert podle id
 └── verify-rate-limit.mjs             # ověření SEC-1 rate-limitu na Vercelu
 docs/
-└── langfuse_datasets/                # CSV datasety testovacích otázek pro Langfuse + README (Fáze 15)
+├── IMPLEMENTATION_PLAN.md            # hlavní prováděcí checklist projektu (fáze + průběžný stav)
+├── PRD_pojistovaci_RAG_chatbot.md    # zadání/PRD
+├── seed-docs/                        # reálné PDF dokumenty Kooperativy (obsah znalostní báze)
+├── plans/                            # feature/experimentální plány (Langfuse, lead-gen, Mistral, widget, demo)
+├── reviews/                          # nálezy a opravné plány z code/security revizí
+└── evaluation/
+    ├── testovaci_otazky*.md          # sady testovacích otázek (markdown)
+    └── langfuse_datasets/             # CSV datasety testovacích otázek pro Langfuse + README (Fáze 15)
 ```
 
 ### RAG — dvě oddělené pipeline
@@ -263,9 +270,9 @@ Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4
 
 **Fallback:** pokud `retrieve` vrátí 0 chunků, route vrací `FALLBACK_MESSAGE` („nenacházím odpověď, kontaktujte infolinku 800 123 456") jako statickou `text/plain` odpověď s prázdným `X-Sources` — Claude se nevolá (oprava B3; dřív se volal jen kvůli doslovnému opsání hlášky).
 
-**Systémový prompt** (`prompts.ts`; od Fáze 17 **runtime editovatelný** v `/admin/parameters/prompts` — chat používá `settings.systemPrompt ?? SYSTEM_PROMPT`, NULL = výchozí z kódu): bot odpovídá výhradně z poskytnutých chunků, česky, v každé odpovědi cituje zdrojový dokument, neposkytuje poradenství nad rámec citovaných podmínek a nesjednává produkty. U dotazů na konkrétní pojistný produkt — včetně procedurálně formulovaných dotazů na krytí/limity/výluky a dotazů na cenu či sjednání (ty i při nenalezené informaci) — přidá na úplný konec odpovědi samostatný řádek s tokenem `[[NABIDKA]]`; u administrativních dotazů a ostatních odpovědí bez nalezené informace nikdy — klient token z textu odstraní a místo něj vykreslí kartu poptávky (`LeadForm` varianta `produkt`); viz Fáze 14 / `docs/lead_generation_plan.md`.
+**Systémový prompt** (`prompts.ts`; od Fáze 17 **runtime editovatelný** v `/admin/parameters/prompts` — chat používá `settings.systemPrompt ?? SYSTEM_PROMPT`, NULL = výchozí z kódu): bot odpovídá výhradně z poskytnutých chunků, česky, v každé odpovědi cituje zdrojový dokument, neposkytuje poradenství nad rámec citovaných podmínek a nesjednává produkty. U dotazů na konkrétní pojistný produkt — včetně procedurálně formulovaných dotazů na krytí/limity/výluky a dotazů na cenu či sjednání (ty i při nenalezené informaci) — přidá na úplný konec odpovědi samostatný řádek s tokenem `[[NABIDKA]]`; u administrativních dotazů a ostatních odpovědí bez nalezené informace nikdy — klient token z textu odstraní a místo něj vykreslí kartu poptávky (`LeadForm` varianta `produkt`); viz Fáze 14 / `docs/plans/lead_generation_plan.md`.
 
-**Zpětná vazba u odpovědi** (`MessageBubble.tsx`, Fáze 16): palec nahoru → inline poděkování; palec dolů → karta `LeadForm` varianta `hodnoceni` (vlídnější text, lead typu `hodnoceni`). Když je u zprávy už produktová karta (token `[[NABIDKA]]`), palec dolů druhou kartu nevykresluje — jen krátké poděkování (kontakt sbírá produktová). Hlas se vždy ukládá do `/api/feedback` beze změny. Viz `docs/lead_generation_plan.md` (Fáze 2 / Fáze 16).
+**Zpětná vazba u odpovědi** (`MessageBubble.tsx`, Fáze 16): palec nahoru → inline poděkování; palec dolů → karta `LeadForm` varianta `hodnoceni` (vlídnější text, lead typu `hodnoceni`). Když je u zprávy už produktová karta (token `[[NABIDKA]]`), palec dolů druhou kartu nevykresluje — jen krátké poděkování (kontakt sbírá produktová). Hlas se vždy ukládá do `/api/feedback` beze změny. Viz `docs/plans/lead_generation_plan.md` (Fáze 2 / Fáze 16).
 
 ## Datový model
 
@@ -327,7 +334,7 @@ Hodnoty `status` poptávky: `new`/`updated` → `in_progress` → `closed` (`clo
 
 ## Admin autentizace
 
-`/admin` a admin API routy (`/api/documents*`, `/api/leads*`, `/api/settings`, `/api/retrieval-test`) jsou chráněny proxy vrstvou (`src/proxy.ts` — dřív `middleware.ts`, přejmenováno dle konvence Next.js 16), která kontroluje session cookie nastavenou na `/admin/login`; stránky bez cookie přesměruje na login, API routy vracejí 401 JSON. Admin API handlery mají navíc **druhou obrannou linii** (oprava SEC-2, viz `docs/security_correction_plan.md`): každý z 8 handlerů volá na prvním řádku `requireAdmin()` z `src/lib/require-admin.ts` (ověření téže session cookie přes `verifySession`), takže 401 vrací i při selhání či obejití proxy. Veřejné zůstávají `/api/chat`, `/api/feedback`, `/api/auth/*` a **`POST /api/leads`** (odeslání poptávky z chatu; ostatní metody na `/api/leads*`, zejména `PATCH`, vyžadují session). Přihlášení vyžaduje uživatelské jméno (`ADMIN_USERNAME`, povinné) a heslo (`ADMIN_PASSWORD`). Session cookie (`ts.nonce.sig`, platnost 8 h) je podepsaná HMAC-SHA256 klíčem `SESSION_SECRET` (nikdy ne heslem); ověření podpisu je constant-time (`crypto.subtle.verify`), při chybějícím `SESSION_SECRET` proxy přístup zamítá. Login má constant-time porovnání údajů (`safeEqual`) a in-memory rate limit 5 pokusů / 15 min na IP + **globální strop 30 selhání / 15 min přes všechny IP** (oprava SEC-1 — pojistka nezávislá na spoofovatelné identitě IP; per-instance zmírnění). Identita klienta pro všechny rate limity se bere z `x-real-ip` (na Vercelu ji dosazuje platforma), fallback pravá hodnota `x-forwarded-for`, jinak `unknown` (`lib/rate-limit.ts` — `clientIp`); levá, klientem spoofovatelná hodnota XFF se nepoužívá. Auth API routy jsou v `/api/auth/login` a `/api/auth/logout`; logout maže cookie a navíc **server-side revokuje session** (oprava SEC-4): posune `auth_state.sessions_invalid_before` na `now()`, takže token vydaný dřív je odmítnut i před vypršením 8 h. Revokaci kontroluje `requireAdmin()` (admin API) i admin layout (stránky) v Node runtimu přes `isSessionRevoked` (`src/lib/session-revocation.ts`); proxy v edge ověří jen podpis+expiraci. `verifiedSessionIssuedAt` v `auth.ts` vrací ověřený čas vydání tokenu. Fail-open při chybějící tabulce `auth_state` (migrace `011`) — revokace se neuplatní, ostatní kontroly běží dál. Jde o autentizaci na úrovni prototypu — ne JWT, ne SSO.
+`/admin` a admin API routy (`/api/documents*`, `/api/leads*`, `/api/settings`, `/api/retrieval-test`) jsou chráněny proxy vrstvou (`src/proxy.ts` — dřív `middleware.ts`, přejmenováno dle konvence Next.js 16), která kontroluje session cookie nastavenou na `/admin/login`; stránky bez cookie přesměruje na login, API routy vracejí 401 JSON. Admin API handlery mají navíc **druhou obrannou linii** (oprava SEC-2, viz `docs/reviews/security_correction_plan.md`): každý z 8 handlerů volá na prvním řádku `requireAdmin()` z `src/lib/require-admin.ts` (ověření téže session cookie přes `verifySession`), takže 401 vrací i při selhání či obejití proxy. Veřejné zůstávají `/api/chat`, `/api/feedback`, `/api/auth/*` a **`POST /api/leads`** (odeslání poptávky z chatu; ostatní metody na `/api/leads*`, zejména `PATCH`, vyžadují session). Přihlášení vyžaduje uživatelské jméno (`ADMIN_USERNAME`, povinné) a heslo (`ADMIN_PASSWORD`). Session cookie (`ts.nonce.sig`, platnost 8 h) je podepsaná HMAC-SHA256 klíčem `SESSION_SECRET` (nikdy ne heslem); ověření podpisu je constant-time (`crypto.subtle.verify`), při chybějícím `SESSION_SECRET` proxy přístup zamítá. Login má constant-time porovnání údajů (`safeEqual`) a in-memory rate limit 5 pokusů / 15 min na IP + **globální strop 30 selhání / 15 min přes všechny IP** (oprava SEC-1 — pojistka nezávislá na spoofovatelné identitě IP; per-instance zmírnění). Identita klienta pro všechny rate limity se bere z `x-real-ip` (na Vercelu ji dosazuje platforma), fallback pravá hodnota `x-forwarded-for`, jinak `unknown` (`lib/rate-limit.ts` — `clientIp`); levá, klientem spoofovatelná hodnota XFF se nepoužívá. Auth API routy jsou v `/api/auth/login` a `/api/auth/logout`; logout maže cookie a navíc **server-side revokuje session** (oprava SEC-4): posune `auth_state.sessions_invalid_before` na `now()`, takže token vydaný dřív je odmítnut i před vypršením 8 h. Revokaci kontroluje `requireAdmin()` (admin API) i admin layout (stránky) v Node runtimu přes `isSessionRevoked` (`src/lib/session-revocation.ts`); proxy v edge ověří jen podpis+expiraci. `verifiedSessionIssuedAt` v `auth.ts` vrací ověřený čas vydání tokenu. Fail-open při chybějící tabulce `auth_state` (migrace `011`) — revokace se neuplatní, ostatní kontroly běží dál. Jde o autentizaci na úrovni prototypu — ne JWT, ne SSO.
 
 ## Runtime parametry RAG (`/admin/parameters`)
 
@@ -353,11 +360,11 @@ Parametry laditelné za běhu bez redeploye. **Pozor na zásadní rozdíl:** par
 - **UI:** sidebar položka **Parametry** je rozbalitelná skupina (styl platform.claude.com; auto-expand při aktivní podsekci, děti mají exact-match active state) se dvěma podsekcemi:
   - **RAG parametry** (`/admin/parameters`, server `page.tsx` + klient `client.tsx`) — tři skupiny (slidery RAG · Telemetrie · Chunkování), karty `SliderCard`/`ToggleCard`, tlačítka **Uložit** a **Obnovit výchozí** (reset zachovává prompt overridy — ty spravuje podsekce Prompty).
   - **Prompty** (`/admin/parameters/prompts`, Fáze 17) — karty `PromptCard` (textarea s efektivním textem, badge **Výchozí**/**Vlastní**, počítadlo znaků, per-card „Obnovit výchozí" → NULL, žlutá varování: system prompt nese instrukci tokenu `[[NABIDKA]]`, summary prompt SEC-9 formulaci). Karta je ve výchozím stavu **zamčená** (readOnly, ochrana proti náhodnému přepsání — overridy nemají historii): editaci aktivuje tlačítko **Upravit**, **Zamknout** zahodí neuložené změny karty; „Obnovit výchozí" funguje jen odemčené; po Uložit se karty opět zamknou. Při uložení se text shodný s defaultem normalizuje na NULL. Změny působí při dotazu — okamžitě, bez reindexace.
-- Admin API routy (`/api/settings`, `/api/documents*`, `/api/retrieval-test`) jsou od opravy A1 (viz `docs/issues_correction_plan.md`) chráněny proxy vrstvou (`src/proxy.ts`) — bez platné session cookie vracejí 401.
+- Admin API routy (`/api/settings`, `/api/documents*`, `/api/retrieval-test`) jsou od opravy A1 (viz `docs/reviews/issues_correction_plan.md`) chráněny proxy vrstvou (`src/proxy.ts`) — bez platné session cookie vracejí 401.
 
 ## Observabilita (Langfuse)
 
-RAG pipeline je trasována přes OpenTelemetry s exportem do Langfuse Cloud. Podrobný plán a gotchas viz [`docs/LANGFUSE_PLAN.md`](docs/LANGFUSE_PLAN.md).
+RAG pipeline je trasována přes OpenTelemetry s exportem do Langfuse Cloud. Podrobný plán a gotchas viz [`docs/plans/LANGFUSE_PLAN.md`](docs/plans/LANGFUSE_PLAN.md).
 
 - **`src/instrumentation.ts`** — Next.js hook `register()`: jednou při startu (Node.js runtime) zaregistruje `NodeTracerProvider` se sdíleným `LangfuseSpanProcessor`. Guard přes `globalThis` proti dvojí registraci (HMR). Bez Langfuse klíčů se neregistruje nic (warning + app běží dál).
 - **`src/lib/telemetry.ts`** — jediný zdroj pravdy pro OTel: singleton `langfuseSpanProcessor` (drží se zde, aby na něj dosáhl i flush), `getTracer()`, `withSpan(name, fn, attrs)` (přes **`startActiveSpan`** — nutné pro vnořování spanů a zařazení AI SDK LLM spanu) a `flushTelemetry()` (`forceFlush` pro `after()` callbacky). Bez klíčů jsou všechny helpery no-op.
@@ -373,9 +380,9 @@ RAG pipeline je trasována přes OpenTelemetry s exportem do Langfuse Cloud. Pod
 
 ## Seed dokumenty
 
-Reálné dokumenty Kooperativy jsou ve složce `docs/` a slouží jako obsah demo znalostní báze:
+Reálné dokumenty Kooperativy jsou ve složce `docs/seed-docs/` a slouží jako obsah demo znalostní báze:
 - `VPP M-100_23` — pojištění majetku a odpovědnosti občanů (18 s.)
 - `VPP M-200_23` — pojištění bytových domů (19 s.)
 - `IPID` — informační dokument o pojistném produktu (2 s., rychlá indexace)
 - `Informace pro klienta` — předsmluvní informace (11 s.)
-- `testovaci_otazky*.md` — sady testovacích otázek včetně záměrných otázek mimo bázi pro ověření fallbacku
+- `docs/evaluation/testovaci_otazky*.md` — sady testovacích otázek včetně záměrných otázek mimo bázi pro ověření fallbacku

@@ -14,7 +14,7 @@ export const config = {
   voyageApiKey: required("VOYAGE_API_KEY"),
   chatModel: process.env.CHAT_MODEL ?? "claude-sonnet-4-6",
   // Sumarizace konverzace u poptávek — prototypový test Mistral modelu (Varianta B,
-  // viz docs/mistral_summary_experiment_plan.md). Levnější kompresní úloha; volá se
+  // viz docs/plans/mistral_summary_experiment_plan.md). Levnější kompresní úloha; volá se
   // přes @ai-sdk/mistral, klíč MISTRAL_API_KEY čte provider z env automaticky.
   summaryModel: process.env.SUMMARY_MODEL ?? "mistral-small-latest",
   topK: parseInt(process.env.TOP_K ?? "5", 10),

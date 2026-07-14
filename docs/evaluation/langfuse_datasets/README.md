@@ -1,6 +1,6 @@
 # Langfuse datasety — testovací otázky
 
-CSV exporty testovacích otázek z `docs/testovaci_otazky*.md` připravené pro import do
+CSV exporty testovacích otázek z `docs/evaluation/testovaci_otazky*.md` připravené pro import do
 **Langfuse › Datasets**. Slouží k systematickému hodnocení RAG chatbota (regrese při
 ladění chunkování, prahů, promptu).
 
@@ -73,5 +73,5 @@ evaluátory:
 
 ## Aktualizace
 
-CSV jsou ručně synchronizované s `docs/testovaci_otazky*.md`. Při změně otázek uprav
+CSV jsou ručně synchronizované s `docs/evaluation/testovaci_otazky*.md`. Při změně otázek uprav
 odpovídající řádek a znovu nahraj (Langfuse verzuje items — re-upload založí novou verzi).

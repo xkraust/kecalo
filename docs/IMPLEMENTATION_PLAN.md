@@ -35,15 +35,15 @@ Tento dokument je prováděcí checklist pro stavbu Kecala podle PRD v1.0. Sledu
 - [x] Voyage API odpovídá — embedding 1024 dimenzí ✓
 - [x] Supabase DB dostupná přes `DATABASE_URL`
 
-### Seed data (reálné dokumenty Kooperativy, již ve složce `docs/`)
+### Seed data (reálné dokumenty Kooperativy, již ve složce `docs/seed-docs/`)
 
 Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění majetku, odpovědnosti a bytových domů:
 
-- [x] `docs/VPP M-100_23 pro pojištění majetku a odpovědnosti občanů.pdf` — Všeobecné pojistné podmínky (hlavní zdroj pravidel, výluk a limitů)
-- [x] `docs/VPP M-200_23 pro pojištění bytových domů.pdf` — Všeobecné pojistné podmínky pro bytové domy
-- [x] `docs/Informační dokument o pojistném produktu (IPID).pdf` — strukturovaný přehled produktu „Pojištění bytového domu" (2 strany)
-- [x] `docs/Informace pro klienta.pdf` — předsmluvní informace + zpracování osobních údajů (11 stran)
-- [x] `docs/testovaci_otazky.md` — 12 otázek (10 v bázi s citacemi konkrétních článků, 2 záměrně mimo → test fallbacku), vychází z reálných podmínek Kooperativy
+- [x] `docs/seed-docs/VPP M-100_23 pro pojištění majetku a odpovědnosti občanů.pdf` — Všeobecné pojistné podmínky (hlavní zdroj pravidel, výluk a limitů)
+- [x] `docs/seed-docs/VPP M-200_23 pro pojištění bytových domů.pdf` — Všeobecné pojistné podmínky pro bytové domy
+- [x] `docs/seed-docs/Informační dokument o pojistném produktu (IPID).pdf` — strukturovaný přehled produktu „Pojištění bytového domu" (2 strany)
+- [x] `docs/seed-docs/Informace pro klienta.pdf` — předsmluvní informace + zpracování osobních údajů (11 stran)
+- [x] `docs/evaluation/testovaci_otazky.md` — 12 otázek (10 v bázi s citacemi konkrétních článků, 2 záměrně mimo → test fallbacku), vychází z reálných podmínek Kooperativy
 
 ---
 
@@ -254,7 +254,7 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ### Ladění RAG
 
-- [ ] Otestovat na seed dokumentech všech ~10 testovacích otázek (viz `docs/testovaci_otazky*.md`) — po nahrání seed dokumentů přes admin UI
+- [ ] Otestovat na seed dokumentech všech ~10 testovacích otázek (viz `docs/evaluation/testovaci_otazky*.md`) — po nahrání seed dokumentů přes admin UI
 - [ ] Doladit `SIMILARITY_THRESHOLD` a `TOP_K` pokud retrieval vrací irelevantní výsledky
 - [ ] Ověřit systémový prompt — bot nesmí odpovídat mimo kontext
 - [x] Retry logika pro Voyage AI 429 v `embed.ts` (exponenciální backoff, 3 pokusy)
@@ -352,7 +352,7 @@ Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění maj
 
 ## Fáze 9 — Langfuse: observabilita RAG pipeline (po kurzu) ✅
 
-Podrobný plán viz [`docs/LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
+Podrobný plán viz [`docs/plans/LANGFUSE_PLAN.md`](plans/LANGFUSE_PLAN.md).
 
 **Stav:** implementováno (lint, build OK; chat ověřen v runtime — graceful fallback). Instrumentace přes OpenTelemetry + `@langfuse/otel`: `src/instrumentation.ts` (registrace provideru), `src/lib/telemetry.ts` (singleton span processoru + `withSpan`/`getTracer`/`flushTelemetry`). Trasovány jsou chat (`chat-pipeline` → `retrieval` → `embed.query`/`vector-search` + LLM span z AI SDK), indexace (`document.process`), upload a retrieval-test. App běží i bez Langfuse klíčů (no-op). Export traces do Langfuse Cloud vyžaduje restart serveru (načtení `instrumentation.ts`).
 
@@ -607,7 +607,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ## Fáze 14 — Poptávky: lead generation (po kurzu) ✅
 
-**Milník:** U odpovědí na produktové dotazy v chatu se návštěvníkovi nabídne karta poptávky (`LeadForm`); odeslání uloží kontakt + Haiku shrnutí konverzace do DB. Admin sekce **Poptávky** zobrazuje seznam s přechody stavů (Převzít/Uzavřít) a kartou na dashboardu. Podrobný plán viz [`docs/lead_generation_plan.md`](lead_generation_plan.md).
+**Milník:** U odpovědí na produktové dotazy v chatu se návštěvníkovi nabídne karta poptávky (`LeadForm`); odeslání uloží kontakt + Haiku shrnutí konverzace do DB. Admin sekce **Poptávky** zobrazuje seznam s přechody stavů (Převzít/Uzavřít) a kartou na dashboardu. Podrobný plán viz [`docs/plans/lead_generation_plan.md`](plans/lead_generation_plan.md).
 
 > **Pozn.:** `POST /api/leads` je jediná veřejná mutační routa mimo chat/feedback (odeslání z chatu). Deduplikace podle kontaktu (ne jména), poptávky se nemažou (uzavření = stav `closed`). Shrnutí konverzace dělá levnější model (`claude-haiku-4-5`) a v DB nahrazuje surový dotaz. RLS zapnutá i na `leads` (osobní údaje).
 
@@ -647,7 +647,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ## Bezpečnostní opravy — revize `security_issues.md` (po kurzu) ✅
 
-**Milník:** Nálezy nezávislé bezpečnostní revize (`docs/security_issues.md`, 10 nálezů SEC-1 až SEC-10) opraveny a ověřeny. Podrobný plán, kroky a akceptační kritéria viz [`docs/security_correction_plan.md`](security_correction_plan.md); poznámky „opraveno" u jednotlivých nálezů přímo v [`docs/security_issues.md`](security_issues.md).
+**Milník:** Nálezy nezávislé bezpečnostní revize (`docs/reviews/security_issues.md`, 10 nálezů SEC-1 až SEC-10) opraveny a ověřeny. Podrobný plán, kroky a akceptační kritéria viz [`docs/reviews/security_correction_plan.md`](reviews/security_correction_plan.md); poznámky „opraveno" u jednotlivých nálezů přímo v [`docs/reviews/security_issues.md`](reviews/security_issues.md).
 
 > **Pozn.:** Kritický nález žádný. Bez DB migrací, bez nových závislostí. Opraveno 7 z 10 nálezů; SEC-4, SEC-7 a SEC-8 vědomě odloženy jako produkční dluh (vyžadují návrhové rozhodnutí). Práce rozdělena do balíčků A–F, každý samostatně commitnutý a ověřený (lint, build, runtime/integrační testy).
 
@@ -692,15 +692,15 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ## Fáze 15 — Evaluace: Langfuse datasety + eval runner (po kurzu) ✅
 
-**Milník:** Testovací otázky z `docs/testovaci_otazky*.md` jsou v Langfuse jako datasety a lze je jedním příkazem prohnat nasazeným chatbotem, který založí **experiment (dataset run)** s deterministickými skóre — regresní měření kvality RAG při ladění parametrů/chunkování. Bez změny aplikace (jen eval nástroj).
+**Milník:** Testovací otázky z `docs/evaluation/testovaci_otazky*.md` jsou v Langfuse jako datasety a lze je jedním příkazem prohnat nasazeným chatbotem, který založí **experiment (dataset run)** s deterministickými skóre — regresní měření kvality RAG při ladění parametrů/chunkování. Bez změny aplikace (jen eval nástroj).
 
 > **Pozn.:** Kompletně hotové a ověřené — datasety + runner + deterministická skóre (plný run 56 otázek, 0 errors), metadata experimentu i LLM-as-judge (Krok 5, evaluátor Correctness v Langfuse UI).
 
 ### Krok 1 — CSV datasety z testovacích otázek ✅
 
-- [x] Tři CSV v `docs/langfuse_datasets/` (`dataset_obecne.csv` 12, `dataset_M-100_23.csv` 23, `dataset_M-200_23.csv` 21) — sloupce `input` (→ Input), `expected_output` (→ Expected output), `category`/`document`/`expected_source` (→ Metadata)
+- [x] Tři CSV v `docs/evaluation/langfuse_datasets/` (`dataset_obecne.csv` 12, `dataset_M-100_23.csv` 23, `dataset_M-200_23.csv` 21) — sloupce `input` (→ Input), `expected_output` (→ Expected output), `category`/`document`/`expected_source` (→ Metadata)
 - [x] `category` = `in_scope` / `out_of_scope` (fallback) / `confusion` (záměna M-100 ↔ M-200)
-- [x] README s postupem importu a evaluace (`docs/langfuse_datasets/README.md`)
+- [x] README s postupem importu a evaluace (`docs/evaluation/langfuse_datasets/README.md`)
 - [x] Import do Langfuse ve složce `kecalo/` → datasety `kecalo/obecne`, `kecalo/M-100`, `kecalo/M-200`
 
 ### Krok 2 — Eval runner přes oficiální SDK ✅
@@ -755,7 +755,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 
 ## Fáze 16 — Zpětná vazba → lead typu „hodnocení" ✅
 
-**Milník:** Palce nahoru/dolů u odpovědi mají návaznou akci — nahoru poděkování, dolů karta kontaktu vedoucí na lead nového typu `hodnoceni` (dosavadní produktové leady = `produkt`). Typ vidí zpracovatel v adminu. Podrobný checklist a texty: `docs/lead_generation_plan.md` (sekce „Fáze 2 — Zpětná vazba → lead typu hodnocení").
+**Milník:** Palce nahoru/dolů u odpovědi mají návaznou akci — nahoru poděkování, dolů karta kontaktu vedoucí na lead nového typu `hodnoceni` (dosavadní produktové leady = `produkt`). Typ vidí zpracovatel v adminu. Podrobný checklist a texty: `docs/plans/lead_generation_plan.md` (sekce „Fáze 2 — Zpětná vazba → lead typu hodnocení").
 
 - [x] Migrace `012_lead_type.sql` (`leads` += `type` `produkt`/`hodnoceni`, DEFAULT `produkt`), typy, API (`type` ve validaci + type-scoped dedup + INSERT), `LeadForm` varianta `hodnoceni`, `MessageBubble` (poděkování/formulář dle hlasu, ošetřená kolize s produktovou kartou), `LeadTypeBadge` + sloupec Typ v adminu
 - [x] Ověřeno E2E v prohlížeči (palce, obě varianty formuláře, kolize, admin badge), API (`type` default/whitelist/400), dedup (type-scoped: cross-type nový řádek, same-type merge). Haiku shrnutí běží pro oba typy. Testovací poptávky po ověření smazány z DB
@@ -810,7 +810,7 @@ RAG, retrieval a systémový prompt chatu zůstávají na Claude/Anthropicu beze
 Zvažována i alternativa „Varianta A" (hostovaný Mistral agent přes Beta
 Conversations API) — vyhodnocena jako zbytečně velká změna pro tuto úlohu (žádné
 nástroje, žádný RAG kontext) a s telemetrickou regresí; neimplementována. Podrobný
-plán, rizika a rozhodovací historie: [`docs/mistral_summary_experiment_plan.md`](mistral_summary_experiment_plan.md).
+plán, rizika a rozhodovací historie: [`docs/plans/mistral_summary_experiment_plan.md`](plans/mistral_summary_experiment_plan.md).
 
 - [x] `@ai-sdk/mistral@^3.0.48` nainstalován — **pozor:** latest major (4.x) používá
   model spec „v4" nekompatibilní s `ai@6`/`@ai-sdk/anthropic@3` v tomto projektu;
@@ -839,6 +839,20 @@ plán, rizika a rozhodovací historie: [`docs/mistral_summary_experiment_plan.md
 - [ ] Volitelné: custom model `voyage-3.5` v Langfuse zatím nenadefinován — vědomě
   odloženo (embed spany nesou tokeny jako custom atribut mimo Langfusem rozpoznaný
   formát, takže by cena stejně zůstala 0 i po definici modelu; viz produkční dluh)
+
+---
+
+## Mimo číslované fáze — Widget mini Kecalo (fáze 1: demo stránka)
+
+**Cíl:** mini verze chatu jako vysouvací okno v rohu obrazovky (vzor: webchat
+Mluvii/„Al.bert") na nové demo stránce `/demo` simulující web pojišťovny;
+fullscreen chat na `/` zůstává beze změny chování (jen extrakce sdílené logiky).
+Fáze 2 (embeddovatelný widget přes iframe + `public/embed.js`) vědomě odložena.
+Podrobný plán s milníky, riziky a stavem:
+[`docs/plans/widget_mini_kecalo_plan.md`](plans/widget_mini_kecalo_plan.md).
+
+- [ ] Milníky 1–5 dle vlastního plánu (extrakce logiky → `ChatWidget` →
+  `/demo` → E2E ověření → dokumentace)
 
 ---
 
