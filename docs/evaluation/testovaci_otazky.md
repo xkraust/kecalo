@@ -10,15 +10,25 @@ díky tomu poznáte, zda retrieval našel správný dokument a zda odpověď neh
 > uvedené v odpovědích (např. infolinka 957 105 105) jsou citovány z dokumentů; ve fallbacku
 > bot odkazuje na vlastní infolinku dle systémového promptu.
 
-Seed dokumenty:
+Seed dokumenty (původní báze, na které sada původně vznikla):
 - `VPP M-100_23 pro pojištění majetku a odpovědnosti občanů.pdf`
 - `VPP M-200_23 pro pojištění bytových domů.pdf`
 - `Informační dokument o pojistném produktu (IPID).pdf`
 - `Informace pro klienta.pdf`
 
+> **Pozn. (22. 7. 2026):** do báze mezitím přibyly další produkty (RENTA PROFIT, cestovní
+> pojištění M-750, FLEXI, skupinové pojištění — vlastní sady `testovaci_otazky_*.md`).
+> Otázky 11 a 12 v této sadě byly původně navržené jako fallback „mimo bázi" (životní a
+> cestovní pojištění tehdy chyběly); po nahrání odpovídajících dokumentů jde nyní o věcné
+> otázky V ROZSAHU — přesunuty do sekce A a přeznačeny.
+
 ---
 
 ## A. Otázky V ROZSAHU znalostní báze (chatbot má odpovědět věcně + uvést zdroj)
+
+Sekce B (fallback) v této sadě zanikla — obě její původní otázky (životní a cestovní
+pojištění) jsou po rozšíření báze věcně zodpověditelné, viz otázky 11 a 12 níže. Otázky na
+fallback mimo bázi pokrývají sady jednotlivých produktů (`testovaci_otazky_*.md`, sekce B).
 
 **1. Jaké varianty pojištění bytového domu si mohu sjednat?**
 Očekáváno: Základní varianty PRIMA a KOMFORT; k variantě PRIMA lze navíc sjednat
@@ -73,21 +83,19 @@ na pobočce nebo písemně. Při podezření na trestný čin (krádež) volat p
 hasiče 150.
 Zdroj: Informace pro klienta, kap. 5.
 
----
-
-## B. Otázky MIMO znalostní bázi (chatbot má odpovědět „nevím" / odkázat na infolinku)
-
-Tyto otázky testují fallback. Chatbot NESMÍ odpověď vymyslet — má přiznat,
-že informace v dokumentech není.
-
 **11. Nabízíte životní pojištění a jaké má krytí?**
-Očekáváno: Fallback — životní pojištění není v žádném z nahraných dokumentů (báze pokrývá
-pojištění majetku, odpovědnosti a bytových domů). Chatbot odkáže na infolinku, nesmí si
-vymýšlet.
+Očekáváno: Ano — v bázi jsou dva produkty životního pojištění: RENTA PROFIT (obnosové
+pojištění pro případ smrti nebo dožití) a FLEXI (komplexní životní pojištění s investiční
+složkou a řadou zdravotních/úrazových připojištění — invalidita, vážná onemocnění,
+pracovní neschopnost, hospitalizace). Chatbot má rozlišit oba produkty, ne je směšovat.
+Zdroj: RENTA_PROFIT a FLEXI (obě dokumentace „VÍTEJTE V KOOPERATIVĚ" / úvodní části).
 
 **12. Jaký je limit léčebných výloh u vašeho cestovního pojištění?**
-Očekáváno: Fallback — cestovní pojištění není předmětem nahraných dokumentů. Chatbot
-nesmí žádné číslo vymyslet a má přiznat, že informaci v podmínkách nenachází.
+Očekáváno: Podle varianty — KLASIK 10 000 000 Kč, PLUS 100 000 000 Kč na každou pojištěnou
+osobu (plus dílčí sublimity, např. zásah záchranných složek 500 000 / 1 000 000 Kč, zubní
+ošetření 20 000 / 30 000 Kč).
+Zdroj: M-750, Předsmluvní informace, Základní informace, bod 13 (Přehled variant pojištění),
+písm. a), str. 10.
 
 ---
 
@@ -97,6 +105,7 @@ nesmí žádné číslo vymyslet a má přiznat, že informaci v podmínkách ne
 2. Nahrát seed dokumenty (VPP M-100, VPP M-200, IPID, Informace pro klienta), počkat na dokončení indexace.
 3. Položit otázku 1 → správná odpověď se zdrojem (varianty pojištění bytového domu).
 4. Navazující otázka „A jaký je u varianty KOMFORT limit na náhradní ubytování?" → test kontextu konverzace (otázka 2).
-5. Položit otázku 11 → fallback „nevím" (test, že bot nehalucinuje).
+5. Položit otázku mimo bázi (např. „Jaký je limit léčebných výloh u vašeho cestovního
+   pojištění?" — dokud není nahrané `M-750`) → fallback „nevím" (test, že bot nehalucinuje).
 6. Smazat dokument `VPP M-200_23 pro pojištění bytových domů.pdf`.
 7. Znovu položit otázku 2 (náhradní ubytování) → fallback / chybějící zdroj (ověření, že smazaný dokument zmizel z báze).

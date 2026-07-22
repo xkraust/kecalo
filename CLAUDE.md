@@ -80,13 +80,13 @@ npm run eval         # eval runner (Langfuse experiment nad datasety) — viz Ev
 ### Evaluace (Langfuse experimenty)
 
 ```bash
-npm run eval                                   # všechny 3 datasety → experiment eval-<timestamp>
+npm run eval                                   # všech 7 datasetů → experiment eval-<timestamp>
 node scripts/langfuse-eval.mjs --limit=3 --dry # 3 otázky, bez zápisu do Langfuse (jen výpis)
 node scripts/langfuse-eval.mjs --dataset=M-100 --run=baseline
 node scripts/langfuse-eval.mjs --only=out_of_scope
 ```
 
-`scripts/langfuse-eval.mjs` (Node ESM) prožene testovací otázky z Langfuse datasetů (`kecalo/obecne`/`M-100`/`M-200`) nasazeným `/api/chat` (`KECALO_BASE_URL`, default Vercel), založí **experiment** přes SDK `@langfuse/client` (`experiment.run`) a připojí deterministická skóre (`fallback_correct`/`retrieved`/`doc_match`/`article_match` + `offer_correct` — kontrola tokenu `[[NABIDKA]]` proti metadatu `expects_offer`; runner token z `answer` odstraňuje a vystavuje jako `offerToken`, aby ho LLM-judge neviděl). Čte `LANGFUSE_*` z `.env.local`. Výsledky: Langfuse → Datasets → dataset → **Experiments**. Zdrojová CSV a postup importu viz `docs/evaluation/langfuse_datasets/` (Fáze 15). Změny metadat items (např. `expects_offer`) se do Langfuse promítají skriptem `scripts/langfuse-sync-metadata.mjs` (upsert podle `id`, bez re-importu — viz README datasetů).
+`scripts/langfuse-eval.mjs` (Node ESM) prožene testovací otázky z Langfuse datasetů (výchozí sada `kecalo/obecne`/`M-100`/`M-200`/`dataset_RENTA_PROFIT`/`dataset_cestovni_M-750`/`dataset_FLEXI`/`dataset_skupinove`, přepínatelné přes `--dataset=`) nasazeným `/api/chat` (`KECALO_BASE_URL`, default Vercel), založí **experiment** přes SDK `@langfuse/client` (`experiment.run`) a připojí deterministická skóre (`fallback_correct`/`retrieved`/`doc_match`/`article_match` + `offer_correct` — kontrola tokenu `[[NABIDKA]]` proti metadatu `expects_offer`; runner token z `answer` odstraňuje a vystavuje jako `offerToken`, aby ho LLM-judge neviděl). Čte `LANGFUSE_*` z `.env.local`. Výsledky: Langfuse → Datasets → dataset → **Experiments**. Zdrojová CSV a postup importu viz `docs/evaluation/langfuse_datasets/` (Fáze 15). Změny metadat items (např. `expects_offer`) se do Langfuse promítají skriptem `scripts/langfuse-sync-metadata.mjs` (upsert podle `id`, bez re-importu — viz README datasetů).
 
 ### Databáze
 

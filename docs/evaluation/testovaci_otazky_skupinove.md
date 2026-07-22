@@ -29,57 +29,57 @@ Zdroj: OBECNÁ USTANOVENÍ, bod 2 (Pojistný zájem) a bod 3 odst. 1.
 Očekáváno: čekací doba je 2 měsíce (neuplatňuje se, zemře-li pojištěný výlučně následkem
 úrazu). Plnění se neposkytne, zemře-li pojištěný v důsledku úmyslného sebepoškození,
 sebevraždy nebo pokusu o ni do 2 let od počátku pojištění (resp. od zvýšení pojistné částky).
-Zdroj: Pojištění pro případ smrti, čl. 2 a čl. 5.
+Zdroj: Pojištění pro případ smrti, bod 2 a bod 5.
 
 **3. Je u pojištění smrti následkem úrazu čekací doba?**
 Očekáváno: Ne — pro toto pojištění není stanovena žádná čekací doba. Pojistnou událostí je
 úraz, který nejpozději do 3 let zapříčiní smrt pojištěného; plnění se vyplácí obmyšlenému
 ve výši sjednané pojistné částky.
-Zdroj: Smrt následkem úrazu, čl. 1 a čl. 2.
+Zdroj: Smrt následkem úrazu, bod 1 a bod 2.
 
 **4. V jakých variantách lze sjednat pojištění trvalých následků úrazu?**
 Očekáváno: podle minimálního procenta hodnocení, od kterého vzniká nárok — s plněním od
 0,1 % (pojistná ochrana pro jakékoli úrazy) nebo až od 10 %, resp. 25 % (pro závažnější
 úrazy za nižší pojistné). Nedosáhne-li ohodnocení sjednaného minima, nárok na plnění nevzniká.
-Zdroj: Trvalé následky úrazu, čl. 1 odst. 2 a čl. 3 odst. 7.
+Zdroj: Trvalé následky úrazu, bod 1 odst. 2 a bod 3 odst. 7.
 
 **5. Jaká je čekací doba u pojištění invalidity následkem úrazu nebo nemoci?**
 Očekáváno: 18 měsíců, je-li pojištěný uznán invalidním pro invaliditu prvního stupně, a
 12 měsíců pro invaliditu druhého nebo třetího stupně. Při vzniku invalidity výlučně
 následkem úrazu se čekací doba neuplatňuje.
-Zdroj: Invalidita následkem úrazu nebo nemoci, čl. 2.
+Zdroj: Invalidita následkem úrazu nebo nemoci, bod 2.
 
 **6. Kolik se plní u invalidity třetího stupně se současně sníženou soběstačností?**
 Očekáváno: pojistné plnění ve výši dvojnásobku aktuální pojistné částky (resp. důchodu).
-Zdroj: Invalidita následkem úrazu nebo nemoci, čl. 3 odst. 3.
+Zdroj: Invalidita následkem úrazu nebo nemoci, bod 3 odst. 3.
 
 **7. V jakých variantách lze sjednat pojištění vážných onemocnění?**
 Očekáváno: ve variantách BASIC, STANDARD a EXCLUSIVE, každá zvlášť pro dospělé osoby i pro děti.
-Zdroj: Vážná onemocnění, čl. 1 odst. 1.
+Zdroj: Vážná onemocnění, bod 1 odst. 1.
 
 **8. Jaká je čekací doba u vážných onemocnění a platí podmínka přežití?**
 Očekáváno: čekací doba je 2 měsíce (u pojistné události výlučně následkem úrazu se
 neuplatňuje). Podmínkou plnění je, že pojištěný v důsledku vážného onemocnění nezemře do
 30 dnů od potvrzení diagnózy nebo podstoupení operace.
-Zdroj: Vážná onemocnění, čl. 1 odst. 3 a čl. 2.
+Zdroj: Vážná onemocnění, bod 1 odst. 3 a bod 2.
 
 **9. Kolik se plní za rakovinu vykazující rané maligní změny?**
 Očekáváno: 30 % aktuální pojistné částky (pro jednoho pojištěného pouze jedenkrát během
 trvání pojištění); za ostatní vážná onemocnění ze Seznamu 100 % podle sjednané varianty
 (u některých jen částečné plnění).
-Zdroj: Vážná onemocnění, čl. 3 odst. 2.
+Zdroj: Vážná onemocnění, bod 3 odst. 2.
 
 **10. Za jak dlouhou hospitalizaci se plní a jaká je maximální doba?**
 Očekáváno: denní plnění se násobí koeficientem navýšení podle délky pobytu — prvních 30 dnů
 koeficient 1, 31.–90. den 1,5, od 91. dne 2. Maximální doba, za kterou se plní, je 1 000 dnů.
-Zdroj: Pobyt v nemocnici následkem úrazu nebo nemoci, čl. 3.
+Zdroj: Pobyt v nemocnici následkem úrazu nebo nemoci, bod 3.
 
 **11. Jaká je čekací doba u hospitalizace a mění se u zubů nebo porodu?**
 Očekáváno: základní čekací doba je 2 měsíce; u hospitalizace kvůli ošetření zubů, zubním
 náhradám či čelistní ortopedii/chirurgii se prodlužuje na 6 měsíců a u stavů a komplikací
 v souvislosti s těhotenstvím a porodem na 8 měsíců. U hospitalizace výlučně následkem úrazu
 se neuplatňuje.
-Zdroj: Pobyt v nemocnici následkem úrazu nebo nemoci, čl. 2.
+Zdroj: Pobyt v nemocnici následkem úrazu nebo nemoci, bod 2.
 
 ---
 
@@ -113,13 +113,13 @@ produkt a nepřipisovat skupinovému investiční část z FLEXI.
 Očekáváno: Ne — ve FLEXI není u pojištění invalidity stanovena žádná čekací doba, kdežto ve
 skupinovém pojištění je 18 měsíců (invalidita I. stupně) nebo 12 měsíců (II./III. stupeň).
 Chatbot nemá zaměnit parametr mezi produkty.
-Zdroj: Skupinové – Invalidita následkem úrazu nebo nemoci, čl. 2 vs. FLEXI – Invalidita, čl. 4.
+Zdroj: Skupinové – Invalidita následkem úrazu nebo nemoci, bod 2 vs. FLEXI – Invalidita, bod 4.
 
 **16. Jsou varianty vážných onemocnění stejné jako ve FLEXI?**
 Očekáváno: Ne — skupinové pojištění používá varianty BASIC / STANDARD / EXCLUSIVE (pro
 dospělé i pro děti), zatímco FLEXI má varianty Základní (11 onemocnění) / Kompletní (65) /
 PRO NI / PRO NĚJ. Chatbot nemá plést pojmenování variant mezi produkty.
-Zdroj: Skupinové – Vážná onemocnění, čl. 1 vs. FLEXI – Vážná onemocnění, čl. 1.
+Zdroj: Skupinové – Vážná onemocnění, bod 1 vs. FLEXI – Vážná onemocnění, bod 1.
 
 ---
 

@@ -8,7 +8,7 @@ ladění chunkování, prahů, promptu).
 
 | CSV | Zdroj | Řádků | Obsah |
 |---|---|---|---|
-| `dataset_obecne.csv` | `testovaci_otazky.md` | 12 | průřezové otázky napříč bází + fallback |
+| `dataset_obecne.csv` | `testovaci_otazky.md` | 12 | průřezové otázky napříč bází (od 22. 7. 2026 bez fallback řádků — viz pozn. níže) |
 | `dataset_M-100_23.csv` | `testovaci_otazky_M-100_23.md` | 23 | pojištění majetku a odpovědnosti občanů |
 | `dataset_M-200_23.csv` | `testovaci_otazky_M-200_23.md` | 21 | pojištění bytových domů |
 | `dataset_RENTA_PROFIT.csv` | `testovaci_otazky_RENTA_PROFIT.md` | 12 | životní pojištění RENTA PROFIT (smrt/dožití) |
@@ -20,9 +20,18 @@ ladění chunkování, prahů, promptu).
 > `skupinove_pojisteni`) je zvolen jako robustní podřetězec názvu nahraného souboru —
 > `doc_match` v eval runneru porovnává `norm(filename).includes(norm(document))`. Pokud
 > jsou soubory v Supabase nahrané pod jinými názvy, uprav hodnotu `document` tak, aby v nich
-> byla obsažena. Nové produkty jsou členěné na části + body (ne „články"), takže
-> `expected_source` neobsahuje vzor `čl. N` — skóre `article_match` se u nich nepočítá
-> (doc_match a offer_correct fungují normálně).
+> byla obsažena. Nové produkty jsou členěné na části + číslované body (ne „články" jako
+> VPP M-100/M-200), takže `expected_source` u nich používá vzor `bod N` — **oprava
+> 22. 7. 2026:** dřívější verze CSV/MD chybně používala pro tyto tři produkty citace
+> `čl. N`, což u skóre `article_match` (hledá v `section_path` regex `čl.\|článek`)
+> systematicky vracelo falešné nuly, i když retrieval mířil na správnou sekci — `article_match`
+> se pro tyto tři datasety proto stále nepočítá (žádný `čl. N` v `expected_source`), ale
+> aspoň už nekazí interpretaci `doc_match`/`offer_correct`.
+>
+> **`dataset_obecne.csv` (oprava 22. 7. 2026):** dvě položky („Nabízíte životní pojištění?",
+> „limit léčebných výloh u cestovního pojištění?") byly původně `out_of_scope` — vznikly
+> předtím, než byly RENTA PROFIT/FLEXI/M-750 nahrané do báze. Po rozšíření báze jde o věcné
+> `in_scope` otázky; přeznačeno (viz `testovaci_otazky.md`).
 
 ## Struktura sloupců
 

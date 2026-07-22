@@ -28,81 +28,81 @@ Zdroj: JEDNOTLIVÁ POJIŠTĚNÍ, úvod (str. 4) + část INVESTOVÁNÍ.
 **2. Jaká je čekací doba u základního pojištění pro případ smrti?**
 Očekáváno: 2 měsíce. Čekací doba se neuplatňuje, pokud hlavní pojištěný zemře výlučně
 následkem úrazu.
-Zdroj: Základní pojištění pro případ smrti nebo dožití, čl. 3.
+Zdroj: Základní pojištění pro případ smrti nebo dožití, bod 3.
 
 **3. Kolik se vyplatí při smrti hlavního pojištěného?**
 Očekáváno: pojistné plnění se rovná součtu pojistné částky pro případ smrti hlavního
 pojištěného a kapitálové hodnoty pojištění; vyplácí se obmyšlenému.
-Zdroj: Základní pojištění pro případ smrti nebo dožití, čl. 4 odst. 6.
+Zdroj: Základní pojištění pro případ smrti nebo dožití, bod 4 odst. 6.
 
 **4. Co dostanu, když se dožiju konce pojištění?**
 Očekáváno: jednorázové pojistné plnění ve výši kapitálové hodnoty pojištění ke dni
 konce pojištění; na žádost lze plnění vyplácet formou důchodu (doživotního nebo na
 sjednanou dobu). Jednorázově se vyplatí i tehdy, pokud by vypočtený měsíční důchod
 nedosáhl alespoň 200 Kč.
-Zdroj: Základní pojištění pro případ smrti nebo dožití, čl. 4 (Při dožití).
+Zdroj: Základní pojištění pro případ smrti nebo dožití, bod 4 (Při dožití).
 
 **5. V jakých variantách lze sjednat pojištění vážných onemocnění?**
 Očekáváno: Základní varianta (11 vážných onemocnění), Kompletní varianta (65 vážných
 onemocnění), varianta PRO NI (pro ženy) a varianta PRO NĚJ (pro muže).
-Zdroj: Vážná onemocnění, čl. 1.
+Zdroj: Vážná onemocnění, bod 1.
 
 **6. Jaká je čekací doba u pojištění vážných onemocnění?**
 Očekáváno: 2 měsíce. V případě pojistné události výlučně následkem úrazu se čekací doba
 neuplatňuje.
-Zdroj: Vážná onemocnění, čl. 4.
+Zdroj: Vážná onemocnění, bod 4.
 
 **7. V jakých variantách podle stupně invalidity lze pojištění sjednat a platí čekací doba?**
 Očekáváno: varianty pro invaliditu III. stupně nebo sníženou soběstačnost, pro invaliditu
 II. stupně a pro invaliditu I. stupně. Pro toto pojištění není stanovena žádná čekací doba.
-Zdroj: Invalidita nebo snížená soběstačnost následkem úrazu nebo nemoci, čl. 1 a čl. 4.
+Zdroj: Invalidita nebo snížená soběstačnost následkem úrazu nebo nemoci, bod 1 a bod 4.
 
 **8. Co je podkladem pro nárok na plnění za invaliditu?**
 Očekáváno: rozhodnutí příslušného orgánu státní správy, který pojištěného uznal
 invalidním podle platného zákona o důchodovém pojištění (u snížené soběstačnosti pak
 přiznání II. nebo vyššího stupně závislosti a příspěvku na péči).
-Zdroj: Invalidita nebo snížená soběstačnost následkem úrazu nebo nemoci, čl. 2.
+Zdroj: Invalidita nebo snížená soběstačnost následkem úrazu nebo nemoci, bod 2.
 
 **9. Jaká je čekací doba u pracovní neschopnosti a mění se u komplikací s porodem?**
 Očekáváno: základní čekací doba je 2 měsíce; u pracovní neschopnosti pro stavy a
 komplikace v souvislosti s porodem se prodlužuje na 8 měsíců; u pracovní neschopnosti
 výlučně následkem úrazu se neuplatňuje.
-Zdroj: Pracovní neschopnost následkem úrazu nebo nemoci, čl. 4.
+Zdroj: Pracovní neschopnost následkem úrazu nebo nemoci, bod 4.
 
 **10. Jak dlouho se plní pracovní neschopnost, když se neúčastním nemocenského pojištění?**
 Očekáváno: pojistné plnění z jedné pojistné události maximálně za 548 dnů pracovní
 neschopnosti.
-Zdroj: Pracovní neschopnost následkem úrazu nebo nemoci, čl. 5 odst. 6.
+Zdroj: Pracovní neschopnost následkem úrazu nebo nemoci, bod 5 odst. 6.
 
 **11. Kdy vznikne nárok u varianty pracovní neschopnosti „s plněním od 15. dne"?**
 Očekáváno: pojistné plnění náleží pouze tehdy, trvá-li pracovní neschopnost déle než
 14 dnů (u varianty s plněním od 29. dne pak déle než 28 dnů). Je-li kratší než počet dnů
 uvedený ve variantě, plnění nenáleží.
-Zdroj: Pracovní neschopnost následkem úrazu nebo nemoci, čl. 5.
+Zdroj: Pracovní neschopnost následkem úrazu nebo nemoci, bod 5.
 
 **12. Za jak dlouhou hospitalizaci vzniká nárok a jak roste plnění s délkou pobytu?**
 Očekáváno: hospitalizace musí trvat alespoň 2 dny (k propuštění dojde nejdříve
 následující den po přijetí). Denní plnění se násobí koeficientem navýšení: prvních 30 dnů
 1,0; 31.–90. den 1,5; od 91. dne 2,0. Maximální doba není omezena.
-Zdroj: Pobyt v nemocnici (hospitalizace) následkem úrazu nebo nemoci, čl. 4.
+Zdroj: Pobyt v nemocnici (hospitalizace) následkem úrazu nebo nemoci, bod 4.
 
 **13. Jaká je čekací doba u pojištění pobytu v nemocnici (hospitalizace)?**
 Očekáváno: 2 měsíce; u hospitalizace pro stavy a komplikace v souvislosti s porodem
 8 měsíců. Neuplatňuje se u hospitalizace výlučně následkem úrazu nebo akutního
 zánětlivého onemocnění.
-Zdroj: Pobyt v nemocnici (hospitalizace) následkem úrazu nebo nemoci, čl. 3.
+Zdroj: Pobyt v nemocnici (hospitalizace) následkem úrazu nebo nemoci, bod 3.
 
 **14. Jaké plnění náleží při hospitalizaci nezletilého doprovázeného zletilou osobou?**
 Očekáváno: pojistné plnění se stanoví z dvojnásobku pojistné částky platné k datu vzniku
 pojistné události, a to za dobu pobytu doprovázející osoby v nemocnici.
-Zdroj: Pobyt v nemocnici (hospitalizace) následkem úrazu nebo nemoci, čl. 4 odst. 6.
+Zdroj: Pobyt v nemocnici (hospitalizace) následkem úrazu nebo nemoci, bod 4 odst. 6.
 
 **15. Co se rozumí „sníženou soběstačností"?**
 Očekáváno: dlouhodobě nepříznivý zdravotní stav, který trvá nebo má trvat déle než
 1 rok a omezuje funkční schopnosti nutné pro zvládání základních životních potřeb, čímž
 činí pojištěného závislým na pomoci jiné osoby; podkladem je přiznání II. nebo vyššího
 stupně závislosti a příspěvku na péči.
-Zdroj: Invalidita nebo snížená soběstačnost následkem úrazu nebo nemoci, čl. 2 odst. 3.
+Zdroj: Invalidita nebo snížená soběstačnost následkem úrazu nebo nemoci, bod 2 odst. 3.
 
 ---
 

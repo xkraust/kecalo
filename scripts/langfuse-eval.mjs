@@ -9,7 +9,7 @@
  * runy, které UI v3.205 v Experiments nezobrazuje.)
  *
  * Použití:
- *   node scripts/langfuse-eval.mjs                       # všechny 3 datasety
+ *   node scripts/langfuse-eval.mjs                       # všech 7 datasetů
  *   node scripts/langfuse-eval.mjs --dataset=M-100       # jen jeden
  *   node scripts/langfuse-eval.mjs --only=out_of_scope   # jen fallback otázky
  *   node scripts/langfuse-eval.mjs --run=baseline        # vlastní název runu
@@ -83,8 +83,17 @@ const SECRET_KEY = process.env.LANGFUSE_SECRET_KEY;
 
 // Názvy datasetů včetně "složky" kecalo/ — prefix lze přepnout přes --prefix.
 const PREFIX = args.prefix !== undefined ? String(args.prefix) : "kecalo/";
+const DEFAULT_DATASETS = [
+  "obecne",
+  "M-100",
+  "M-200",
+  "dataset_RENTA_PROFIT",
+  "dataset_cestovni_M-750",
+  "dataset_FLEXI",
+  "dataset_skupinove",
+];
 const DATASETS = (
-  args.dataset ? String(args.dataset).split(",") : ["obecne", "M-100", "M-200"]
+  args.dataset ? String(args.dataset).split(",") : DEFAULT_DATASETS
 ).map((d) => (d.includes("/") ? d : PREFIX + d));
 
 const ONLY = args.only ? String(args.only) : null; // in_scope | out_of_scope | confusion
