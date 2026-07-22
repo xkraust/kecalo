@@ -11,6 +11,18 @@ ladění chunkování, prahů, promptu).
 | `dataset_obecne.csv` | `testovaci_otazky.md` | 12 | průřezové otázky napříč bází + fallback |
 | `dataset_M-100_23.csv` | `testovaci_otazky_M-100_23.md` | 23 | pojištění majetku a odpovědnosti občanů |
 | `dataset_M-200_23.csv` | `testovaci_otazky_M-200_23.md` | 21 | pojištění bytových domů |
+| `dataset_RENTA_PROFIT.csv` | `testovaci_otazky_RENTA_PROFIT.md` | 12 | životní pojištění RENTA PROFIT (smrt/dožití) |
+| `dataset_cestovni_M-750.csv` | `testovaci_otazky_cestovni_M-750.md` | 20 | cestovní pojištění M-750 |
+| `dataset_FLEXI.csv` | `testovaci_otazky_FLEXI.md` | 22 | životní pojištění FLEXI |
+| `dataset_skupinove.csv` | `testovaci_otazky_skupinove.md` | 16 | skupinové pojištění |
+
+> Sloupec `document` u nových datasetů (`RENTA_PROFIT`, `M-750`, `FLEXI`,
+> `skupinove_pojisteni`) je zvolen jako robustní podřetězec názvu nahraného souboru —
+> `doc_match` v eval runneru porovnává `norm(filename).includes(norm(document))`. Pokud
+> jsou soubory v Supabase nahrané pod jinými názvy, uprav hodnotu `document` tak, aby v nich
+> byla obsažena. Nové produkty jsou členěné na části + body (ne „články"), takže
+> `expected_source` neobsahuje vzor `čl. N` — skóre `article_match` se u nich nepočítá
+> (doc_match a offer_correct fungují normálně).
 
 ## Struktura sloupců
 
