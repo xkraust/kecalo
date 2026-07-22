@@ -12,6 +12,12 @@ Návštěvník klade otázky česky k pojistným produktům; bot odpovídá výh
 - Karta poptávky u produktových dotazů; shrnutí konverzace pro zpracovatele generuje Mistral
 - Zpětná vazba palcem nahoru/dolů — palec dolů nabídne zanechání kontaktu
 
+**Vysouvací widget (`/demo`)**
+- Mini chat jako bublina v rohu obrazovky → panel `380×600px`; demo stránka simuluje nasazení na webu „Pojišťovny Jistota"
+- Chat logika sdílená s fullscreenem přes hook `useKecaloChat` — každá oprava se propíše do obou
+- Panel je vždy namountovaný (minimalizace čistě CSS) — konverzace i běžící stream přežijí zavření
+- Žádná nová API routa ani útočná plocha — používá jen existující veřejné routy
+
 **Administrace (`/admin`, chráněná přihlášením)**
 - Dashboard s přehledem znalostní báze (dokumenty, chunky, stavy)
 - Upload a správa dokumentů (PDF/TXT/MD), reindexace bez re-uploadu při změně parametrů chunkování
@@ -23,6 +29,7 @@ Návštěvník klade otázky česky k pojistným produktům; bot odpovídá výh
 **Provoz**
 - Observabilita: OpenTelemetry tracing s exportem do Langfuse (volitelné; obsah dotazů se ve výchozím stavu neloguje)
 - Evaluace: `npm run eval` prožene testovací otázky z Langfuse datasetů nasazenou aplikací a založí experiment s deterministickými skóre
+- Bezpečnost: admin auth je **na úrovni prototypu** (jedna identita, podepsaná HMAC cookie — ne SSO/JWT); detaily a vědomé kompromisy viz [ARCHITECTURE.md, sekce 6](docs/ARCHITECTURE.md#6-bezpečnost)
 
 ## Stack
 
@@ -49,9 +56,18 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · shadcn/u
    npm run dev
    ```
 
-5. **Otevřít:** [http://localhost:3000](http://localhost:3000) (chat) · [http://localhost:3000/admin](http://localhost:3000/admin) (admin)
+5. **Otevřít:** [http://localhost:3000](http://localhost:3000) (chat) · [http://localhost:3000/admin](http://localhost:3000/admin) (admin) · [http://localhost:3000/demo](http://localhost:3000/demo) (demo stránka s widgetem)
 
 6. **Naplnit znalostní bázi:** nahrát PDF z `docs/seed-docs/` přes `/admin/documents`.
+
+## Příkazy
+
+| Příkaz | Účel |
+|---|---|
+| `npm run dev` | Dev server na `localhost:3000` |
+| `npm run build` | Produkční build |
+| `npm run lint` | ESLint |
+| `npm run eval` | Eval runner — prožene Langfuse datasety nasazenou aplikací a založí experiment (viz [docs/evaluation/](docs/evaluation/)) |
 
 ## Proměnné prostředí
 
@@ -77,6 +93,16 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · shadcn/u
 | `KECALO_BASE_URL` | Cíl eval runneru — nasazená URL aplikace (jen pro `npm run eval`) |
 
 `TOP_K`, `SIMILARITY_THRESHOLD` a `LLM_TEMPERATURE` jsou jen výchozí/fallback hodnoty — runtime hodnoty se čtou z DB a ladí se v `/admin/parameters`.
+
+## Známá omezení
+
+Jde o prototyp — několik vědomých kompromisů (detaily viz [ARCHITECTURE.md, sekce 10](docs/ARCHITECTURE.md#10-známá-omezení)):
+
+- **Autentizace na úrovni prototypu** — jedna admin identita, podepsaná HMAC cookie; pro produkci nahradit plnohodnotnou auth (SSO/JWT).
+- **In-memory rate limity** — per-instance; na serverless škálování napříč instancemi nedrží globální stropy přesně.
+- **Vědomě odloženo (SEC-7 / SEC-8)** — serverová rekonstrukce historie chatu a explicitní CSRF token.
+- **Deduplikace leadů** — podle přesné shody kontaktu v rámci typu; nepokrývá varianty zápisu.
+- **Náklady modelů v Langfuse** — `voyage-3.5` a `mistral-small-latest` je třeba definovat v Langfuse Settings → Models, jinak se cena počítá jako 0.
 
 ## Dokumentace
 
