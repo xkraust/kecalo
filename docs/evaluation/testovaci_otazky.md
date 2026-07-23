@@ -59,7 +59,10 @@ Zdroj: VPP M-200_23, čl. 44 odst. 3.
 **6. Do kdy můžu vypovědět smlouvu po jejím uzavření a jaká je výpovědní doba?**
 Očekáváno: Do dvou měsíců ode dne uzavření pojistné smlouvy; pojištění zanikne uplynutím
 osmidenní výpovědní doby.
-Zdroj: Informace pro klienta, kap. 7 (shodně VPP M-200_23, čl. 4 odst. 3).
+Zdroj: Informace pro klienta, kap. 7 — totéž ustanovení je i v ostatních produktech
+(např. VPP M-200_23, čl. 4 odst. 3); s rostoucí bází (7 dokumentů) retrieval nemusí vždy
+vrátit zrovna „Informace pro klienta" mezi top-k, ale fakticky správnou odpověď najde
+i v jiném zdroji — otázka proto v CSV datasetu nemá pevně připnutý `document`.
 
 **7. Za jak dlouho po skončení šetření vyplatíte pojistné plnění?**
 Očekáváno: Do 15 dnů ode dne skončení šetření nutného ke zjištění existence a rozsahu
@@ -81,7 +84,8 @@ Zdroj: VPP M-100_23, čl. 37 odst. 7 (a čl. 38 odst. 5).
 Očekáváno: Telefonicky na infolince 957 105 105, online formulářem na www.koop.cz, osobně
 na pobočce nebo písemně. Při podezření na trestný čin (krádež) volat policii 158, při požáru
 hasiče 150.
-Zdroj: Informace pro klienta, kap. 5.
+Zdroj: Informace pro klienta, kap. 5 — obdobný postup hlášení popisují i ostatní produkty;
+otázka proto v CSV datasetu nemá pevně připnutý `document` (viz pozn. u otázky 6).
 
 **11. Nabízíte životní pojištění a jaké má krytí?**
 Očekáváno: Ano — v bázi jsou dva produkty životního pojištění: RENTA PROFIT (obnosové
