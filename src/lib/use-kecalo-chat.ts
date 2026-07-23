@@ -4,10 +4,10 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import type { Source } from "@/components/SourcesBlock";
 
 export const SAMPLE_QUESTIONS = [
-  "Co kryje pojištění majetku?",
-  "Jaké jsou výluky z pojištění?",
-  "Co je spoluúčast a jak funguje?",
-  "Jak nahlásit pojistnou událost?",
+  "Jaké pojištění bytového domu si mohu sjednat?",
+  "Do kdy můžu vypovědět smlouvu po jejím uzavření?",
+  "Nabízíte i životní nebo cestovní pojištění?",
+  "Za jak dlouho po škodě vyplatíte pojistné plnění?",
 ];
 
 export interface ChatMessage {
