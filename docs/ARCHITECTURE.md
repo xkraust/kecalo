@@ -66,6 +66,7 @@ Chyby se ukládají do `documents.error_message` a dokument končí ve stavu `er
 5. **Generování** — `buildContextBlock` složí `<document>` bloky (zdroj, sekce, strana) do system promptu (runtime override `settings.systemPrompt ?? SYSTEM_PROMPT`); historie ořezaná na posledních 8 zpráv; `streamText` s `maxOutputTokens: 1500`, teplotou z nastavení a `abortSignal` (odpojení klienta zastaví generování).
 6. **Zdroje** — metadata (filename ≤ 80 zn., section ≤ 100 zn., strana, zaokrouhlená similarity) v hlavičce `X-Sources` (URL-encoded JSON); nad 8 000 znaků se sekce vynechají (limit velikosti hlaviček).
 7. **Token `[[NABIDKA]]`** — system prompt instruuje model přidat ho na konec odpovědi u produktových dotazů; klient token odstraní a vykreslí kartu poptávky (`LeadForm`).
+8. **Telemetrická identita** — nepovinné `sessionId` v těle (`parseSessionId`, ≤ 64 zn.) se propíše na rodičovský span jako `langfuse.session.id`; span nese i `langfuse.trace.name` = `chat-rag`. Trace id se vrací hlavičkou `X-Trace-Id` (obě větve — stream i fallback) a klient si ho drží v `ChatMessage.traceId`. Telemetrie nesmí ovlivnit odpověď: nevalidní `sessionId` se tiše ignoruje.
 
 ### 3.3 Moduly `src/lib/rag/`
 
@@ -100,7 +101,7 @@ CHECK constrainty v migracích zrcadlí rozsahy definované v [`src/lib/settings
 
 | Routa | Účel | Limit |
 |---|---|---|
-| `POST /api/chat` | RAG pipeline → streamovaná odpověď + `X-Sources` | 20/min |
+| `POST /api/chat` | RAG pipeline → streamovaná odpověď + `X-Sources` + `X-Trace-Id` | 20/min |
 | `POST /api/feedback` | uložení hlasu palec nahoru/dolů | 10/min |
 | `POST /api/leads` | uložení poptávky + Mistral shrnutí + deduplikace | 5/min |
 | `POST /api/auth/login`, `/api/auth/logout` | přihlášení/odhlášení admina | login 5 pokusů / 15 min |

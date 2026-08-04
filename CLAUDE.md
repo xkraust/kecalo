@@ -138,7 +138,7 @@ Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabas
 /admin/parameters/prompts → Prompty (system prompt chatu + prompt shrnutí poptávek; Fáze 17)
 /admin/login            → Login (uživatelské jméno + heslo), nastaví session cookie
 
-POST   /api/chat                → RAG pipeline → streamovaná odpověď + metadata zdrojů
+POST   /api/chat                → RAG pipeline → streamovaná odpověď + metadata zdrojů (X-Sources) + X-Trace-Id; nepovinné sessionId v těle (jen telemetrie)
 POST   /api/documents           → upload → extrakce → chunking → embeddingy → uložení (409 při duplicitním názvu)
 GET    /api/documents           → seznam dokumentů se stavem
 DELETE /api/documents/[id]      → smazání dokumentu, chunků (CASCADE), souboru v Storage
@@ -261,6 +261,8 @@ Spouští se z `POST /api/documents` po uploadu a z `POST /api/documents/[id]/re
 
 #### Dotaz / chat — `api/chat/route.ts` + `prompts.ts`
 Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4 000 znaků, max 50 zpráv; jinak 400) a routa má rate limit 20 požadavků/min na IP (sdílený helper `lib/rate-limit.ts`; 429). Pak `retrieve(query)` → pokud `chunks.length === 0` fallback (viz níže), jinak `buildContextBlock` vloží chunky do system promptu (atribut `source` = dokument, `section_path`, strana → citace typu „(VPP M-100/23, čl. 29 odst. 8, strana 11)"). Metadata zdrojů (filename, page, section, zaokrouhlené `similarity`) jdou na klienta v hlavičce odpovědi `X-Sources` (URL-encoded JSON; `buildSourcesHeader` ořezává section na 100 a filename na 80 znaků, při překročení 8 000 znaků se sekce vynechají — ochrana proti limitu velikosti hlaviček). Historie se ořezává na posledních 8 zpráv (`MAX_HISTORY`).
+
+**Telemetrická identita požadavku** (mimo číslované fáze, 4. 8. 2026 — Etapa 2 plánu headless Langfuse): tělo požadavku smí nést nepovinné `sessionId` (`parseSessionId`, ≤ 64 znaků jako v `/api/feedback`). Slouží **výhradně k telemetrii** — nevalidní nebo chybějící hodnota se tiše ignoruje, na odpověď nemá vliv. Rodičovský span dostává `langfuse.trace.name` = `chat-rag` (bez něj zůstávaly traces v Langfuse nepojmenované a nešly filtrovat) a při dodaném session id i `langfuse.session.id` → konverzace se v Langfuse seskupí v Sessions view. Odpověď vrací v hlavičce `X-Trace-Id` id trace (`span.spanContext().traceId`) — obě větve, streamovaná i fallback. Klient si ho ukládá do `ChatMessage.traceId`; navázání zpětné vazby na trace přijde v další etapě.
 
 #### Moduly `src/lib/rag/`
 
@@ -391,7 +393,8 @@ RAG pipeline je trasována přes OpenTelemetry s exportem do Langfuse Cloud. Pod
 - **`src/lib/telemetry.ts`** — jediný zdroj pravdy pro OTel: singleton `langfuseSpanProcessor` (drží se zde, aby na něj dosáhl i flush), `getTracer()`, `withSpan(name, fn, attrs)` (přes **`startActiveSpan`** — nutné pro vnořování spanů a zařazení AI SDK LLM spanu) a `flushTelemetry()` (`forceFlush` pro `after()` callbacky). Bez klíčů jsou všechny helpery no-op.
 - **Span filtr:** `shouldExportSpan` propustí vše kromě interního šumu `next.js` — výchozí smart-filtr Langfuse by zahodil naše vlastní `kecalo` spany (nemají `gen_ai.` atributy).
 - **Serverless export:** na Vercelu (`process.env.VERCEL`) má `LangfuseSpanProcessor` `exportMode: "immediate"` — default `batched` ztrácel pozdní spany (`chat-pipeline` + LLM končí v `onFinish` po dostreamování, funkce zmrzne dřív, než se batch odešle). Lokálně/long-running zůstává `batched`. Pozn.: `LANGFUSE_*` musí být v **Project** env proměnných Vercelu (ne jen Shared) + redeploy.
-- **Instrumentované cesty:** chat (`chat-pipeline` → `retrieval` → `embed.query`/`vector-search`; LLM span automaticky z AI SDK přes `experimental_telemetry`), indexace (`document.process` → download/extract/clean/chunk/embed-batch/insert-chunks), upload (`document.upload`), retrieval-test (`retrieval-test`).
+- **Instrumentované cesty:** chat (`chat-pipeline` → `retrieval` → `embed.query`/`vector-search`; LLM span automaticky z AI SDK přes `experimental_telemetry`), shrnutí poptávek (`lead.summarize`), indexace (`document.process` → download/extract/clean/chunk/embed-batch/insert-chunks), upload (`document.upload`), retrieval-test (`retrieval-test`).
+- **Identita trace (4. 8. 2026):** `chat-pipeline` nese `langfuse.trace.name` = `chat-rag` a volitelně `langfuse.session.id`; trace id jde na klienta hlavičkou `X-Trace-Id`. Detaily viz „Telemetrická identita požadavku" v sekci Dotaz / chat.
 - **Streaming:** v `chat/route.ts` se rodičovský span ukončí až v `onFinish`/`onError`/`onAbort` streamu (ne při návratu Response), aby latence zahrnula generování a LLM span se nestal osiřelým. `streamText` dostává `abortSignal: request.signal` — odpojení klienta uprostřed streamu (zavřená záložka, abort z `useChat`) tak zastaví generování a span se ukončí v `onAbort` s atributem `chat.aborted` (jinak by zůstal neukončený a v `immediate` režimu se neexportoval).
 - **Runtime přepínače (Fáze 11):** podsekce **Telemetrie** v `/admin/parameters` (sloupce `app_settings.telemetry_enabled`, `record_content`):
   - **Telemetrie zapnutá** — master vypínač. Promítá se do proměnného flagu v `telemetry.ts` (`setTelemetryExport`), který čte `shouldExportSpan`: spany se vždy vytvoří, ale při vypnutí se neexportují. Flag obnovuje `getSettings()` (per request) a `saveSettings()` (okamžitě). V chat route navíc gateuje `experimental_telemetry.isEnabled`.

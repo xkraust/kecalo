@@ -20,6 +20,8 @@ const MAX_HISTORY = 8;
 const MAX_MESSAGE_LENGTH = 4000;
 /** Limit počtu zpráv v požadavku (historie se pak stejně ořezává na MAX_HISTORY). */
 const MAX_MESSAGES = 50;
+/** Limit délky session id — shodný s /api/feedback, hodnota jde od klienta. */
+const MAX_SESSION_ID_LENGTH = 64;
 
 const chatLimiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
 
@@ -78,6 +80,19 @@ function parseMessages(body: unknown): ChatMessage[] | null {
   return result;
 }
 
+/**
+ * Session id z těla požadavku — nepovinné, slouží jen k seskupení konverzace
+ * v Langfuse (Sessions view). Nevalidní nebo chybějící hodnota se tiše ignoruje:
+ * telemetrie nesmí být důvod, proč by dotaz selhal.
+ */
+function parseSessionId(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const sessionId = (body as { sessionId?: unknown }).sessionId;
+  if (typeof sessionId !== "string" || !sessionId) return null;
+  if (sessionId.length > MAX_SESSION_ID_LENGTH) return null;
+  return sessionId;
+}
+
 export async function POST(request: Request) {
   if (!chatLimiter(clientIp(request))) {
     return NextResponse.json(
@@ -109,6 +124,7 @@ export async function POST(request: Request) {
   }
 
   const query = lastUserMessage.content;
+  const sessionId = parseSessionId(body);
 
   const settings = await getSettings();
 
@@ -119,7 +135,16 @@ export async function POST(request: Request) {
     span.setAttributes({
       "chat.message_count": messages.length,
       "chat.query_length": query.length,
+      // Bez explicitního jména zůstávala trace v Langfuse nepojmenovaná
+      // a v UI nešla filtrovat.
+      "langfuse.trace.name": "chat-rag",
+      ...(sessionId ? { "langfuse.session.id": sessionId } : {}),
     });
+
+    // Trace id posíláme klientovi, aby šlo zpětnou vazbu (palec nahoru/dolů)
+    // navázat na konkrétní trace. Čte se z OTel kontextu spanu — bez klíčů
+    // Langfuse je span no-op a id je samé nuly, což klientovi nevadí.
+    const traceId = span.spanContext().traceId;
 
     // Jednorázové ukončení spanu — onFinish a onError se navzájem vylučují, guard je
     // pojistka proti dvojímu end().
@@ -173,6 +198,7 @@ export async function POST(request: Request) {
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
           "X-Sources": encodeURIComponent(JSON.stringify([])),
+          "X-Trace-Id": traceId,
         },
       });
     }
@@ -230,7 +256,7 @@ export async function POST(request: Request) {
     after(() => flushTelemetry());
 
     return result.toTextStreamResponse({
-      headers: { "X-Sources": sourcesHeader },
+      headers: { "X-Sources": sourcesHeader, "X-Trace-Id": traceId },
     });
   });
 }

@@ -17,6 +17,8 @@ export interface ChatMessage {
   sources?: Source[];
   /** Model odpověď označil tokenem [[NABIDKA]] → zobrazit kartu poptávky. */
   offerLead?: boolean;
+  /** Id trace v Langfuse (hlavička X-Trace-Id) — pro navázání zpětné vazby. */
+  traceId?: string;
 }
 
 /** Skrytá značka od modelu — jen u dotazů na konkrétní pojistný produkt. */
@@ -120,9 +122,14 @@ export function useKecaloChat() {
               role: m.role,
               content: m.content,
             })),
+            // Jen pro telemetrii — server hodnotu použije k seskupení
+            // konverzace v Langfuse, na odpověď nemá vliv.
+            sessionId,
           }),
           signal: controller.signal,
         });
+
+        const traceId = res.headers.get("X-Trace-Id") ?? undefined;
 
         let sources: Source[] = [];
         const sourcesHeader = res.headers.get("X-Sources");
@@ -167,6 +174,7 @@ export function useKecaloChat() {
                     content: current.content,
                     sources,
                     offerLead: current.offerLead,
+                    traceId,
                   }
                 : m
             )
@@ -184,6 +192,7 @@ export function useKecaloChat() {
                   content: final.content,
                   sources,
                   offerLead: final.offerLead,
+                  traceId,
                 }
               : m
           )
@@ -208,7 +217,7 @@ export function useKecaloChat() {
         setIsLoading(false);
       }
     },
-    [messages, isLoading]
+    [messages, isLoading, sessionId]
   );
 
   const handleInputKeyDown = useCallback(
