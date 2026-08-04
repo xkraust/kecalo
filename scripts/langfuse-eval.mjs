@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 /**
  * Langfuse eval runner — prožene testovací datasety přes nasazený /api/chat
  * a založí z výsledků experiment (dataset run) v Langfuse + deterministická skóre.
@@ -24,7 +23,6 @@
  */
 
 import { readFileSync } from "node:fs";
-import { randomBytes } from "node:crypto";
 import { execSync } from "node:child_process";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { LangfuseSpanProcessor } from "@langfuse/otel";
@@ -115,7 +113,6 @@ if (!PUBLIC_KEY || !SECRET_KEY) {
 // Helpery
 // ---------------------------------------------------------------------------
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const hex = (n) => randomBytes(n).toString("hex");
 
 /** Skrytá značka nabídky od modelu — shodná s klientem (src/app/page.tsx). */
 const LEAD_TOKEN = "[[NABIDKA]]";
