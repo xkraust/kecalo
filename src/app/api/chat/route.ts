@@ -1,6 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { streamText } from "ai";
 import { NextResponse, after } from "next/server";
+import { createHash } from "node:crypto";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { config } from "@/lib/config";
 import { getSettings } from "@/lib/settings";
@@ -81,6 +82,16 @@ function parseMessages(body: unknown): ChatMessage[] | null {
 }
 
 /**
+ * Krátký otisk systémového promptu do telemetrie. Umožní v Langfuse porovnat
+ * skóre napříč verzemi promptu, aniž by se prompt kamkoli stěhoval (levná
+ * náhrada Prompt Managementu — viz plán headless Langfuse, Etapa 4).
+ * Posílá se jen otisk, nikdy text promptu.
+ */
+function promptFingerprint(prompt: string): string {
+  return createHash("sha256").update(prompt).digest("hex").slice(0, 12);
+}
+
+/**
  * Session id z těla požadavku — nepovinné, slouží jen k seskupení konverzace
  * v Langfuse (Sessions view). Nevalidní nebo chybějící hodnota se tiše ignoruje:
  * telemetrie nesmí být důvod, proč by dotaz selhal.
@@ -128,6 +139,9 @@ export async function POST(request: Request) {
 
   const settings = await getSettings();
 
+  // Runtime override z /admin/parameters/prompts; null = výchozí z kódu (Fáze 17).
+  const systemPrompt = settings.systemPrompt ?? SYSTEM_PROMPT;
+
   // Rodičovský span držíme otevřený přes celý request. Kvůli streamování ho NEukončíme
   // při návratu Response, ale až v onFinish/onError streamu — jinak by latence nezahrnula
   // generování a LLM span od AI SDK by skončil až po rodiči (osiřelý span).
@@ -139,6 +153,12 @@ export async function POST(request: Request) {
       // a v UI nešla filtrovat.
       "langfuse.trace.name": "chat-rag",
       ...(sessionId ? { "langfuse.session.id": sessionId } : {}),
+      // Otisk aktivního promptu na úrovni trace (ne generation) — skóre
+      // user-thumbs sedí také na trace, jinak by je nešlo spárovat.
+      "langfuse.trace.metadata.prompt_hash": promptFingerprint(systemPrompt),
+      "langfuse.trace.metadata.prompt_source": settings.systemPrompt
+        ? "override"
+        : "default",
     });
 
     // Trace id posíláme klientovi, aby šlo zpětnou vazbu (palec nahoru/dolů)
@@ -204,8 +224,6 @@ export async function POST(request: Request) {
     }
 
     const contextBlock = buildContextBlock(chunks);
-    // Runtime override z /admin/parameters/prompts; null = výchozí z kódu (Fáze 17).
-    const systemPrompt = settings.systemPrompt ?? SYSTEM_PROMPT;
     const systemWithContext = `${systemPrompt}\n\n<context>\n${contextBlock}\n</context>`;
 
     const trimmedMessages = messages.slice(-MAX_HISTORY);
