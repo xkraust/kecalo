@@ -249,6 +249,8 @@ export function useKecaloChat() {
           messageIndex,
           rating,
           query: userQuery,
+          // Trace hodnocené odpovědi — server podle něj připne skóre v Langfuse.
+          traceId: messages[messageIndex]?.traceId,
         }),
       }).catch(() => {});
     },

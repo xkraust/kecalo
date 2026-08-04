@@ -102,7 +102,7 @@ CHECK constrainty v migracích zrcadlí rozsahy definované v [`src/lib/settings
 | Routa | Účel | Limit |
 |---|---|---|
 | `POST /api/chat` | RAG pipeline → streamovaná odpověď + `X-Sources` + `X-Trace-Id` | 20/min |
-| `POST /api/feedback` | uložení hlasu palec nahoru/dolů | 10/min |
+| `POST /api/feedback` | uložení hlasu palec nahoru/dolů (+ skóre `user-thumbs` v Langfuse při dodaném `traceId`) | 10/min |
 | `POST /api/leads` | uložení poptávky + Mistral shrnutí + deduplikace | 5/min |
 | `POST /api/auth/login`, `/api/auth/logout` | přihlášení/odhlášení admina | login 5 pokusů / 15 min |
 
@@ -137,6 +137,7 @@ Parametry se ladí za běhu v `/admin/parameters` (+ podsekce `/admin/parameters
 
 - [`src/instrumentation.ts`](../src/instrumentation.ts) registruje `NodeTracerProvider` + `LangfuseSpanProcessor` jednou při startu; bez Langfuse klíčů se neregistruje nic.
 - [`src/lib/telemetry.ts`](../src/lib/telemetry.ts) — singleton procesoru, `withSpan`/`getTracer`/`flushTelemetry`; bez klíčů no-op.
+- [`src/lib/langfuse-score.ts`](../src/lib/langfuse-score.ts) — zápis skóre `user-thumbs` přes REST klienta (`@langfuse/client`); záměrně mimo `telemetry.ts`, který je čistě o OTel a načítá se už při startu z `instrumentation.ts`. Líný singleton, fail-open, bez klíčů no-op.
 - Instrumentované cesty: chat (`chat-pipeline` → `retrieval` → `embed.query`/`vector-search` + LLM span z AI SDK), indexace (`document.process` → download/extract/clean/chunk/embed-batch/insert-chunks), upload, retrieval-test.
 - Na Vercelu `exportMode: "immediate"` — batched režim ztrácel spany končící po dostreamování (funkce zmrzne dřív, než se batch odešle). Rodičovský span chatu se ukončuje až v `onFinish`/`onError`/`onAbort` streamu.
 - **Soukromí:** default se neposílá obsah dotazů/odpovědí, jen metadata (tokeny, latence, parametry, počty chunků). Obsah zapíná runtime přepínač `record_content`; master vypínač `telemetry_enabled` zastaví export úplně.
