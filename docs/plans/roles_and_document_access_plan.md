@@ -26,7 +26,9 @@ Slovo „role" se v této oblasti používá pro tři různé věci. Návrh je p
 |---|---|---|---|---|
 | **Aplikační role** | *Co smíš dělat?* | `admin` / `editor` / `viewer` | uživatel (právě jedna) | admin sekce, admin API |
 | **Pracovní role** | *Kdo jsi v organizaci?* | ředitel, vedoucí účtárny, … | uživatel (M:N) | odvození štítků |
-| **Štítek publika** | *Komu obsah patří?* | `pravni`, `obchod`, `ucetni`, … | pracovní role + dokument | retrieval, výpisy |
+| **Štítek publika** | *Komu obsah patří?* | Právní oddělení, Obchod, Účtárna, … | pracovní role + dokument | retrieval, výpisy |
+
+Názvy štítků i pracovních rolí se vedou **česky, s diakritikou**; technické kódy (`pravni-oddeleni`, `obchod`, `uctarna`) si aplikace odvozuje sama — viz „Životní cyklus štítku" v kap. 4.
 
 Obě osy jsou ortogonální: vedoucí účtárny může být `viewer` i `editor`, aniž by to změnilo, které dokumenty vidí.
 
@@ -90,15 +92,30 @@ job_roles  (code text PK, label text NOT NULL, description text NULL,
             external_group text NULL,     -- budoucí mapování skupin z OIDC claims
             created_at)
 job_role_audiences (job_role_code FK→job_roles ON DELETE CASCADE,
-                    audience_code FK→audiences, PK obojí)
+                    audience_code FK→audiences ON DELETE RESTRICT, PK obojí)
 user_job_roles     (user_id FK→users ON DELETE CASCADE,
-                    job_role_code FK→job_roles, PK obojí)
+                    job_role_code FK→job_roles ON DELETE CASCADE, PK obojí)
 document_audiences (document_id FK→documents ON DELETE CASCADE,
-                    audience_code FK→audiences, PK obojí)
+                    audience_code FK→audiences ON DELETE RESTRICT, PK obojí)
 documents += visibility text CHECK ('public'/'restricted') DEFAULT 'public'
 ```
 
+**Asymetrie `CASCADE` vs. `RESTRICT` je záměrná, ne nedůslednost.** Zaniká-li dokument, uživatel nebo pracovní role, ztrácí jejich vazby smysl → `CASCADE`. Štítek je ale číselníková položka přilepená na **cizím obsahu**: kdyby se mazal kaskádou, jedno smazání v číselníku by tiše odebralo označení ze všech dokumentů a rolí. Proto `RESTRICT` — smazat jde jen nepoužitý štítek.
+
 Žádná tabulka `user_audiences` — přímá vazba uživatel↔štítek by obešla pracovní role a rozbila jediný zdroj pravdy.
+
+### Životní cyklus štítku
+
+**Štítky se udržují česky.** `label` je plnohodnotný český název s diakritikou („Právní oddělení", „Účtárna") — je to jediná hodnota, kterou kdokoli v adminu vidí a čte, a nemá žádné omezení kromě délky. Totéž platí pro názvy pracovních rolí.
+
+`code` je proti tomu technická vodoznak pro URL, SQL a primární klíč — **negeneruje ho uživatel, ale aplikace transliterací z názvu**: „Právní oddělení" → `pravni-oddeleni`. Při zakládání se předvyplní jako návrh, který jde přepsat; po uložení už ne. Admin tak nikde nemusí vymýšlet anglické ani bezdiakritické názvy.
+
+Důvod, proč `code` zůstává ASCII, není purismus: „č" jde v Unicode zapsat dvěma způsoby (NFC jedním znakem, NFD jako `c` + kombinující háček). Vizuálně shodné, bajtově různé — a protože je `code` primární klíč, vznikly by dva různé štítky, které na obrazovce vypadají identicky. K tomu case-insensitivita (`Č` vs `č`) a kódování v URL. Transliterace tenhle problém odstraňuje celý, aniž by kohokoli nutila psát nečesky.
+
+- **`code` je po založení neměnný.** Je primárním klíčem ve dvou vazebních tabulkách, takže přejmenování by byl update PK s kaskádou. **Přejmenovat štítek ale jde kdykoli** — `label` je volně editovatelný a v UI se mění právě on; kód pod ním zůstává. Rozejde-li se časem slug s názvem, nevadí to (je interní).
+- **Validace kódu:** `^[a-z0-9_-]{2,32}$` po transliteraci — vynutit v API, ne jen v UI. Kolize slugu (dva různé názvy dají stejný kód) → API vrátí srozumitelnou chybu a nabídne číslovanou variantu.
+- **Smazání projde jen u nepoužitého štítku.** Odebrání ze všech dokumentů a rolí je samostatný vědomý krok, ne vedlejší efekt mazání.
+- **Pozor na osiření dokumentu:** odebrání štítku, který je jediným štítkem `restricted` dokumentu, promění dokument v neviditelný pro všechny kromě admina. Je to týž stav, který kap. 8 značí badge „bez štítků" — jenže tady vzniká tiše a u cizího dokumentu, ne viditelně při vlastním uploadu. Potvrzovací dialog na to musí upozornit jménem dotčeného dokumentu.
 
 Pomocný view, ať se dvojitý join neopakuje v každém dotazu a ať jde odpovědět „**proč** tenhle uživatel na dokument vidí" (u M:N to není triviální otázka):
 
@@ -182,14 +199,15 @@ where documents.status = 'ready'
 7. **Smazání pracovní role odebírá přístup okamžitě.** `ON DELETE CASCADE` na `user_job_roles` znamená, že smazání role tiše odebere štítky všem nositelům — správné chování, ale admin UI musí upozornit s počtem dotčených uživatelů. Zároveň to musí posunout jejich `sessions_invalid_before`.
 8. **SSO uživatel se nesmí přihlásit heslem.** Login lokálním heslem musí pro `auth_provider='oidc'` selhat, i kdyby se do `password_hash` cokoli dostalo — jinak vznikne cesta okolo IdP, která obchází MFA i deaktivaci účtu po odchodu ze zaměstnání. Nastavit heslo takovému uživateli nesmí jít ani z admin UI.
 9. **Login rate limit se musí přenavrhnout.** Dnešní globální strop 30 selhání / 15 min napříč IP (`api/auth/login/route.ts`) stojí na předpokladu „jediný admin účet" — je to i v komentáři u konstanty. S více uživateli je to DoS vektor: útočník uzamkne přihlášení všem. Náprava: **per-username** limit 5/15 min vedle stávajícího per-IP, globální strop ponechat, ale výrazně zvýšit jako pojistku poslední instance.
-10. **Nelze deaktivovat ani degradovat posledního aktivního admina.** Admin může měnit role a deaktivovat účty — včetně svého. Bez této pojistky si organizace jedním kliknutím zamkne správu systému (a bez samoobslužné eskalace by ji odemykal jen zásah do DB). Kontrolovat serverově v `PATCH /api/users/[id]`, ne jen v UI.
+10. **Každá změna efektivních štítků uživatele revokuje jeho session.** Invariant 7 řeší jen smazání pracovní role, ale tentýž dopad má i změna sady jejích štítků a odebrání role uživateli — nositelé okamžitě získají nebo ztratí přístup k obsahu. Všechny tři operace musí posunout `sessions_invalid_before` dotčených a UI musí předem ukázat počet zasažených lidí.
+11. **Nelze deaktivovat ani degradovat posledního aktivního admina.** Admin může měnit role a deaktivovat účty — včetně svého. Bez této pojistky si organizace jedním kliknutím zamkne správu systému (a bez samoobslužné eskalace by ji odemykal jen zásah do DB). Kontrolovat serverově v `PATCH /api/users/[id]`, ne jen v UI.
 
 ## 8. Admin UI
 
 - Nová položka sidebaru **Uživatelé** (ikona `Users`), viditelná jen pro `admin`, jako rozbalitelná skupina — vzor dnešních „Parametrů" v `src/components/AdminSidebar.tsx`:
   - `/admin/users` — tabulka (jméno, aplikační role, pracovní role, stav), založit / deaktivovat / reset hesla, multiselect pracovních rolí. Reset hesla i deaktivace posunou `sessions_invalid_before` uživatele (kap. 4). U uživatele zobrazit **odvozené štítky read-only** s uvedením role, ze které plynou (`user_effective_audiences.job_role_code`) — jinak není u M:N poznat, proč někdo na co vidí. V etapě B existuje stránka jen se sloupci aplikační role a stavu; sloupec pracovních rolí přibude v etapě C.
   - `/admin/users/job-roles` — pracovní role: kód, název, popis, multiselect štítků, počet nositelů.
-  - `/admin/users/audiences` — číselník štítků (kód, název).
+  - `/admin/users/audiences` — číselník štítků: sloupce **Název · Kód · Použití** (počet dokumentů + počet rolí). Název je hlavní sloupec a je česky; kód se při zakládání předvyplňuje transliterací a po uložení je read-only (kap. 4). Tlačítko smazat je **disabled u použitého štítku** a říká, kde se používá — bez toho vypadá `RESTRICT` z kap. 4 jako rozbitá aplikace. Proklik z počtu použití na filtrovaný seznam dokumentů je volitelný.
 - `AdminSidebar` je klientská komponenta, aplikační roli tedy musí dostat propem z admin layoutu (server), který uživatele stejně načítá. Skrytí položky je kosmetika — autorizace drží na routách.
 - `/admin/documents` — nový sloupec **Viditelnost** (badge, vzor `StatusBadge.tsx`) a editace štítků jako chipy (zapisuje `PATCH /api/documents/[id]`). Výpis filtrovat podle efektivních štítků uživatele (admin vidí vše). `restricted` dokument **bez štítků** je legální mezistav po uploadu (nevidí ho nikdo kromě admina) — značit ho badge „bez štítků", jinak bude vypadat jako záhada „proč chat nevidí, co jsem nahrál".
 
@@ -237,7 +255,7 @@ Navenek se nic nemění — admin funguje jako dnes.
 
 ### Etapa B — aplikační role v UI
 
-- [ ] Sekce `/admin/users` (server + klient), založení / deaktivace / reset hesla (obojí posouvá per-user revokaci); ochrana posledního admina (invariant 10)
+- [ ] Sekce `/admin/users` (server + klient), založení / deaktivace / reset hesla (obojí posouvá per-user revokaci); ochrana posledního admina (invariant 11)
 - [ ] Gating rout dle tabulky v kap. 5
 - [ ] Rozšíření proxy matcheru o `/api/users*`
 - [ ] Sidebar podle aplikační role (prop z layoutu)
@@ -246,6 +264,11 @@ Navenek se nic nemění — admin funguje jako dnes.
 
 - [ ] Migrace `015_job_roles_audiences.sql` + view `user_effective_audiences`
 - [ ] Číselníky `/admin/users/job-roles` a `/admin/users/audiences` + rozšíření proxy matcheru o `/api/job-roles*` a `/api/audiences*`
+- [ ] `ON DELETE RESTRICT` u `audience_code` v obou vazbách
+- [ ] Transliterace názvu na kód (`Právní oddělení` → `pravni-oddeleni`) + validace `^[a-z0-9_-]{2,32}$` a ošetření kolize slugu v `/api/audiences`
+- [ ] Číselník štítků s počty použití a zablokovaným mazáním použitého štítku
+- [ ] Varování před osiřením `restricted` dokumentu při odebrání jeho posledního štítku
+- [ ] Revokace session nositelů při změně sady štítků role a odebrání role (invariant 10)
 - [ ] `PATCH /api/documents/[id]` — zápis viditelnosti a štítků (invariant 6)
 - [ ] `documents.visibility` + `document_audiences` v admin UI (sloupec, chipy, badge „bez štítků")
 - [ ] `visibility: 'restricted'` explicitně v upload routě
@@ -285,5 +308,11 @@ E2E scénář pro etapu C:
 3. Cílený dotaz na obsah tohoto dokumentu → anonymní chat i tento uživatel dostanou fallback.
 4. Přidat uživateli roli se štítkem `obchod` → tentýž dotaz vrátí odpověď se zdrojem.
 5. Odebrat roli → dotaz se vrátí na fallback bez nutnosti odhlášení.
+
+Správa číselníku štítků:
+
+6. Smazání použitého štítku → **409 se srozumitelnou hláškou**, ne 500 z porušeného FK; po odebrání ze všech dokumentů i rolí smazání projde.
+7. Přidání štítku k pracovní roli okamžitě zpřístupní dotčené dokumenty jejím nositelům, odebrání je stejně rychle odebere (invariant 10).
+8. Štítek se založí zadáním samotného českého názvu („Právní oddělení") — kód se odvodí sám a je platný; přejmenování na „Právní a compliance" projde a kód zůstane. Kód mimo `^[a-z0-9_-]{2,32}$` je odmítnut i přímým voláním API, nejen v UI.
 
 Dále ověřit: `viewer` nedostane 200 na `POST /api/documents`; `editor` nedostane 200 na `POST /api/settings`; editor nemůže přiřadit štítek mimo své efektivní štítky ani nastavit `public` přímým voláním API (invariant 6); uživatel s `auth_provider='oidc'` se nepřihlásí heslem (invariant 8).
