@@ -14,7 +14,46 @@ export interface SettingsValues {
   systemPrompt: string | null;
   /** Override promptu shrnutí poptávek; null = výchozí konstanta v kódu. */
   leadSummaryPrompt: string | null;
+  /** Provozní režim: výchozí viditelnost nově nahraného dokumentu (etapa C). */
+  defaultDocumentVisibility: DocumentVisibility;
 }
+
+/** Viditelnost dokumentu vůči anonymnímu chatu (documents.visibility). */
+export type DocumentVisibility = "public" | "restricted";
+
+export const DOCUMENT_VISIBILITIES: readonly DocumentVisibility[] = [
+  "public",
+  "restricted",
+];
+
+export function isDocumentVisibility(v: unknown): v is DocumentVisibility {
+  return v === "public" || v === "restricted";
+}
+
+/**
+ * Provozní režim aplikace. Veřejná pojišťovna (dnešní hlavní use-case) má celou
+ * bázi veřejnou — kdyby byl upload natvrdo `restricted`, přestal by veřejný bot
+ * znát každý nový dokument, dokud ho admin ručně nezveřejní. Interní znalostní
+ * báze má naopak `restricted` jako jediný bezpečný default.
+ */
+export const VISIBILITY_CHOICES: readonly {
+  value: DocumentVisibility;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "public",
+    label: "Veřejné",
+    description:
+      "Nově nahraný dokument je rovnou dostupný anonymnímu chatu. Pro veřejnou znalostní bázi, kde nic interního není.",
+  },
+  {
+    value: "restricted",
+    label: "Omezené",
+    description:
+      "Nově nahraný dokument nevidí nikdo, dokud mu někdo nepřidělí štítky publika. Pro interní znalostní bázi.",
+  },
+];
 
 /** Klíče číselných parametrů (slidery). */
 export type NumericSettingKey =
@@ -273,6 +312,11 @@ export function parseSettingsInput(input: unknown): SettingsValues {
   for (const field of PROMPT_FIELDS) {
     result[field.key] = parseTextField(field, obj[field.key]);
   }
+  result.defaultDocumentVisibility = isDocumentVisibility(
+    obj.defaultDocumentVisibility
+  )
+    ? obj.defaultDocumentVisibility
+    : DEFAULT_SETTINGS.defaultDocumentVisibility;
   return result;
 }
 
@@ -288,6 +332,8 @@ export const DEFAULT_SETTINGS: SettingsValues = {
   chunkStripHeaders: true,
   systemPrompt: null,
   leadSummaryPrompt: null,
+  // 'public' = dnešní chování veřejné báze; nasazení migrace nic nemění.
+  defaultDocumentVisibility: "public",
 };
 
 /** Otisk konfigurace chunkování ukládaný k dokumentu (documents.chunking_config). */

@@ -6,6 +6,8 @@ import { SpanStatusCode } from "@opentelemetry/api";
 import { config } from "@/lib/config";
 import { getSettings } from "@/lib/settings";
 import { createRateLimiter, clientIp } from "@/lib/rate-limit";
+import { getSessionUser } from "@/lib/session-user";
+import { audiencesForUser } from "@/lib/audience-access";
 import { retrieve, type RetrievalResult } from "@/lib/rag/retrieve";
 import { getTracer, withSpan, flushTelemetry } from "@/lib/telemetry";
 import {
@@ -139,6 +141,14 @@ export async function POST(request: Request) {
 
   const settings = await getSettings();
 
+  // Viditelnost dokumentů (etapa C): štítky se odvozují VÝHRADNĚ serverově ze
+  // session, nikdy z těla požadavku. Routa zůstává veřejná — anonymní tazatel
+  // dostane prázdné pole a uvidí jen dokumenty s visibility = 'public'.
+  // Do etapy D (SSO) se koncoví tazatelé nepřihlašují, takže přihlášený je
+  // v praxi jen správce se session z administrace.
+  const sessionUser = await getSessionUser();
+  const audiences = await audiencesForUser(sessionUser);
+
   // Runtime override z /admin/parameters/prompts; null = výchozí z kódu (Fáze 17).
   const systemPrompt = settings.systemPrompt ?? SYSTEM_PROMPT;
 
@@ -159,6 +169,10 @@ export async function POST(request: Request) {
       "langfuse.trace.metadata.prompt_source": settings.systemPrompt
         ? "override"
         : "default",
+      // Odliší anonymní a interní provoz, aniž by se do trace dostala
+      // organizační struktura — posílá se počet štítků, ne jejich kódy.
+      "chat.authenticated": sessionUser !== null,
+      "chat.audience_count": audiences?.length ?? -1,
     });
 
     // Trace id posíláme klientovi, aby šlo zpětnou vazbu (palec nahoru/dolů)
@@ -183,7 +197,8 @@ export async function POST(request: Request) {
         const result = await retrieve(
           query,
           settings.topK,
-          settings.similarityThreshold
+          settings.similarityThreshold,
+          audiences
         );
         const topSimilarity =
           result.length > 0 ? Math.max(...result.map((c) => c.similarity)) : 0;

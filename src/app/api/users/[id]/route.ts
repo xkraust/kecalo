@@ -57,10 +57,11 @@ export async function PATCH(
     return NextResponse.json({ error: "Neplatný vstup" }, { status: 400 });
   }
 
-  const { appRole, isActive, resetPassword } = body as {
+  const { appRole, isActive, resetPassword, jobRoles } = body as {
     appRole?: unknown;
     isActive?: unknown;
     resetPassword?: unknown;
+    jobRoles?: unknown;
   };
 
   if (appRole !== undefined && (typeof appRole !== "string" || !APP_ROLES.includes(appRole as AppRole))) {
@@ -138,9 +139,51 @@ export async function PATCH(
     return NextResponse.json({ error: "Uložení se nezdařilo." }, { status: 500 });
   }
 
-  // Změna role, deaktivace i reset hesla musí ukončit běžící session
-  // dotčeného (invariant 10) — jinak by dojezdila se starými oprávněními.
-  if (appRole !== undefined || isActive !== undefined || newPassword) {
+  // Pracovní role (etapa C): celou sadu přepíšeme — vazby nenesou další data.
+  if (jobRoles !== undefined) {
+    if (!Array.isArray(jobRoles) || jobRoles.some((r) => typeof r !== "string")) {
+      return NextResponse.json(
+        { error: "Neplatný seznam pracovních rolí." },
+        { status: 400 }
+      );
+    }
+    const codes = [...new Set(jobRoles as string[])];
+    const { error: delErr } = await supabase
+      .from("user_job_roles")
+      .delete()
+      .eq("user_id", id);
+    if (delErr) {
+      console.error("Úprava pracovních rolí selhala:", delErr);
+      return NextResponse.json({ error: "Uložení se nezdařilo." }, { status: 500 });
+    }
+    if (codes.length > 0) {
+      const { error: insErr } = await supabase
+        .from("user_job_roles")
+        .insert(codes.map((c) => ({ user_id: id, job_role_code: c })));
+      if (insErr) {
+        console.error("Vložení pracovních rolí selhalo:", insErr);
+        return NextResponse.json(
+          {
+            error:
+              insErr.code === "23503"
+                ? "Některá z pracovních rolí neexistuje."
+                : "Uložení se nezdařilo.",
+          },
+          { status: insErr.code === "23503" ? 400 : 500 }
+        );
+      }
+    }
+  }
+
+  // Změna role, deaktivace, reset hesla i změna pracovních rolí musí ukončit
+  // běžící session dotčeného (invariant 10) — jinak by dojezdila se starými
+  // oprávněními.
+  if (
+    appRole !== undefined ||
+    isActive !== undefined ||
+    newPassword ||
+    jobRoles !== undefined
+  ) {
     await revokeUserSessions(id);
   }
 

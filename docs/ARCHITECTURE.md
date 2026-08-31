@@ -83,7 +83,7 @@ Chyby se ukládají do `documents.error_message` a dokument končí ve stavu `er
 
 ## 4. Datový model
 
-Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`015`), nikdy ručně v SQL editoru. Aplikace přistupuje service-role klíčem (obchází RLS); RLS je na tabulkách zapnuté bez policy pro anon — přímý anonymní přístup je tak zablokovaný.
+Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`016`), nikdy ručně v SQL editoru. Aplikace přistupuje service-role klíčem (obchází RLS); RLS je na tabulkách zapnuté bez policy pro anon — přímý anonymní přístup je tak zablokovaný.
 
 | Tabulka | Účel |
 |---|---|
@@ -116,6 +116,7 @@ Autentizace je **na úrovni prototypu** (ne JWT, ne SSO) — vědomé rozhodnut�
 - **Session:** cookie `ts.nonce.sig` podepsaná HMAC-SHA256 klíčem `SESSION_SECRET` (nikdy heslem), platnost 8 h, ověření constant-time (`crypto.subtle.verify`). Viz [`src/lib/auth.ts`](../src/lib/auth.ts).
 - **Dvě obranné linie:** proxy vrstva [`src/proxy.ts`](../src/proxy.ts) (edge — podpis + expirace) chrání `/admin` stránky i admin API; každý admin handler navíc volá `requireAppRole(min)` ([`src/lib/require-role.ts`](../src/lib/require-role.ts)) — 401/403 i při obejití proxy (SEC-2). Roli a revokaci ověřuje až tato Node vrstva, protože edge runtime nemá přístup k DB.
 - **Identity a aplikační role:** uživatelé v tabulce `users` (migrace `014`), role `admin`/`editor`/`viewer`, hesla scryptem ([`src/lib/password.ts`](../src/lib/password.ts)), session cookie v2 nese `uid` a role se čte z DB per request ([`src/lib/session-user.ts`](../src/lib/session-user.ts)). Viz [plán rolí](plans/roles_and_document_access_plan.md).
+- **Viditelnost dokumentů (etapa C):** `documents.visibility` (`public`/`restricted`) + štítky publika v `document_audiences`. Uživatel štítky získává výhradně přes pracovní role (`user_job_roles` → `job_role_audiences`, view `user_effective_audiences`). Filtr je **v SQL** (`match_chunks` s `caller_audiences`), ne v JS — chunk, který uživatel nesmí vidět, se nedostane ani do paměti procesu. `NULL` = bez filtru (admin), `'{}'` = jen veřejné (anonym). Štítky se odvozují serverově ze session ([`src/lib/audience-access.ts`](../src/lib/audience-access.ts)), nikdy z těla požadavku.
 - **Iniciální heslo:** nového uživatele zakládá admin v `/admin/users`, heslo generuje aplikace a zobrazí ho jednou. Účet má `must_change_password` (migrace `015`) a do změny hesla dostane 403 na všech routách kromě `/api/auth/change-password`. Poslední aktivní admin nejde degradovat ani deaktivovat; vlastní roli si admin měnit nesmí.
 - **Revokace session (SEC-4):** logout posune `auth_state.sessions_invalid_before` na `now()` — starší tokeny jsou odmítnuty i před expirací. Kontroluje se v Node runtimu (`requireAdmin()` + admin layout); fail-open při chybějící tabulce.
 - **Login:** constant-time porovnání údajů (`safeEqual`), rate limit 5 pokusů / 15 min na IP + globální strop 30 selhání / 15 min přes všechny IP (SEC-1 — nezávislé na spoofovatelné IP).

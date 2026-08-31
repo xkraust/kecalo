@@ -48,6 +48,11 @@ const navItems: NavItem[] = [
     href: "/admin/users",
     icon: Users,
     minRole: "admin",
+    children: [
+      { label: "Účty", href: "/admin/users" },
+      { label: "Pracovní role", href: "/admin/users/job-roles" },
+      { label: "Štítky publika", href: "/admin/users/audiences" },
+    ],
   },
   { label: "Chat", href: "/", icon: MessageSquare, external: true },
 ];

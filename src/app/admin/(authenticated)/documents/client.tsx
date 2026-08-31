@@ -3,14 +3,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { UploadZone } from "@/components/UploadZone";
 import { DocumentsTable } from "@/components/DocumentsTable";
-import type { DocumentRecord } from "@/lib/types";
+import type { AudienceWithUsage, DocumentRecord } from "@/lib/types";
 import type { SettingsValues } from "@/lib/settings-meta";
 
 interface Props {
   initialDocuments: DocumentRecord[];
+  audiences: AudienceWithUsage[];
+  /** Na `public` smí přepnout jen admin — zveřejnění je udělení oprávnění. */
+  canPublish: boolean;
 }
 
-export function DocumentsPageClient({ initialDocuments }: Props) {
+export function DocumentsPageClient({
+  initialDocuments,
+  audiences,
+  canPublish,
+}: Props) {
   const [documents, setDocuments] = useState(initialDocuments);
   // Aktuální nastavení chunkování — porovnává se s chunking_config dokumentů
   // (indikace zastaralé konfigurace). Bez něj se indikace prostě nezobrazí.
@@ -42,6 +49,8 @@ export function DocumentsPageClient({ initialDocuments }: Props) {
         documents={documents}
         onRefresh={refresh}
         chunkingSettings={settings}
+        audiences={audiences}
+        canPublish={canPublish}
       />
     </div>
   );

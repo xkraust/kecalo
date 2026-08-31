@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { retrieve } from "@/lib/rag/retrieve";
 import { getSettings } from "@/lib/settings";
 import { requireAppRole } from "@/lib/require-role";
+import { audiencesForUser } from "@/lib/audience-access";
 import { withSpan, flushTelemetry } from "@/lib/telemetry";
 
 export const maxDuration = 60;
@@ -34,10 +35,13 @@ export async function POST(request: Request) {
     const results = await withSpan(
       "retrieval-test",
       async (span) => {
+        // Test retrievalu MUSÍ filtrovat stejně jako chat — jinak by z něj
+        // byla obcházečka omezení viditelnosti pro roli viewer.
         const r = await retrieve(
           query,
           settings.topK,
-          settings.similarityThreshold
+          settings.similarityThreshold,
+          await audiencesForUser(auth.user)
         );
         span.setAttribute("test.result_count", r.length);
         return r;

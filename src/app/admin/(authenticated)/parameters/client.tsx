@@ -10,6 +10,7 @@ import {
   TELEMETRY_FIELDS,
   CHUNKING_SLIDER_FIELDS,
   CHUNKING_TOGGLE_FIELDS,
+  VISIBILITY_CHOICES,
   ALL_TOGGLE_FIELDS,
   DEFAULT_SETTINGS,
   clampField,
@@ -258,6 +259,53 @@ export function ParametersClient({ initial }: Props) {
             onChange={updateToggle}
           />
         ))}
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-sm font-medium">Provozní režim</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Jaká je výchozí viditelnost nově nahraného dokumentu. Působí při
+            uploadu — u už nahraných dokumentů viditelnost nemění.
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="flex flex-wrap gap-2">
+            {VISIBILITY_CHOICES.map((choice) => (
+              <button
+                key={choice.value}
+                type="button"
+                onClick={() =>
+                  setValues((prev) => ({
+                    ...prev,
+                    defaultDocumentVisibility: choice.value,
+                  }))
+                }
+                className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                  values.defaultDocumentVisibility === choice.value
+                    ? "border-primary bg-[#FAECE7] text-[#C24E29]"
+                    : "border-border hover:bg-muted"
+                }`}
+              >
+                {choice.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {
+              VISIBILITY_CHOICES.find(
+                (c) => c.value === values.defaultDocumentVisibility
+              )?.description
+            }
+          </p>
+          {values.defaultDocumentVisibility === "public" && (
+            <p className="mt-2 rounded-md bg-[#FAEEDA] px-3 py-2 text-xs text-[#854F0B]">
+              Nahraný dokument bude rovnou dostupný anonymnímu chatu na webu.
+              Pro interní materiály přepněte na Omezené.
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

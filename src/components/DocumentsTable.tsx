@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
+import type { AudienceWithUsage } from "@/lib/types";
 import type { DocumentRecord } from "@/lib/types";
 import { isChunkingStale, type SettingsValues } from "@/lib/settings-meta";
 
@@ -36,13 +37,42 @@ interface DocumentsTableProps {
   onRefresh: () => void;
   /** Aktuální nastavení chunkování — pro indikaci zastaralé konfigurace (null = nezjišťovat). */
   chunkingSettings?: SettingsValues | null;
+  /** Číselník štítků publika (etapa C); prázdný = sekce viditelnosti se nezobrazí. */
+  audiences?: AudienceWithUsage[];
+  /** Smí uživatel přepnout dokument na `public`? (jen admin) */
+  canPublish?: boolean;
 }
 
 export function DocumentsTable({
   documents,
   onRefresh,
   chunkingSettings,
+  audiences = [],
+  canPublish = false,
 }: DocumentsTableProps) {
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [visibilityError, setVisibilityError] = useState("");
+
+  async function patchDocument(doc: DocumentRecord, body: Record<string, unknown>) {
+    setSavingId(doc.id);
+    setVisibilityError("");
+    try {
+      const res = await fetch(`/api/documents/${doc.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setVisibilityError(data.error ?? "Uložení se nezdařilo.");
+      }
+      onRefresh();
+    } catch {
+      setVisibilityError("Chyba připojení");
+    } finally {
+      setSavingId(null);
+    }
+  }
   const [deleteTarget, setDeleteTarget] = useState<DocumentRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [reprocessingId, setReprocessingId] = useState<string | null>(null);
@@ -93,7 +123,13 @@ export function DocumentsTable({
   }
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
+    <div className="space-y-2">
+      {visibilityError && (
+        <p className="rounded-md bg-[#FCEBEB] px-3 py-2 text-sm text-[#A32D2D]">
+          {visibilityError}
+        </p>
+      )}
+      <div className="rounded-lg border border-border overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow>
@@ -101,6 +137,7 @@ export function DocumentsTable({
             <TableHead>Datum</TableHead>
             <TableHead className="text-right">Chunky</TableHead>
             <TableHead>Stav</TableHead>
+            {audiences.length > 0 && <TableHead>Viditelnost</TableHead>}
             <TableHead className="w-16" />
           </TableRow>
         </TableHeader>
@@ -141,6 +178,68 @@ export function DocumentsTable({
                 <TableCell>
                   <StatusBadge status={doc.status} />
                 </TableCell>
+                {audiences.length > 0 && (
+                  <TableCell>
+                    <div className="space-y-1.5">
+                      <select
+                        value={doc.visibility ?? "public"}
+                        disabled={savingId === doc.id}
+                        onChange={(e) =>
+                          patchDocument(doc, { visibility: e.target.value })
+                        }
+                        aria-label={`Viditelnost dokumentu ${doc.filename}`}
+                        className="rounded-md border border-border bg-transparent px-2 py-1 text-xs"
+                      >
+                        <option value="public" disabled={!canPublish}>
+                          Veřejný
+                        </option>
+                        <option value="restricted">Omezený</option>
+                      </select>
+                      {doc.visibility === "restricted" && (
+                        <div className="flex max-w-[220px] flex-wrap gap-1">
+                          {audiences.map((a) => {
+                            const on = (doc.document_audiences ?? []).some(
+                              (d) => d.audience_code === a.code
+                            );
+                            return (
+                              <button
+                                key={a.code}
+                                type="button"
+                                disabled={savingId === doc.id}
+                                onClick={() =>
+                                  patchDocument(doc, {
+                                    audiences: on
+                                      ? (doc.document_audiences ?? [])
+                                          .map((d) => d.audience_code)
+                                          .filter((c) => c !== a.code)
+                                      : [
+                                          ...(doc.document_audiences ?? []).map(
+                                            (d) => d.audience_code
+                                          ),
+                                          a.code,
+                                        ],
+                                  })
+                                }
+                                className={`rounded-md border px-1.5 py-0.5 text-[11px] transition-colors ${
+                                  on
+                                    ? "border-primary bg-[#FAECE7] text-[#C24E29]"
+                                    : "border-border text-muted-foreground hover:bg-muted"
+                                }`}
+                              >
+                                {a.label}
+                              </button>
+                            );
+                          })}
+                          {(doc.document_audiences ?? []).length === 0 && (
+                            <span className="text-[11px] text-[#854F0B]">
+                              bez štítků — nevidí ho nikdo kromě adminů
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
+                )}
                 <TableCell>
                   <div className="flex items-center gap-2.5">
                     {canReprocess && (
@@ -211,6 +310,7 @@ export function DocumentsTable({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

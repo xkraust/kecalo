@@ -15,6 +15,10 @@ export const config = {
     "/api/retrieval-test",
     "/api/users",
     "/api/users/:path*",
+    "/api/job-roles",
+    "/api/job-roles/:path*",
+    "/api/audiences",
+    "/api/audiences/:path*",
   ],
 };
 

@@ -1,6 +1,6 @@
 # Plán: role uživatelů a řízení přístupu k dokumentům
 
-**Stav:** etapy A a B hotové a E2E ověřené (31. 8. 2026), etapy C–D neimplementované. Mimo číslované fáze; navazuje na produkční dluh „Autentizace a role" z `docs/IMPLEMENTATION_PLAN.md`.
+**Stav:** etapy A, B a C hotové a E2E ověřené (31. 8. 2026), etapa D (SSO) neimplementovaná. Mimo číslované fáze; navazuje na produkční dluh „Autentizace a role" z `docs/IMPLEMENTATION_PLAN.md`.
 
 ---
 
@@ -327,19 +327,33 @@ Timing enumeraci to ztěžuje, ale zcela neodstraňuje.
 
 ### Etapa C — pracovní role a štítky
 
-- [ ] Migrace `016_job_roles_audiences.sql` + view `user_effective_audiences`
-- [ ] Číselníky `/admin/users/job-roles` a `/admin/users/audiences` + rozšíření proxy matcheru o `/api/job-roles*` a `/api/audiences*`
-- [ ] `ON DELETE RESTRICT` u `audience_code` v obou vazbách
-- [ ] Transliterace názvu na kód (`Právní oddělení` → `pravni-oddeleni`) + validace `^[a-z0-9_-]{2,32}$` a ošetření kolize slugu v `/api/audiences`
-- [ ] Číselník štítků s počty použití a zablokovaným mazáním použitého štítku
-- [ ] Varování před osiřením `restricted` dokumentu při odebrání jeho posledního štítku
-- [ ] Revokace session nositelů při změně sady štítků role a odebrání role (invariant 10)
-- [ ] `PATCH /api/documents/[id]` — zápis viditelnosti a štítků (invariant 6)
-- [ ] `documents.visibility` + `document_audiences` v admin UI (sloupec, chipy, badge „bez štítků")
-- [ ] `app_settings.default_document_visibility` + přepínač v `/admin/parameters`; upload routa ji čte přes `getSettings()`
-- [ ] `match_chunks` s `caller_audiences`, `retrieve()` se čtvrtým parametrem
-- [ ] Napojení v `/api/chat` a `/api/retrieval-test`, filtrace výpisu dokumentů
-- [ ] Telemetrie: `chat.audience_count`, `chat.authenticated`
+- [x] Migrace `016_job_roles_audiences.sql` + view `user_effective_audiences`
+- [x] Číselníky `/admin/users/job-roles` a `/admin/users/audiences` + rozšíření proxy matcheru o `/api/job-roles*` a `/api/audiences*`
+- [x] `ON DELETE RESTRICT` u `audience_code` v obou vazbách
+- [x] Transliterace názvu na kód (`Právní oddělení` → `pravni-oddeleni`, `src/lib/slug.ts`) + validace `^[a-z0-9_-]{2,32}$` a ošetření kolize slugu
+- [x] Číselník štítků s počty použití a zablokovaným mazáním použitého štítku
+- [x] Varování před osiřením `restricted` dokumentu (badge „bez štítků — nevidí ho nikdo kromě adminů")
+- [x] Revokace session nositelů při změně sady štítků role a odebrání role (invariant 10)
+- [x] `PATCH /api/documents/[id]` — zápis viditelnosti a štítků (invariant 6)
+- [x] `documents.visibility` + `document_audiences` v admin UI (sloupec, chipy)
+- [x] `app_settings.default_document_visibility` + přepínač v `/admin/parameters`; upload routa ji čte přes `getSettings()`
+- [x] `match_chunks` s `caller_audiences`, `retrieve()` se čtvrtým parametrem
+- [x] Napojení v `/api/chat` a `/api/retrieval-test`, filtrace výpisu dokumentů
+- [x] Telemetrie: `chat.audience_count`, `chat.authenticated`
+
+**Ověřeno E2E (31. 8. 2026):** transliterace „Právní oddělení" → `pravni-oddeleni`,
+„Účtárna" → `uctarna`; kolize slugu → 409; smazání použitého štítku → 409 se
+srozumitelnou hláškou, nepoužitého → 200. Hlavní scénář: dokument FLEXI přepnut
+na `restricted` + štítek `obchod` → **anonymní chat o něm přestal vědět**,
+uživatel s pracovní rolí „Obchodník" ho vidí, admin vidí vždy (bypass přes
+`caller_audiences := NULL`). Odebrání role revokuje session a po novém
+přihlášení uživatel dokument nevidí. Editor nesmí přiřadit cizí štítek (403)
+ani zveřejnit dokument (403), admin ano. Migrace nezměnila chování veřejného
+chatu — všech 7 dokumentů zůstalo `public`.
+
+**Pozn. k testování z Git Bash:** diakritika v `curl -d '...'` se cestou přes
+shell poškodí a slug pak vyjde jako `pr-vn-odd-len`. Payload posílat souborem
+(`--data-binary @file`), jinak to vypadá jako chyba transliterace.
 
 ### Etapa D — SSO / OIDC (odloženo)
 

@@ -12,10 +12,21 @@ export interface RetrievalResult {
   similarity: number;
 }
 
+/**
+ * Vyhledá chunky k dotazu.
+ *
+ * @param audiences štítky publika volajícího (etapa C plánu rolí).
+ *   POZOR na rozdíl mezi `null` a prázdným polem:
+ *   - `null` = bez filtru viditelnosti (aplikační role admin vidí vše),
+ *   - `[]`   = jen veřejné dokumenty (anonymní tazatel) — bezpečný default.
+ *   Hodnota MUSÍ pocházet ze serverem ověřené session, nikdy z těla požadavku:
+ *   kdyby ji směl poslat klient, celé omezení je jen dekorace.
+ */
 export async function retrieve(
   query: string,
   topK: number = config.topK,
-  threshold: number = config.similarityThreshold
+  threshold: number = config.similarityThreshold,
+  audiences: string[] | null = []
 ): Promise<RetrievalResult[]> {
   // embedQuery je instrumentovaný v embed.ts — span embed.query se vnoří sám.
   const queryEmbedding = await embedQuery(query);
@@ -27,6 +38,7 @@ export async function retrieve(
         query_embedding: JSON.stringify(queryEmbedding),
         match_threshold: threshold,
         match_count: topK,
+        caller_audiences: audiences,
       });
 
       if (error) throw new Error(`Retrieval selhal: ${error.message}`);
@@ -42,6 +54,9 @@ export async function retrieve(
     {
       "search.match_threshold": threshold,
       "search.match_count": topK,
+      // Jen počet štítků, nikdy jejich kódy — do telemetrie nepatří
+      // organizační struktura zákazníka.
+      "search.audience_count": audiences?.length ?? -1,
     }
   );
 

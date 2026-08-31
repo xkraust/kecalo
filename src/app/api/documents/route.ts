@@ -2,6 +2,8 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { requireAppRole } from "@/lib/require-role";
 import { processDocument } from "@/lib/rag/pipeline";
+import { getSettings } from "@/lib/settings";
+import { audiencesForUser } from "@/lib/audience-access";
 import { withSpan, flushTelemetry } from "@/lib/telemetry";
 
 export const maxDuration = 60;
@@ -43,12 +45,27 @@ export async function GET() {
   const auth = await requireAppRole("viewer");
   if (!auth.ok) return auth.response;
 
-  const { data, error } = await supabase
+  // Výpis respektuje štítky uživatele stejně jako retrieval (admin vidí vše).
+  const audiences = await audiencesForUser(auth.user);
+  let query = supabase
     .from("documents")
     .select(
-      "id, filename, mime_type, status, error_message, chunk_count, created_at, chunking_config"
+      "id, filename, mime_type, status, error_message, chunk_count, created_at, chunking_config, visibility, document_audiences(audience_code)"
     )
     .order("created_at", { ascending: false });
+
+  if (audiences !== null) {
+    // Postgrest: veřejné NEBO mající některý z mých štítků. Prázdné pole
+    // znamená „jen veřejné" — proto se druhá podmínka přidává jen s obsahem.
+    query =
+      audiences.length > 0
+        ? query.or(
+            `visibility.eq.public,document_audiences.audience_code.in.(${audiences.join(",")})`
+          )
+        : query.eq("visibility", "public");
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Načtení dokumentů selhalo:", error);
@@ -131,6 +148,8 @@ export async function POST(request: NextRequest) {
     | { ok: true; id: string; filename: string; status: string }
     | { ok: false; status: number; error: string };
 
+  const settings = await getSettings();
+
   const uploaded = await withSpan(
     "document.upload",
     async (span): Promise<UploadOutcome> => {
@@ -141,6 +160,11 @@ export async function POST(request: NextRequest) {
           filename: file.name,
           mime_type: file.type || "application/octet-stream",
           status: "uploaded",
+          // Provozní režim (etapa C): veřejná báze zveřejňuje rovnou, interní
+          // nechá dokument neviditelný, dokud mu někdo nepřidělí štítky.
+          // SQL DEFAULT je 'public' kvůli migraci existujících řádků — pro nový
+          // dokument se hodnota nastavuje VŽDY explicitně.
+          visibility: settings.defaultDocumentVisibility,
         })
         .select()
         .single();

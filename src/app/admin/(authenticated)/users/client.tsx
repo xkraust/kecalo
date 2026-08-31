@@ -6,7 +6,7 @@ import { Copy, KeyRound, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppRoleBadge } from "@/components/AppRoleBadge";
-import type { AdminUser } from "@/lib/types";
+import type { AdminUser, JobRoleWithUsage } from "@/lib/types";
 import type { AppRole } from "@/lib/session-user";
 
 const ROLE_OPTIONS: { value: AppRole; label: string; hint: string }[] = [
@@ -22,9 +22,15 @@ const ROLE_OPTIONS: { value: AppRole; label: string; hint: string }[] = [
 export function UsersPageClient({
   users,
   currentUserId,
+  jobRoles,
+  rolesByUser,
+  audiencesByUser,
 }: {
   users: AdminUser[];
   currentUserId: string;
+  jobRoles: JobRoleWithUsage[];
+  rolesByUser: Record<string, string[]>;
+  audiencesByUser: Record<string, { code: string; via: string }[]>;
 }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
@@ -97,6 +103,17 @@ export function UsersPageClient({
     await call(`/api/users/${user.id}`, {
       method: "PATCH",
       body: JSON.stringify({ appRole: role }),
+    });
+  }
+
+  async function toggleJobRole(user: AdminUser, code: string) {
+    const current = rolesByUser[user.id] ?? [];
+    const next = current.includes(code)
+      ? current.filter((c) => c !== code)
+      : [...current, code];
+    await call(`/api/users/${user.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ jobRoles: next }),
     });
   }
 
@@ -202,6 +219,7 @@ export function UsersPageClient({
             <tr>
               <th className="px-4 py-2.5 font-medium">Uživatel</th>
               <th className="px-4 py-2.5 font-medium">Role</th>
+              <th className="px-4 py-2.5 font-medium">Pracovní role</th>
               <th className="px-4 py-2.5 font-medium">Stav</th>
               <th className="px-4 py-2.5 text-right font-medium">Akce</th>
             </tr>
@@ -242,6 +260,49 @@ export function UsersPageClient({
                       </option>
                     ))}
                   </select>
+                </td>
+                <td className="px-4 py-3">
+                  {jobRoles.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">
+                      žádné role
+                    </span>
+                  ) : (
+                    <div className="flex max-w-[280px] flex-wrap gap-1">
+                      {jobRoles.map((r) => {
+                        const on = (rolesByUser[u.id] ?? []).includes(r.code);
+                        return (
+                          <button
+                            key={r.code}
+                            type="button"
+                            disabled={busy}
+                            onClick={() => toggleJobRole(u, r.code)}
+                            className={`rounded-md border px-2 py-0.5 text-xs transition-colors ${
+                              on
+                                ? "border-primary bg-[#FAECE7] text-[#C24E29]"
+                                : "border-border text-muted-foreground hover:bg-muted"
+                            }`}
+                          >
+                            {r.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {(audiencesByUser[u.id] ?? []).length > 0 && (
+                    <p className="mt-1 max-w-[280px] text-xs text-muted-foreground">
+                      vidí:{" "}
+                      {[
+                        ...new Set(
+                          (audiencesByUser[u.id] ?? []).map((a) => a.code)
+                        ),
+                      ].join(", ")}
+                    </p>
+                  )}
+                  {u.app_role === "admin" && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      admin vidí vše bez ohledu na štítky
+                    </p>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   {u.is_active ? (

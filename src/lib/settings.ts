@@ -10,12 +10,13 @@ import {
   DEFAULT_SETTINGS,
   parseSettingsInput,
   type SettingsValues,
+  type DocumentVisibility,
 } from "@/lib/settings-meta";
 
 const SELECT_COLUMNS =
   "top_k, similarity_threshold, llm_temperature, telemetry_enabled, record_content, " +
   "chunk_target_size, chunk_breadcrumb, chunk_strip_headers, " +
-  "system_prompt, lead_summary_prompt";
+  "system_prompt, lead_summary_prompt, default_document_visibility";
 
 type SettingsRow = {
   top_k: number;
@@ -28,6 +29,7 @@ type SettingsRow = {
   chunk_strip_headers: boolean;
   system_prompt: string | null;
   lead_summary_prompt: string | null;
+  default_document_visibility: DocumentVisibility;
 };
 
 function fromRow(data: SettingsRow): SettingsValues {
@@ -42,6 +44,7 @@ function fromRow(data: SettingsRow): SettingsValues {
     chunkStripHeaders: data.chunk_strip_headers,
     systemPrompt: data.system_prompt,
     leadSummaryPrompt: data.lead_summary_prompt,
+    defaultDocumentVisibility: data.default_document_visibility,
   };
 }
 
@@ -81,6 +84,7 @@ export async function saveSettings(input: unknown): Promise<SettingsValues> {
     ...ALL_TOGGLE_FIELDS.map((f) => [f.column, values[f.key]]),
     // Prompty: null se uloží jako NULL = platí výchozí konstanta v kódu (Fáze 17).
     ...PROMPT_FIELDS.map((f) => [f.column, values[f.key]]),
+    ["default_document_visibility", values.defaultDocumentVisibility],
   ]);
 
   const { data, error } = await supabase
