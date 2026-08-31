@@ -37,3 +37,15 @@ export interface Lead {
   created_at: string;
   updated_at: string;
 }
+
+/** Uživatel administrace (etapa B plánu rolí). */
+export interface AdminUser {
+  id: string;
+  username: string;
+  display_name: string | null;
+  app_role: "admin" | "editor" | "viewer";
+  auth_provider: "local" | "oidc";
+  is_active: boolean;
+  must_change_password: boolean;
+  created_at: string;
+}

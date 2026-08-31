@@ -2,7 +2,7 @@
 // scrypt z node:crypto — žádná nová závislost, běží na Vercelu i lokálně.
 // Formát: scrypt$N$r$p$<salt-hex>$<hash-hex>; parametry jsou uložené v hashi,
 // takže je lze v budoucnu zvýšit, aniž by se znehodnotila existující hesla.
-import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomInt, scrypt, timingSafeEqual } from "node:crypto";
 
 // N=16384, r=8, p=1 — doporučené minimum; ~100 ms na běžném CPU.
 const N = 16384;
@@ -81,4 +81,27 @@ const DUMMY_SALT = Buffer.alloc(SALT_LENGTH, 0x2a);
 
 export async function burnPasswordTime(password: string): Promise<void> {
   await derive(password, DUMMY_SALT, N, R, P);
+}
+
+/** Minimální délka hesla, které si uživatel volí sám. */
+export const MIN_PASSWORD_LENGTH = 12;
+
+// Bez znaků, které si lze při diktování nebo přepisu splést (0/O, 1/l/I).
+// Heslo se předává mimo aplikaci, takže čitelnost je praktická vlastnost.
+const ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const GENERATED_LENGTH = 16;
+
+/**
+ * Vygeneruje iniciální heslo pro nově založený účet (etapa B). Zobrazí se
+ * adminovi jednou při založení; v DB je od začátku jen hash.
+ *
+ * Používá `randomInt` (rejection sampling), ne `% ALPHABET.length` — modulo by
+ * u délky abecedy, která nedělí 256, zvýhodnilo první znaky.
+ */
+export function generatePassword(): string {
+  let out = "";
+  for (let i = 0; i < GENERATED_LENGTH; i++) {
+    out += ALPHABET[randomInt(ALPHABET.length)];
+  }
+  return out;
 }

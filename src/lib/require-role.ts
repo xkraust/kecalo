@@ -23,6 +23,18 @@ function unauthenticated(): NextResponse {
   );
 }
 
+function passwordChangeRequired(): NextResponse {
+  // 403 s příznakem: klient pozná, že nejde o chybějící roli, ale o účet
+  // s iniciálním heslem, a může přesměrovat na změnu hesla.
+  return NextResponse.json(
+    {
+      error: "Nejdřív si změňte iniciální heslo.",
+      mustChangePassword: true,
+    },
+    { status: 403 }
+  );
+}
+
 function forbidden(): NextResponse {
   // 403, ne 401: uživatel je přihlášený, jen na tuhle operaci nemá právo.
   // Přihlášení znovu by mu nepomohlo a redirect na login by ho zacyklil.
@@ -40,6 +52,10 @@ export type RoleCheck =
  * Ověří session a aplikační roli. Volat na prvním řádku každého admin
  * handleru, před čtením těla i před přístupem k DB.
  *
+ * Účet s nezměněným iniciálním heslem je odmítnut na všech routách — kdyby se
+ * příznak kontroloval jen v admin layoutu, stačilo by volat API přímo.
+ * Výjimkou je samotná změna hesla, která `requireAppRole` nepoužívá.
+ *
  * @param min minimální požadovaná role (`viewer` < `editor` < `admin`)
  * @returns `{ ok: true, user }` při dostatečném oprávnění, jinak hotovou
  *          odpověď 401/403 k vrácení.
@@ -47,6 +63,9 @@ export type RoleCheck =
 export async function requireAppRole(min: AppRole): Promise<RoleCheck> {
   const user = await getSessionUser();
   if (!user) return { ok: false, response: unauthenticated() };
+  if (user.mustChangePassword) {
+    return { ok: false, response: passwordChangeRequired() };
+  }
   if (!roleAtLeast(user.appRole, min)) {
     return { ok: false, response: forbidden() };
   }

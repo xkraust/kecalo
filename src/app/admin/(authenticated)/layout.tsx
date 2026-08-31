@@ -12,6 +12,10 @@ export default async function AdminLayout({
   // ani deaktivovaným účtem.
   const user = await getSessionUser();
   if (!user) redirect("/admin/login");
+  // Účet s iniciálním heslem od správce se dostane jen na změnu hesla.
+  // API vrací pro tytéž účty 403 (requireAppRole) — kdyby platil jen tenhle
+  // redirect, stačilo by volat routy přímo.
+  if (user.mustChangePassword) redirect("/admin/change-password");
 
   return (
     <div className="flex min-h-screen">

@@ -10,7 +10,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0–17 jsou **hotové a ověřené end-to-end** (poslední: Fáze 17 — správa promptů v adminu: system prompt chatu a prompt shrnutí poptávek editovatelné za běhu v `/admin/parameters/prompts`, NULL = výchozí z kódu; migrace `013_prompt_settings.sql` aplikovaná. Fáze 16 — zpětná vazba u odpovědi: palec nahoru poděkování, palec dolů karta kontaktu → lead typu `hodnoceni`; migrace `012_lead_type.sql` aplikovaná. Fáze 15 — evaluace přes Langfuse datasety, eval runner `scripts/langfuse-eval.mjs` a LLM-as-judge „Correctness in Czech" nakonfigurovaný v Langfuse UI; šablona Faithfulness zatím nejde — trace nenese obsah chunků, `record_content` default off). Hotové a ověřené jsou i všechny opravy z revize kódu (`docs/reviews/code_check.md`, 15 nálezů, balíčky A–E dle `docs/reviews/issues_correction_plan.md`) a z bezpečnostní revize (`docs/reviews/security_issues.md`, SEC-1 až SEC-6 + SEC-9 + SEC-10, balíčky A–F dle `docs/reviews/security_correction_plan.md`; následně i SEC-4 — server-side revokace session). SEC-7 a SEC-8 (serverová historie chatu, CSRF token) zůstávají vědomě odložené jako produkční dluh. Migrace `001`–`014` jsou aplikované na Supabase. Pozn.: `004`–`013` byly kdysi aplikované ručně mimo CLI, takže je bylo nutné doevidovat přes `supabase migration repair --status applied` — od `014` je historie srovnaná a `supabase db push` funguje normálně.
+Fáze 0–17 jsou **hotové a ověřené end-to-end** (poslední: Fáze 17 — správa promptů v adminu: system prompt chatu a prompt shrnutí poptávek editovatelné za běhu v `/admin/parameters/prompts`, NULL = výchozí z kódu; migrace `013_prompt_settings.sql` aplikovaná. Fáze 16 — zpětná vazba u odpovědi: palec nahoru poděkování, palec dolů karta kontaktu → lead typu `hodnoceni`; migrace `012_lead_type.sql` aplikovaná. Fáze 15 — evaluace přes Langfuse datasety, eval runner `scripts/langfuse-eval.mjs` a LLM-as-judge „Correctness in Czech" nakonfigurovaný v Langfuse UI; šablona Faithfulness zatím nejde — trace nenese obsah chunků, `record_content` default off). Hotové a ověřené jsou i všechny opravy z revize kódu (`docs/reviews/code_check.md`, 15 nálezů, balíčky A–E dle `docs/reviews/issues_correction_plan.md`) a z bezpečnostní revize (`docs/reviews/security_issues.md`, SEC-1 až SEC-6 + SEC-9 + SEC-10, balíčky A–F dle `docs/reviews/security_correction_plan.md`; následně i SEC-4 — server-side revokace session). SEC-7 a SEC-8 (serverová historie chatu, CSRF token) zůstávají vědomě odložené jako produkční dluh. Migrace `001`–`015` jsou aplikované na Supabase. Pozn.: `004`–`013` byly kdysi aplikované ručně mimo CLI, takže je bylo nutné doevidovat přes `supabase migration repair --status applied` — od `014` je historie srovnaná a `supabase db push` funguje normálně.
 
 Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživatel nahraje přes admin UI) a fallback otázky mimo bázi dál vracejí chunky nad prahem 0,35 (čisté odmítnutí zajišťuje systémový prompt; případně zvýšit práh v `/admin/parameters`).
 
@@ -20,13 +20,13 @@ Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživat
 
 **Headless Langfuse (mimo číslované fáze):** ovládání Langfuse z coding agenta (agent skill + CLI) místo z UI, plus doplnění dat, bez kterých je taková smyčka slepá. **Etapy 1–4 hotové a ověřené** (4. 8. 2026): skill nainstalován globálně (mimo repo), traces dostaly jméno `chat-rag` a `langfuse.session.id`, `/api/chat` vrací `X-Trace-Id`, palec nahoru/dolů se ukládá jako skóre `user-thumbs` (`BOOLEAN`, idempotentní, fail-open) a trace nese `prompt_hash`/`prompt_source`. Tím jsou poprvé v Langfuse **produkční skóre** — kvalita jde měřit i mimo eval datasety. Migrace promptů do Langfuse Prompt Managementu **vědomě zamítnuta** (třetí zdroj pravdy vedle `prompts.ts` a `app_settings`, runtime závislost, kolize s Fází 17) — nahrazena otiskem verze promptu. Zbývá **etapa 5** (dataset z reálných traces s palcem dolů) — čeká na nasbíraný provoz a na rozhodnutí, zda `record_content` v produkci zůstane zapnutý (GDPR). Detaily: `docs/IMPLEMENTATION_PLAN.md`, dluh v `docs/plans/LANGFUSE_PLAN.md`.
 
-**Role a přístup k dokumentům (mimo číslované fáze):** třívrstvý model oprávnění dle `docs/plans/roles_and_document_access_plan.md` — aplikační role (co smíš dělat), pracovní role sdružující štítky publika (kdo jsi v organizaci) a štítky na dokumentech (komu obsah patří). **Etapa A hotová a E2E ověřená** (31. 8. 2026): tabulka `users` (migrace `014`), scrypt hesla, session cookie v2 s `uid`, `requireAppRole` v 8 handlerech, per-user revokace session, seed skript, per-username rate limit. Build/lint/typecheck procházejí, migrace `014` je aplikovaná a první uživatel seednutý. Ověřeno: cookie v1 odmítnuta, `viewer` dostane 403 na admin routách, **logout jednoho uživatele neodhlásí ostatní**, deaktivace účtu ukončí session, per-username rate limit drží napříč IP. Etapy B (správa uživatelů v UI), C (pracovní role + viditelnost dokumentů v retrievalu) a D (SSO/OIDC) neimplementované.
+**Role a přístup k dokumentům (mimo číslované fáze):** třívrstvý model oprávnění dle `docs/plans/roles_and_document_access_plan.md` — aplikační role (co smíš dělat), pracovní role sdružující štítky publika (kdo jsi v organizaci) a štítky na dokumentech (komu obsah patří). **Etapy A a B hotové a E2E ověřené** (31. 8. 2026): tabulka `users` (migrace `014`), scrypt hesla, session cookie v2 s `uid`, `requireAppRole` v 8 handlerech, per-user revokace session, seed skript, per-username rate limit. Build/lint/typecheck procházejí, migrace `014` je aplikovaná a první uživatel seednutý. Ověřeno: cookie v1 odmítnuta, `viewer` dostane 403 na admin routách, **logout jednoho uživatele neodhlásí ostatní**, deaktivace účtu ukončí session, per-username rate limit drží napříč IP. Etapa B přidala správu uživatelů v `/admin/users` (zakládání s vygenerovaným heslem, reset, deaktivace, změna role), vynucenou změnu iniciálního hesla (`must_change_password`, migrace `015`) a samoobslužnou změnu hesla na `/admin/change-password`. Etapy C (pracovní role + viditelnost dokumentů v retrievalu) a D (SSO/OIDC) zůstávají neimplementované.
 
 Podrobná historie fází, měření a průběžný stav: `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
 
-**Kecalo** je RAG chatbot pro pojišťovnu. Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je v **předprodukční fázi**: funkční aplikace s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí, které do ostrého provozu chybí především dokončení autentizace (etapa A plánu rolí zavedla víc identit s aplikačními rolemi; SSO a správa uživatelů v UI zbývají), automatizované testy (žádné — ověřuje se manuálně) a GDPR procesy (retence, mazání). V UI vystupuje jako „Pojišťovna Jistota", znalostní báze ale čerpá z reálných dokumentů Kooperativy ze složky `docs/seed-docs/`. Uživatelé kladou otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
+**Kecalo** je RAG chatbot pro pojišťovnu. Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je v **předprodukční fázi**: funkční aplikace s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí, které do ostrého provozu chybí především dokončení autentizace (etapy A a B plánu rolí zavedly víc identit s aplikačními rolemi a správu uživatelů; zbývá SSO a řízení viditelnosti dokumentů), automatizované testy (žádné — ověřuje se manuálně) a GDPR procesy (retence, mazání). V UI vystupuje jako „Pojišťovna Jistota", znalostní báze ale čerpá z reálných dokumentů Kooperativy ze složky `docs/seed-docs/`. Uživatelé kladou otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
 
 ## Technologický stack
 
@@ -42,7 +42,7 @@ Podrobná historie fází, měření a průběžný stav: `docs/IMPLEMENTATION_P
 
 UI vychází vizuálně z Anthropic Console (`platform.claude.com`). Výchozí režim je **světlý**, bez tmavého přepínače.
 
-- **Admin (`/admin`)** — přesně ve stylu Console: levý sidebar (Přehled · Dokumenty · Poptávky · Test retrievalu · Parametry · Chat · Odhlásit), krémové pozadí, korálový akcent, čisté white karty. Úvodní strana `/admin` je dashboard s přehledem znalostní báze (metrické karty + grafy).
+- **Admin (`/admin`)** — přesně ve stylu Console: levý sidebar (Přehled · Dokumenty · Poptávky · Test retrievalu · Parametry · Uživatelé* · Chat · Odhlásit; * jen pro aplikační roli admin), krémové pozadí, korálový akcent, čisté white karty. Úvodní strana `/admin` je dashboard s přehledem znalostní báze (metrické karty + grafy).
 - **Chat (`/`)** — odvozený vzhled: stejná paleta a typografie, ale s vlastním logem a brandem „Pojišťovna Jistota".
 
 Dashboard zobrazuje statistiky znalostní báze (počet dokumentů, chunků, zaindexovaných stran, rozpad stavů, chunky podle dokumentu) počítané přímo z tabulek `documents`/`chunks`. Metriky využití (dotazy, míra fallbacku, prům. skóre, latence) jsou odložené — vyžadují logování dotazů (viz produkční dluh).
@@ -99,7 +99,7 @@ supabase init                    # jednorázová inicializace Supabase projektu
 supabase db push                 # aplikuje migrace na Supabase (vyžaduje DATABASE_URL)
 ```
 
-Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `004_enable_rls.sql` (zapnutí Row-Level Security na `documents`/`chunks`/`app_settings` — bez policy pro anon; app používá service-role klíč, který RLS obchází), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu), `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`), `009_chunk_batch.sql` (`chunks` += `batch_id` — reindexace bez ztráty dat, oprava C1), `010_leads.sql` (tabulka `leads` — poptávky/lead generation, včetně RLS), `011_auth_state.sql` (jednořádková tabulka `auth_state` — revokace admin session po logoutu, oprava SEC-4; vč. RLS), `012_lead_type.sql` (`leads` += `type` — `produkt`/`hodnoceni`, Fáze 16; stávající řádky `produkt` přes DEFAULT) `013_prompt_settings.sql` (`app_settings` += `system_prompt`/`lead_summary_prompt` — nullable, NULL = výchozí konstanta v kódu; Fáze 17) a `014_users_roles.sql` (tabulka `users` — identity a aplikační role, rozšíření `citext`; etapa A plánu rolí).
+Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `004_enable_rls.sql` (zapnutí Row-Level Security na `documents`/`chunks`/`app_settings` — bez policy pro anon; app používá service-role klíč, který RLS obchází), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu), `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`), `009_chunk_batch.sql` (`chunks` += `batch_id` — reindexace bez ztráty dat, oprava C1), `010_leads.sql` (tabulka `leads` — poptávky/lead generation, včetně RLS), `011_auth_state.sql` (jednořádková tabulka `auth_state` — revokace admin session po logoutu, oprava SEC-4; vč. RLS), `012_lead_type.sql` (`leads` += `type` — `produkt`/`hodnoceni`, Fáze 16; stávající řádky `produkt` přes DEFAULT) `013_prompt_settings.sql` (`app_settings` += `system_prompt`/`lead_summary_prompt` — nullable, NULL = výchozí konstanta v kódu; Fáze 17) a `014_users_roles.sql` (tabulka `users` — identity a aplikační role, rozšíření `citext`; etapa A plánu rolí) a `015_must_change_password.sql` (`users` += `must_change_password` — vynucená změna iniciálního hesla; etapa B).
 
 ## Proměnné prostředí
 
@@ -140,7 +140,9 @@ Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabas
 /admin/retrieval-test   → Panel test retrievalu
 /admin/parameters       → RAG parametry (slidery TOP_K, práh podobnosti, teplota; telemetrie, chunkování)
 /admin/parameters/prompts → Prompty (system prompt chatu + prompt shrnutí poptávek; Fáze 17)
+/admin/users            → Správa uživatelů (pouze admin): založení, role, deaktivace, reset hesla
 /admin/login            → Login (uživatelské jméno + heslo), nastaví session cookie
+/admin/change-password  → Změna vlastního hesla; mimo route group (authenticated), aby nevznikl redirect cyklus
 
 POST   /api/chat                → RAG pipeline → streamovaná odpověď + metadata zdrojů (X-Sources) + X-Trace-Id; nepovinné sessionId v těle (jen telemetrie)
 POST   /api/documents           → upload → extrakce → chunking → embeddingy → uložení (409 při duplicitním názvu)
@@ -153,8 +155,12 @@ POST   /api/settings            → uloží globální runtime parametry RAG do 
 POST   /api/feedback            → uloží zpětnou vazbu (thumbs up/down); limity vstupu + rate limit 10/min; volitelné traceId → skóre `user-thumbs` v Langfuse
 POST   /api/leads               → uloží poptávku (veřejné); rate limit 5/min, pole `type` (`produkt`/`hodnoceni`, default `produkt`; jiná hodnota → 400), deduplikace podle kontaktu **v rámci téhož typu**, shrnutí konverzace pro oba typy Mistral modelem (`@ai-sdk/mistral`, `SUMMARY_MODEL` default `mistral-small-latest` — prototypový test, Varianta B; prompt `LEAD_SUMMARY_PROMPT` z `lib/rag/prompts.ts`, runtime override v `app_settings.lead_summary_prompt`; přepis izolován v bloku <transcript> jako nedůvěryhodný vstup — oprava SEC-9, wrapping i sanitizace zůstávají v kódu)
 PATCH  /api/leads/[id]          → změna stavu poptávky (pouze admin): in_progress/closed; 400/404/409
-POST   /api/auth/login          → ověření username + password, nastavení session cookie
-POST   /api/auth/logout         → smazání session cookie
+GET    /api/users               → seznam uživatelů (pouze admin)
+POST   /api/users               → založení uživatele s vygenerovaným heslem (admin); heslo se vrací JEDNOU v odpovědi, 409 při duplicitě
+PATCH  /api/users/[id]          → změna role / aktivace / reset hesla (admin); 409 u posledního admina i u vlastní role, 404 neexistující
+POST   /api/auth/login          → ověření username + password proti tabulce users, nastavení session cookie
+POST   /api/auth/logout         → smazání session cookie + per-user revokace
+POST   /api/auth/change-password → změna vlastního hesla (přihlášený); projde i účtu s must_change_password
 ```
 
 ### Cílová adresářová struktura
@@ -168,6 +174,7 @@ src/
 │   ├── demo/page.tsx                 # Demo stránka „Pojišťovny Jistota" s <ChatWidget />
 │   ├── admin/
 │   │   ├── login/page.tsx            # Login (mimo route group — nechráněno)
+│   │   ├── change-password/          # Změna vlastního hesla (page + client, mimo route group)
 │   │   └── (authenticated)/         # route group chráněná proxy vrstvou
 │   │       ├── layout.tsx            # Sidebar layout (Console styl)
 │   │       ├── page.tsx              # Dashboard (přehled znalostní báze)
@@ -175,6 +182,8 @@ src/
 │   │       ├── documents/client.tsx  # klientská část (upload + tabulka)
 │   │       ├── leads/page.tsx        # server část (načtení poptávek)
 │   │       ├── leads/client.tsx      # klientská část (tabulka + akce Převzít/Uzavřít)
+│   │       ├── users/page.tsx        # server část (seznam uživatelů)
+│   │       ├── users/client.tsx      # klientská část (založení, role, reset hesla)
 │   │       ├── retrieval-test/page.tsx
 │   │       ├── parameters/page.tsx    # server část (getSettings) — „RAG parametry"
 │   │       ├── parameters/client.tsx  # klientská část (slidery + uložení)
@@ -189,7 +198,9 @@ src/
 │       ├── retrieval-test/route.ts
 │       ├── settings/route.ts
 │       ├── feedback/route.ts
-│       └── auth/{login,logout}/route.ts
+│       ├── users/route.ts            # GET seznam + POST založení (admin)
+│       ├── users/[id]/route.ts       # PATCH role/aktivace/reset hesla (admin)
+│       └── auth/{login,logout,change-password}/route.ts
 ├── components/
 │   ├── MessageBubble.tsx              # vrací null pro prázdný content (vyhne se dvojité bublině s tečkami)
 │   ├── ChatMessages.tsx               # scrollovatelná oblast zpráv, sdílená mezi / a widgetem (prop compact)
@@ -202,6 +213,7 @@ src/
 │   ├── StatusBadge.tsx               # badge stavu dokumentu
 │   ├── LeadStatusBadge.tsx           # badge stavu poptávky
 │   ├── LeadTypeBadge.tsx             # badge typu poptávky (Produkt/Hodnocení)
+│   ├── AppRoleBadge.tsx             # badge aplikační role (Admin/Editor/Čtenář)
 │   ├── StatCard.tsx                  # metrická karta dashboardu
 │   ├── FeedbackCard.tsx              # karta spokojenosti (% + poměrový pruh)
 │   ├── ChunksByDocChart.tsx          # graf chunků (CSS bary)
@@ -243,7 +255,8 @@ supabase/
     ├── 009_chunk_batch.sql           # chunks += batch_id (reindexace bez ztráty dat)
     ├── 010_leads.sql                 # tabulka leads (poptávky/lead generation, vč. RLS)
     ├── 011_auth_state.sql            # auth_state (globální revokace session, SEC-4)
-    └── 014_users_roles.sql           # tabulka users (identity + aplikační role, etapa A)
+    ├── 014_users_roles.sql           # tabulka users (identity + aplikační role, etapa A)
+    └── 015_must_change_password.sql  # users += must_change_password (etapa B)
 scripts/
 ├── langfuse-eval.mjs                 # eval runner (Fáze 15) — experiment.run nad Langfuse datasety
 ├── langfuse-sync-metadata.mjs        # sync metadat items (expects_offer) do Langfuse — upsert podle id
@@ -353,6 +366,21 @@ leads (id uuid PK, name text, email text NULL, phone text NULL, note text NULL,
 --   'hodnoceni' = kontakt zanechaný po palci dolů; deduplikace je type-scoped
 -- poptávky se nemažou — uzavření jen nastaví status closed
 
+users (id uuid PK, username citext UNIQUE, display_name text NULL,
+       app_role text DEFAULT 'viewer' CHECK ('admin'/'editor'/'viewer'),
+       auth_provider text DEFAULT 'local' CHECK ('local'/'oidc'),
+       password_hash text NULL, external_issuer text NULL, external_subject text NULL,
+       is_active boolean DEFAULT true, must_change_password boolean DEFAULT false,
+       sessions_invalid_before timestamptz DEFAULT epoch,
+       created_at timestamptz, updated_at timestamptz)
+-- identity a aplikační role (migrace 014, etapa A plánu rolí); citext = jméno
+-- se nesmí lišit velikostí písmen. CHECK: local účet musí mít heslo, oidc účet
+-- external_subject; UNIQUE (external_issuer, external_subject) — identita SSO
+-- stojí na dvojici (vydavatel, subjekt), nikdy na e-mailu
+-- must_change_password (migrace 015, etapa B): iniciální heslo od admina;
+--   dokud je true, uživatel smí jen změnit heslo (403 na všech ostatních routách)
+-- uživatelé se nemažou, jen deaktivují (is_active = false)
+
 auth_state (id smallint PK CHECK (id = 1),
             sessions_invalid_before timestamptz DEFAULT '1970-01-01',
             updated_at timestamptz)
@@ -374,7 +402,7 @@ Hodnoty `status` poptávky: `new`/`updated` → `in_progress` → `closed` (`clo
 |---|---|
 | `GET /api/documents`, `POST /api/retrieval-test`, `GET /api/settings` | `viewer` |
 | `POST /api/documents`, `DELETE /api/documents/[id]`, `.../reprocess`, `PATCH /api/leads/[id]` | `editor` |
-| `POST /api/settings` (vč. promptů) | `admin` |
+| `POST /api/settings` (vč. promptů), `/api/users*` | `admin` |
 
 Vodicí pravidlo: **editor spravuje obsah a agendu, ne systém.** Prompty a RAG parametry jsou konfigurace chování bota, proto zůstávají adminovi.
 
@@ -387,6 +415,8 @@ Vodicí pravidlo: **editor spravuje obsah a agendu, ne systém.** Prompty a RAG 
 **Rate limit loginu:** per-IP 5 pokusů / 15 min, **per-username 5 / 15 min** (cílený útok na jeden účet nezablokuje ostatní) a globální strop 300 selhání / 15 min jako pojistka poslední instance. Globální strop byl původně 30 — s jedinou identitou to dávalo smysl, s více účty by se stal DoS vektorem. Identita klienta se bere z `x-real-ip`, fallback pravá hodnota `x-forwarded-for` (`lib/rate-limit.ts` — `clientIp`).
 
 **Revokace session** je dvouúrovňová: per-user `users.sessions_invalid_before` (logout, reset hesla, deaktivace — odhlásí jen dotčeného) a globální `auth_state` (migrace `011`), z níž je od zavedení `users` už jen **ruční kill-switch pro incident**. Logout volá `revokeUserSessions(userId)`; volat z něj `revokeAllSessions()` by znamenalo, že kterýkoli uživatel odhlásí celou organizaci. Fail-open při chybějící tabulce `auth_state`.
+
+**Správa uživatelů (`/admin/users`, etapa B):** zakládá je admin, ale **heslo si nevymýšlí — generuje ho aplikace** (`generatePassword()` v `lib/password.ts`, 16 znaků bez zaměnitelných 0/O/1/l) a zobrazí ho jednou; v DB je od začátku jen hash. Protože se předává mimo aplikaci, dostane účet `must_change_password = true` a **dokud si heslo nezmění, nesmí dělat nic jiného**: `requireAppRole()` vrací 403 s příznakem `mustChangePassword` na všech routách a admin layout přesměruje na `/admin/change-password`. Kdyby platil jen redirect, stačilo by volat API přímo. Úspěšná změna hesla revokuje session a vydá novou cookie — ukradená session s iniciálním heslem tím padá. Reset hesla adminem koloběh opakuje. Dvě pojistky proti zamčení a nedopatření: **poslední aktivní admin** nejde degradovat ani deaktivovat (409) a **vlastní roli si admin měnit nesmí** (409; změna role revokuje session, takže by to vypadalo jako náhlé vypadnutí z administrace). Reset vlastního hesla povolený je. Stránka `/admin/change-password` je záměrně **mimo** route group `(authenticated)` — uvnitř by redirect z layoutu vytvořil cyklus.
 
 **Založení prvního uživatele:** `node scripts/seed-admin-user.mjs` (idempotentní, `--force` přepíše heslo a odhlásí session). `ADMIN_USERNAME`/`ADMIN_PASSWORD` slouží už jen jemu — v `src/lib/config.ts` záměrně nejsou, aplikace je za běhu nepoužívá. Lazy bootstrap při loginu je vědomě neimplementovaný (byla by to trvalá zadní vrátka).
 

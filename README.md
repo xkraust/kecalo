@@ -50,7 +50,7 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · shadcn/u
 
 2. **Nastavit env proměnné:** zkopírovat `.env.example` na `.env.local` a vyplnit hodnoty (viz tabulka níže).
 
-3. **Aplikovat DB migrace** (`supabase/migrations/001`–`014`):
+3. **Aplikovat DB migrace** (`supabase/migrations/001`–`015`):
    ```bash
    supabase db push --db-url "$DATABASE_URL"
    ```
@@ -103,7 +103,7 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · shadcn/u
 Aplikace zatím není určená pro ostrý provoz — několik vědomých kompromisů (detaily viz [ARCHITECTURE.md, sekce 10](docs/ARCHITECTURE.md#10-známá-omezení)):
 
 - **Bez automatizovaných testů** — ověřování je manuální (build, lint, E2E průchody, eval runner nad datasety). Před ostrým provozem je to první věc k doplnění.
-- **Autentizace na úrovni prototypu** — vlastní tabulka uživatelů s aplikačními rolemi a podepsaná HMAC cookie; chybí SSO, správa uživatelů v UI a samoobslužná změna hesla (etapy B–D [plánu rolí](docs/plans/roles_and_document_access_plan.md)).
+- **Autentizace na úrovni prototypu** — vlastní tabulka uživatelů s aplikačními rolemi (admin/editor/čtenář), správa v `/admin/users` a podepsaná HMAC cookie; chybí SSO a obnova zapomenutého hesla bez admina (etapy C–D [plánu rolí](docs/plans/roles_and_document_access_plan.md)).
 - **In-memory rate limity** — per-instance; na serverless škálování napříč instancemi nedrží globální stropy přesně.
 - **Vědomě odloženo (SEC-7 / SEC-8)** — serverová rekonstrukce historie chatu a explicitní CSRF token.
 - **Deduplikace leadů** — podle přesné shody kontaktu v rámci typu; nepokrývá varianty zápisu.

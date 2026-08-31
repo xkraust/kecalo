@@ -27,6 +27,8 @@ export interface SessionUser {
   username: string;
   displayName: string | null;
   appRole: AppRole;
+  /** Iniciální heslo od admina — dokud je true, uživatel smí jen změnit heslo. */
+  mustChangePassword: boolean;
 }
 
 interface UserRow {
@@ -35,6 +37,7 @@ interface UserRow {
   display_name: string | null;
   app_role: AppRole;
   is_active: boolean;
+  must_change_password: boolean;
   sessions_invalid_before: string;
 }
 
@@ -55,7 +58,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   const { data, error } = await supabase
     .from("users")
-    .select("id, username, display_name, app_role, is_active, sessions_invalid_before")
+    .select(
+      "id, username, display_name, app_role, is_active, must_change_password, sessions_invalid_before"
+    )
     .eq("id", session.userId)
     .maybeSingle<UserRow>();
 
@@ -78,5 +83,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     username: data.username,
     displayName: data.display_name,
     appRole: data.app_role,
+    mustChangePassword: data.must_change_password,
   };
 }

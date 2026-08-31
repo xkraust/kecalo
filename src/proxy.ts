@@ -13,6 +13,8 @@ export const config = {
     "/api/leads/:path*",
     "/api/settings",
     "/api/retrieval-test",
+    "/api/users",
+    "/api/users/:path*",
   ],
 };
 

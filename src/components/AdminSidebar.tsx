@@ -10,6 +10,7 @@ import {
   Search,
   SlidersHorizontal,
   MessageSquare,
+  Users,
   LogOut,
   ChevronRight,
   type LucideIcon,
@@ -41,6 +42,12 @@ const navItems: NavItem[] = [
       { label: "RAG parametry", href: "/admin/parameters" },
       { label: "Prompty", href: "/admin/parameters/prompts" },
     ],
+  },
+  {
+    label: "Uživatelé",
+    href: "/admin/users",
+    icon: Users,
+    minRole: "admin",
   },
   { label: "Chat", href: "/", icon: MessageSquare, external: true },
 ];

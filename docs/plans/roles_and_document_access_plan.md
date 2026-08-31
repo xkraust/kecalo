@@ -1,6 +1,6 @@
 # Plán: role uživatelů a řízení přístupu k dokumentům
 
-**Stav:** etapa A hotová a E2E ověřená (31. 8. 2026), etapy B–D neimplementované. Mimo číslované fáze; navazuje na produkční dluh „Autentizace a role" z `docs/IMPLEMENTATION_PLAN.md`.
+**Stav:** etapy A a B hotové a E2E ověřené (31. 8. 2026), etapy C–D neimplementované. Mimo číslované fáze; navazuje na produkční dluh „Autentizace a role" z `docs/IMPLEMENTATION_PLAN.md`.
 
 ---
 
@@ -87,7 +87,7 @@ Sloupec se jmenuje `app_role`, ne `role` — `role` je v Postgresu vyhrazené sl
 
 `DEFAULT 'viewer'` je **bezpečnostní default zakotvený ve schématu**, ne jen v aplikačním kódu: nově založený uživatel — z admin UI i JIT provisioningem při SSO (etapa D) — dostane nejnižší oprávnění i tehdy, když ho zakládající kód opomene nastavit. Vyšší roli musí někdo přidělit vědomě. Jediná výjimka je seed skript, který u prvního uživatele nastavuje `admin` explicitně.
 
-### `015_job_roles_audiences.sql`
+### `016_job_roles_audiences.sql`
 
 ```sql
 audiences  (code text PK, label text NOT NULL, created_at)
@@ -179,7 +179,19 @@ Explicitně **nedělat** lazy bootstrap při loginu — tichý fallback na env �
 
 - **Hash:** `scrypt` z `node:crypto` (žádná nová závislost, běží na Vercelu), náhodná sůl, formát `scrypt$N$r$p$salt$hash`, porovnání `timingSafeEqual`. Nový `src/lib/password.ts`.
 - **Timing při neexistujícím uživateli:** login pro neznámé `username` provede dummy scrypt ověření proti fixnímu hashi, aby doba odpovědi neprozrazovala existenci účtu — konzistentní s dnešní `safeEqual` filozofií. Ověřuje se i `is_active`.
-- **Samoobslužná změna hesla v návrhu není** — heslo resetuje admin. Vědomý odklad (jde o interní nástroj s jednotkami uživatelů), ne opomenutí; doplnit až s reálnou potřebou.
+### Iniciální heslo a jeho vynucená změna (etapa B)
+
+Nového uživatele zakládá admin, ale **heslo si nevymýšlí — vygeneruje ho aplikace** a zobrazí ho adminovi jednou; v DB je od začátku jen hash. Odpadají tím opakovaná a slabá hesla, která při ručním zadávání vznikají vždy.
+
+Vygenerované heslo se předává mimo aplikaci (Slack, telefon), takže se s ním počítá jako s kompromitovaným od okamžiku odeslání. Proto `users.must_change_password`: dokud je `true`, uživatel **nesmí dělat nic než změnit heslo**.
+
+- Vynucení musí platit i pro **přímé volání API**, ne jen v UI: `requireAppRole()` vrací `403` (`{ error: "…", mustChangePassword: true }`) pro všechny routy kromě samotné změny hesla. Kdyby se kontrolovalo jen v layoutu, stačilo by uživateli s iniciálním heslem volat API přímo.
+- Změna hesla je nová veřejná-pro-přihlášené routa `POST /api/auth/change-password` (ověří staré heslo, uloží nové, vynuluje příznak) a stránka `/admin/change-password`, na kterou admin layout přesměruje, dokud příznak platí.
+- Úspěšná změna **posune `sessions_invalid_before`** a vydá novou cookie — případná ukradená session s iniciálním heslem tím padá.
+- **Reset hesla adminem** nastaví nové vygenerované heslo a příznak zpátky na `true`; koloběh je tedy stejný jako u založení.
+- **Seed skript příznak nenastavuje.** Heslo si zadal ten, kdo aplikaci nasazuje, do vlastního `.env` — nikdo mu ho neposílal, takže důvod k vynucené změně není. Vynucení se týká výhradně účtů založených adminem a resetů.
+
+Tím se do návrhu vrací samoobslužná změna hesla, která v něm původně záměrně nebyla — ale jen v této jedné podobě (změna vlastního hesla přihlášeným uživatelem). „Zapomenuté heslo" bez přihlášení dál chybí a řeší ho admin resetem, protože e-mailový kanál pro obnovu aplikace nemá.
 - **Cookie v2:** `v2.ts.uid.nonce.sig`, podepsaná stejným HMAC jako dnes (`src/lib/auth.ts`). Starý tříčlenný formát **odmítnout** — jediný dnešní admin se jednorázově přihlásí znovu.
 - **Aplikační role ani štítky se do cookie nedávají.** Čtou se z DB per request, aby odebrání oprávnění platilo okamžitě a cookie nebyla zdrojem pravdy. Cena je jeden `select` navíc — v requestu, který už dělá `getSettings()` i `isSessionRevoked()`, zanedbatelná.
 - Nový `src/lib/session-user.ts` → `getSessionUser(): Promise<SessionUser | null>` vrací `{ id, username, appRole, audiences, isActive }`, kde `audiences` je sjednocení z `user_effective_audiences`. Kontroluje per-user i globální revokaci a nahrazuje přímé volání `isSessionRevoked` v `require-admin.ts` a v admin layoutu.
@@ -200,7 +212,7 @@ Proxy (`src/proxy.ts`): **logika zůstává beze změny** — v edge runtimu nem
 
 ## 6. Viditelnost dokumentů v retrievalu
 
-`match_chunks` dostane parametr `caller_audiences text[] DEFAULT '{}'`. Migrace `015` funkci opět dropne a vytvoří znovu — poznámka o změně návratového typu z `007_chunk_sections.sql` platí i pro změnu signatury.
+`match_chunks` dostane parametr `caller_audiences text[] DEFAULT '{}'`. Migrace `016` funkci opět dropne a vytvoří znovu — poznámka o změně návratového typu z `007_chunk_sections.sql` platí i pro změnu signatury.
 
 ```sql
 where documents.status = 'ready'
@@ -302,14 +314,20 @@ Timing enumeraci to ztěžuje, ale zcela neodstraňuje.
 
 ### Etapa B — aplikační role v UI
 
-- [ ] Sekce `/admin/users` (server + klient), založení / deaktivace / reset hesla (obojí posouvá per-user revokaci); ochrana posledního admina (invariant 11)
-- [ ] Gating rout dle tabulky v kap. 5
-- [ ] Rozšíření proxy matcheru o `/api/users*`
-- [ ] Sidebar podle aplikační role (prop z layoutu)
+- [x] Migrace `015_must_change_password.sql` — `users += must_change_password boolean NOT NULL DEFAULT false`
+- [x] `/api/users` + `/api/users/[id]` (admin): založení s **vygenerovaným** heslem (vrátí se jednou v odpovědi), deaktivace, reset hesla, změna role; ochrana posledního admina (invariant 11)
+- [x] Sekce `/admin/users` (server + klient) — tabulka jméno · role · stav, jednorázové zobrazení hesla s kopírováním
+- [x] `POST /api/auth/change-password` + stránka `/admin/change-password`; úspěch posune `sessions_invalid_before` a vydá novou cookie
+- [x] Vynucení `must_change_password` v `requireAppRole()` (403 pro všechny routy kromě změny hesla) **i** v admin layoutu (redirect)
+- [x] Rozšíření proxy matcheru o `/api/users*`
+- [x] Sidebar podle aplikační role — položka „Uživatelé" s `minRole: "admin"`
+- [x] **Navíc oproti plánu:** admin si nesmí měnit vlastní roli ani se deaktivovat (409). Vyšlo z testování: změna role revokuje session, takže degradace sebe sama vypadá jako náhlé vypadnutí z administrace — a při jediném adminovi by systém zamkla úplně. Reset vlastního hesla povolený zůstává.
+
+**Ověřeno E2E (31. 8. 2026):** založení vrátí 16znakové heslo jednou; duplicitní jméno → 409 i při jiné velikosti písmen (citext); nový uživatel se přihlásí, ale na všech routách dostane 403 s `mustChangePassword`; krátké heslo → 400, špatné stávající → 401; po úspěšné změně API funguje, **stará cookie i iniciální heslo přestanou platit**; `editor` dostane 403 na `/api/settings` i `/api/users`; degradace posledního admina → 409; změna vlastní role → 409; reset hesla vygeneruje nové a znovu vynutí změnu.
 
 ### Etapa C — pracovní role a štítky
 
-- [ ] Migrace `015_job_roles_audiences.sql` + view `user_effective_audiences`
+- [ ] Migrace `016_job_roles_audiences.sql` + view `user_effective_audiences`
 - [ ] Číselníky `/admin/users/job-roles` a `/admin/users/audiences` + rozšíření proxy matcheru o `/api/job-roles*` a `/api/audiences*`
 - [ ] `ON DELETE RESTRICT` u `audience_code` v obou vazbách
 - [ ] Transliterace názvu na kód (`Právní oddělení` → `pravni-oddeleni`) + validace `^[a-z0-9_-]{2,32}$` a ošetření kolize slugu v `/api/audiences`
@@ -360,6 +378,6 @@ E2E scénáře pro etapu C (body 1–5 předpokládají uživatele přihlášen�
 7. Přidání štítku k pracovní roli okamžitě zpřístupní dotčené dokumenty jejím nositelům, odebrání je stejně rychle odebere (invariant 10).
 8. Štítek se založí zadáním samotného českého názvu („Právní oddělení") — kód se odvodí sám a je platný; přejmenování na „Právní a compliance" projde a kód zůstane. Kód mimo `^[a-z0-9_-]{2,32}$` je odmítnut i přímým voláním API, nejen v UI.
 9. Při `default_document_visibility = 'public'` je nově nahraný dokument po zaindexování rovnou dohledatelný anonymním chatem (dnešní chování beze změny); po přepnutí na `'restricted'` tentýž upload anonymní chat nenajde a v tabulce dokumentů má badge „bez štítků".
-10. Migrace `015` na existující instalaci nezmění chování veřejného chatu — všechny stávající dokumenty zůstanou `public` a eval runner běží beze změny skóre.
+10. Migrace `016` na existující instalaci nezmění chování veřejného chatu — všechny stávající dokumenty zůstanou `public` a eval runner běží beze změny skóre.
 
 Dále ověřit: `viewer` nedostane 200 na `POST /api/documents`; `editor` nedostane 200 na `POST /api/settings`; editor nemůže přiřadit štítek mimo své efektivní štítky ani nastavit `public` přímým voláním API (invariant 6); uživatel s `auth_provider='oidc'` se nepřihlásí heslem (invariant 8).
