@@ -40,8 +40,7 @@ export default async function JobRolesPage() {
       <div>
         <h1 className="text-xl font-medium">Pracovní role</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Kdo je uživatel v organizaci. Role sdružuje štítky publika — uživatel
-          dostane roli a štítky z ní odvodí. Přiřazují se v sekci Účty.
+          Správa pracovních rolí
         </p>
       </div>
       <JobRolesClient roles={items} audiences={audienceList} />

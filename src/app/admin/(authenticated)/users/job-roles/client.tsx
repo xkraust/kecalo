@@ -87,7 +87,7 @@ export function JobRolesClient({
 
       {audiences.length === 0 && (
         <p className="rounded-md bg-[#FAEEDA] px-3 py-2 text-sm text-[#854F0B]">
-          Nejdřív si založte štítky publika — bez nich nemá pracovní role co
+          Nejdřív si založte štítky dokumentů — bez nich nemá pracovní role co
           sdružovat.
         </p>
       )}
@@ -172,7 +172,7 @@ export function JobRolesClient({
               {audiences.length > 0 && (
                 <div className="mt-4">
                   <p className="mb-2 text-xs text-muted-foreground">
-                    Štítky publika — změna se nositelům projeví okamžitě a
+                    Štítky dokumentů — změna se nositelům projeví okamžitě a
                     odhlásí je:
                   </p>
                   <div className="flex flex-wrap gap-2">

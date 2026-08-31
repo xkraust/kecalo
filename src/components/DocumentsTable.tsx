@@ -37,7 +37,7 @@ interface DocumentsTableProps {
   onRefresh: () => void;
   /** Aktuální nastavení chunkování — pro indikaci zastaralé konfigurace (null = nezjišťovat). */
   chunkingSettings?: SettingsValues | null;
-  /** Číselník štítků publika (etapa C); prázdný = sekce viditelnosti se nezobrazí. */
+  /** Číselník štítků dokumentů (etapa C); prázdný = sekce viditelnosti se nezobrazí. */
   audiences?: AudienceWithUsage[];
   /** Smí uživatel přepnout dokument na `public`? (jen admin) */
   canPublish?: boolean;

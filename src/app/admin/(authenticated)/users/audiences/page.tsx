@@ -27,7 +27,7 @@ export default async function AudiencesPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-medium">Štítky publika</h1>
+        <h1 className="text-xl font-medium">Štítky dokumentů</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Označují, komu obsah patří. Dokument dostane štítky, pracovní role je
           sdružuje — uživatel pak vidí dokumenty svých oddělení.

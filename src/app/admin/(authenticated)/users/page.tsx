@@ -50,7 +50,7 @@ export default async function UsersPage() {
       <div>
         <h1 className="text-xl font-medium">Uživatelé</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Kdo se smí přihlásit do administrace a co tam smí dělat
+          Správa uživatelů
         </p>
       </div>
       <UsersPageClient
