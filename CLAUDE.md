@@ -406,6 +406,7 @@ Parametry laditelné za běhu bez redeploye. **Pozor na zásadní rozdíl:** par
 | `chunk_strip_headers` | bool | odstraňování záhlaví/patiček stránek (při indexaci) |
 | `system_prompt` | text ≤ 8000, NULL = výchozí | system prompt chatu (při dotazu; Fáze 17) |
 | `lead_summary_prompt` | text ≤ 4000, NULL = výchozí | prompt shrnutí poptávek (Mistral model; při založení leadu) |
+| `default_document_visibility` | `public`/`restricted` | **plánováno v etapě C** — výchozí viditelnost nově nahraného dokumentu; `public` = dnešní chování veřejné báze, `restricted` = interní znalostní báze (viz plán rolí) |
 
 - **Úložiště:** jednořádková tabulka `app_settings` (id = 1), migrace `003_app_settings.sql` (+ `006`, `008`, `013`).
 - **Server:** `lib/settings.ts` — `getSettings()` (čte přes service-role klienta; fallback na env `config` / tovární defaulty při chybějící tabulce / chybě DB) a `saveSettings()` (validace + clamp + uložení).

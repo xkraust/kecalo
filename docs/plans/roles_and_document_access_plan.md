@@ -135,7 +135,33 @@ Nové tabulky s `ENABLE ROW LEVEL SECURITY` bez policy — stejný vzor jako `01
 
 `DEFAULT 'public'` u `documents.visibility` platí **jen pro migraci stávajících řádků**: nasazení nesmí skokem zneviditelnit dnešní bázi ani rozbít eval runner. Stejná logika jako `DEFAULT epoch` v `011_auth_state.sql`.
 
-**Pozor — pro nově nahraný dokument je tento default špatně.** Upload routa (`POST /api/documents`) musí `visibility: 'restricted'` nastavovat explicitně, jinak by editor uploadem rovnou zveřejnil dokument anonymnímu chatu. SQL default a chování upload routy jsou dvě různé věci.
+**Pozor — SQL default a viditelnost nově nahraného dokumentu jsou dvě různé věci.** Upload routa (`POST /api/documents`) nastavuje viditelnost explicitně, podle provozního režimu (viz níže) — spoléhat se na `DEFAULT 'public'` by znamenalo, že editor uploadem rovnou zveřejní interní materiál.
+
+### Provozní režim: veřejná vs. interní znalostní báze
+
+Kecalo se provozuje ve dvou velmi odlišných režimech a **výchozí viditelnost nahraného dokumentu musí sledovat ten režim, ne pevnou konstantu v kódu**:
+
+- **Plně veřejná aplikace** (dnešní hlavní use-case — chatbot pojišťovny na `/` a `/demo`): koncoví uživatelé se nikdy nepřihlašují, celá báze je veřejná. Kdyby byl upload natvrdo `restricted`, přestal by veřejný bot znát každý nově nahraný dokument, dokud ho admin ručně nepřepne — u báze, kde nic interního neexistuje, je to jen tření navíc.
+- **Interní znalostní báze**: většina dokumentů je omezená a `restricted` je jediný bezpečný default.
+
+Řešení je runtime přepínač, konzistentní s tím, jak projekt už spravuje RAG parametry a prompty:
+
+```sql
+app_settings += default_document_visibility text NOT NULL DEFAULT 'public'
+                CHECK (default_document_visibility in ('public', 'restricted'))
+```
+
+Upload routa čte hodnotu přes `getSettings()` (stejně jako už čte parametry chunkování) a použije ji pro nový dokument. Přepínač patří do `/admin/parameters` mezi ostatní runtime nastavení, mění ho jen `admin` a v UI musí být doprovozený vysvětlením, co znamená — je to jediné nastavení v celém adminu, které rozhoduje o tom, zda se obsah dostane k anonymnímu návštěvníkovi.
+
+`DEFAULT 'public'` v migraci je zvolený tak, aby **nasazení nezměnilo chování stávajícího provozu**; kdo Kecalo provozuje interně, přepne si ho jednou po nasazení.
+
+### Přihlášení koncového uživatele v chatu
+
+**Chat zůstává čistě veřejný a anonymní — vědomé rozhodnutí, ne opomenutí.** Na `/` ani ve widgetu není a v etapách A–C nebude žádný login pro koncové uživatele. Filtr štítků se tak v praxi uplatní jen u návštěvníka, který už přihlášený je (správce se session z administrace).
+
+Důvod: samostatný login pro tazatele má smysl teprve tehdy, až se lze přihlásit firemní identitou. Vlastní heslo do chatbota by si nikdo nezakládal a spravovat druhou sadu hesel pro čtenáře je horší než nemít omezení vůbec. **Interní chat se proto otevře až s SSO v etapě D** — tam přihlášení stojí na účtu, který zaměstnanec už má.
+
+Praktický důsledek pro etapu C: viditelnost dokumentů je do etapy D funkční hlavně jako **ochrana obsahu před veřejností** (co je `restricted`, veřejný bot neuvidí), ne jako rozlišení mezi odděleními v chatu. Rozlišení podle štítků je do té doby vidět hlavně v administraci — ve výpisu dokumentů a v testu retrievalu.
 
 `auth_state` **zůstává, ale mění roli: už jen ruční kill-switch pro incident, ne běžná cesta.** Dnešní logout volá `revokeAllSessions()` a posouvá globální hranici — s více uživateli by tak **kterýkoli viewer odhlásil i všechny adminy**. Logout routa proto musí přejít na per-user revokaci: posune `sessions_invalid_before` jen u odhlašovaného uživatele. Per-user razítko posouvá i deaktivace účtu, změna sady rolí a reset hesla adminem (ukradená session nesmí přežít reset).
 
@@ -292,7 +318,7 @@ Timing enumeraci to ztěžuje, ale zcela neodstraňuje.
 - [ ] Revokace session nositelů při změně sady štítků role a odebrání role (invariant 10)
 - [ ] `PATCH /api/documents/[id]` — zápis viditelnosti a štítků (invariant 6)
 - [ ] `documents.visibility` + `document_audiences` v admin UI (sloupec, chipy, badge „bez štítků")
-- [ ] `visibility: 'restricted'` explicitně v upload routě
+- [ ] `app_settings.default_document_visibility` + přepínač v `/admin/parameters`; upload routa ji čte přes `getSettings()`
 - [ ] `match_chunks` s `caller_audiences`, `retrieve()` se čtvrtým parametrem
 - [ ] Napojení v `/api/chat` a `/api/retrieval-test`, filtrace výpisu dokumentů
 - [ ] Telemetrie: `chat.audience_count`, `chat.authenticated`
@@ -322,7 +348,7 @@ E2E scénáře pro etapu A:
 3. Odhlášení uživatele A neodhlásí přihlášeného uživatele B; deaktivace a reset hesla ukončí běžící session dotčeného.
 4. Login s neexistujícím username vrací stejnou chybu i podobnou latenci jako se špatným heslem.
 
-E2E scénář pro etapu C:
+E2E scénáře pro etapu C (body 1–5 předpokládají uživatele přihlášeného v administraci — do etapy D se koncoví tazatelé nepřihlašují):
 
 1. Založit pracovní roli „vedoucí účtárny" se štítky `ucetni` + `pravni`, přiřadit ji uživateli.
 2. Označit dokument `restricted` se štítkem `obchod`.
@@ -330,10 +356,10 @@ E2E scénář pro etapu C:
 4. Přidat uživateli roli se štítkem `obchod` → tentýž dotaz vrátí odpověď se zdrojem.
 5. Odebrat roli → dotaz se vrátí na fallback bez nutnosti odhlášení.
 
-Správa číselníku štítků:
-
 6. Smazání použitého štítku → **409 se srozumitelnou hláškou**, ne 500 z porušeného FK; po odebrání ze všech dokumentů i rolí smazání projde.
 7. Přidání štítku k pracovní roli okamžitě zpřístupní dotčené dokumenty jejím nositelům, odebrání je stejně rychle odebere (invariant 10).
 8. Štítek se založí zadáním samotného českého názvu („Právní oddělení") — kód se odvodí sám a je platný; přejmenování na „Právní a compliance" projde a kód zůstane. Kód mimo `^[a-z0-9_-]{2,32}$` je odmítnut i přímým voláním API, nejen v UI.
+9. Při `default_document_visibility = 'public'` je nově nahraný dokument po zaindexování rovnou dohledatelný anonymním chatem (dnešní chování beze změny); po přepnutí na `'restricted'` tentýž upload anonymní chat nenajde a v tabulce dokumentů má badge „bez štítků".
+10. Migrace `015` na existující instalaci nezmění chování veřejného chatu — všechny stávající dokumenty zůstanou `public` a eval runner běží beze změny skóre.
 
 Dále ověřit: `viewer` nedostane 200 na `POST /api/documents`; `editor` nedostane 200 na `POST /api/settings`; editor nemůže přiřadit štítek mimo své efektivní štítky ani nastavit `public` přímým voláním API (invariant 6); uživatel s `auth_provider='oidc'` se nepřihlásí heslem (invariant 8).
