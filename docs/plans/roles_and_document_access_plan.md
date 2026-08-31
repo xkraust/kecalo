@@ -117,19 +117,23 @@ Nové tabulky s `ENABLE ROW LEVEL SECURITY` bez policy — stejný vzor jako `01
 
 **Pozor — pro nově nahraný dokument je tento default špatně.** Upload routa (`POST /api/documents`) musí `visibility: 'restricted'` nastavovat explicitně, jinak by editor uploadem rovnou zveřejnil dokument anonymnímu chatu. SQL default a chování upload routy jsou dvě různé věci.
 
-`auth_state` **zůstává** jako globální kill-switch; per-user `sessions_invalid_before` je jemnější vrstva vedle něj (změna rolí nebo deaktivace odhlásí jen dotčeného uživatele).
+`auth_state` **zůstává, ale mění roli: už jen ruční kill-switch pro incident, ne běžná cesta.** Dnešní logout volá `revokeAllSessions()` a posouvá globální hranici — s více uživateli by tak **kterýkoli viewer odhlásil i všechny adminy**. Logout routa proto musí přejít na per-user revokaci: posune `sessions_invalid_before` jen u odhlašovaného uživatele. Per-user razítko posouvá i deaktivace účtu, změna sady rolí a reset hesla adminem (ukradená session nesmí přežít reset).
+
+**Uživatelé se nemažou, jen deaktivují** (`is_active = false`) — stejný vzor jako u poptávek. Drží to integritu budoucího navázání `leads.assignee` a auditní stopu; skutečné mazání patří do GDPR retenčních procesů (kap. 11).
 
 ## 5. Autentizace
 
 ### Bootstrap prvního admina
 
-Migrace nemůže hashovat heslo v SQL. Založit skript `scripts/seed-admin-user.mjs` (vzor existujících `scripts/*.mjs`), který z `ADMIN_USERNAME`/`ADMIN_PASSWORD` vytvoří prvního uživatele s `app_role='admin'`.
+Migrace nemůže hashovat heslo v SQL. Založit skript `scripts/seed-admin-user.mjs` (vzor existujících `scripts/*.mjs`), který z `ADMIN_USERNAME`/`ADMIN_PASSWORD` vytvoří prvního uživatele s `app_role='admin'`. Skript je idempotentní — existující účet nezaloží podruhé a heslo nepřepíše bez explicitního `--force`.
 
 Explicitně **nedělat** lazy bootstrap při loginu — tichý fallback na env údaje je přesně ta cesta, kterou pak nikdo neodstraní a která přežije do produkce jako zadní vrátka. Po migraci zůstane `ADMIN_USERNAME`/`ADMIN_PASSWORD` v `.env.example` jen pro seed, ne pro běhové ověřování.
 
 ### Hesla a session
 
 - **Hash:** `scrypt` z `node:crypto` (žádná nová závislost, běží na Vercelu), náhodná sůl, formát `scrypt$N$r$p$salt$hash`, porovnání `timingSafeEqual`. Nový `src/lib/password.ts`.
+- **Timing při neexistujícím uživateli:** login pro neznámé `username` provede dummy scrypt ověření proti fixnímu hashi, aby doba odpovědi neprozrazovala existenci účtu — konzistentní s dnešní `safeEqual` filozofií. Ověřuje se i `is_active`.
+- **Samoobslužná změna hesla v návrhu není** — heslo resetuje admin. Vědomý odklad (jde o interní nástroj s jednotkami uživatelů), ne opomenutí; doplnit až s reálnou potřebou.
 - **Cookie v2:** `v2.ts.uid.nonce.sig`, podepsaná stejným HMAC jako dnes (`src/lib/auth.ts`). Starý tříčlenný formát **odmítnout** — jediný dnešní admin se jednorázově přihlásí znovu.
 - **Aplikační role ani štítky se do cookie nedávají.** Čtou se z DB per request, aby odebrání oprávnění platilo okamžitě a cookie nebyla zdrojem pravdy. Cena je jeden `select` navíc — v requestu, který už dělá `getSettings()` i `isSessionRevoked()`, zanedbatelná.
 - Nový `src/lib/session-user.ts` → `getSessionUser(): Promise<SessionUser | null>` vrací `{ id, username, appRole, audiences, isActive }`, kde `audiences` je sjednocení z `user_effective_audiences`. Kontroluje per-user i globální revokaci a nahrazuje přímé volání `isSessionRevoked` v `require-admin.ts` a v admin layoutu.
@@ -141,10 +145,12 @@ Explicitně **nedělat** lazy bootstrap při loginu — tichý fallback na env �
 | Routa | Minimální aplikační role |
 |---|---|
 | `GET /api/documents`, `POST /api/retrieval-test`, `GET /api/settings` | `viewer` |
-| `POST /api/documents`, `DELETE /api/documents/[id]`, `.../reprocess`, `PATCH /api/leads/[id]` | `editor` |
+| `POST /api/documents`, `DELETE /api/documents/[id]`, **`PATCH /api/documents/[id]`** (nový — viditelnost + štítky, s kontrolou invariantu 6; `public` jen admin), `.../reprocess`, `PATCH /api/leads/[id]` | `editor` |
 | `POST /api/settings` (vč. promptů), `/api/users*`, `/api/job-roles*`, `/api/audiences*` | `admin` |
 
-Proxy (`src/proxy.ts`) zůstává beze změny — v edge runtimu nemá do DB přístup, takže dál ověřuje jen podpis a expiraci. Roli a revokaci řeší Node vrstva. Tato dělba je nejčastější místo na chybu.
+`PATCH /api/documents/[id]` je jediný nový zápisový endpoint pro dokumenty — UI editace viditelnosti a chipů štítků (kap. 8) jinak nemá kam zapisovat.
+
+Proxy (`src/proxy.ts`): **logika zůstává beze změny** — v edge runtimu nemá do DB přístup, takže dál ověřuje jen podpis a expiraci; roli a revokaci řeší Node vrstva. **Matcher se ale rozšířit musí:** nové routy `/api/users*`, `/api/job-roles*`, `/api/audiences*` v dnešním výčtu nejsou a bez doplnění by pro ně `requireAppRole()` nebyl druhou obrannou linií, ale jedinou — přesně stav, který opravovala SEC-2. (`PATCH /api/documents/[id]` je pokrytý stávajícím vzorem `/api/documents/:path*`.) Tato dělba je nejčastější místo na chybu.
 
 ## 6. Viditelnost dokumentů v retrievalu
 
@@ -161,7 +167,9 @@ where documents.status = 'ready'
 
 `retrieve()` (`src/lib/rag/retrieve.ts`) dostane čtvrtý parametr `audiences: string[] = []` a předá ho do RPC. Volají ho dvě místa: `api/chat/route.ts` a `api/retrieval-test/route.ts`.
 
-`/api/chat` **zůstává veřejná routa** — jen si volitelně přečte session přes `getSessionUser()`. Anonym → `[]` → vidí pouze `public`. Přihlášený → svoje efektivní štítky. Žádná nová routa, žádná nová útočná plocha; widget a `/demo` fungují beze změny.
+`/api/chat` **zůstává veřejná routa** — jen si volitelně přečte session přes `getSessionUser()`. Anonym → `[]` → vidí pouze `public`. Přihlášený → svoje efektivní štítky. Žádná nová veřejná routa, žádná nová útočná plocha; widget a `/demo` fungují beze změny.
+
+**Mechanika admin bypassu:** admin „má všechny štítky" se **nesmí** implementovat vyjmenováním všech kódů z číselníku (rozjelo by se s nově přidaným štítkem mezi requesty). Místo toho `getSessionUser()` u admina nastaví příznak a volající předá `caller_audiences := NULL`; `match_chunks` interpretuje `NULL` jako „bez filtru viditelnosti" (`'{}'` dál znamená „jen public"). Rozlišení NULL vs. prázdné pole je záměrné a musí být v SQL komentáři funkce.
 
 ## 7. Bezpečnostní invarianty
 
@@ -173,16 +181,17 @@ where documents.status = 'ready'
 6. **Editor nesmí přiřadit štítek, který nemá ve svých efektivních štítcích, ani nastavit `public`** — kontrolovat serverově proti session, ne skrytím prvku v UI. Jinak je omezení obejitelné přímým voláním API.
 7. **Smazání pracovní role odebírá přístup okamžitě.** `ON DELETE CASCADE` na `user_job_roles` znamená, že smazání role tiše odebere štítky všem nositelům — správné chování, ale admin UI musí upozornit s počtem dotčených uživatelů. Zároveň to musí posunout jejich `sessions_invalid_before`.
 8. **SSO uživatel se nesmí přihlásit heslem.** Login lokálním heslem musí pro `auth_provider='oidc'` selhat, i kdyby se do `password_hash` cokoli dostalo — jinak vznikne cesta okolo IdP, která obchází MFA i deaktivaci účtu po odchodu ze zaměstnání. Nastavit heslo takovému uživateli nesmí jít ani z admin UI.
-9. **Login rate limit se musí přenavrhnout.** Dnešní globální strop 30 selhání / 15 min napříč IP (`api/auth/login/route.ts`) stojí na předpokladu „jediný admin účet" — je to i v komentáři u konstanty. S více uživateli je to DoS vektor: útočník uzamkne přihlášení všem. Náprava: primárně **per-username** limit 5/15 min, globální strop ponechat, ale výrazně zvýšit jako pojistku poslední instance.
+9. **Login rate limit se musí přenavrhnout.** Dnešní globální strop 30 selhání / 15 min napříč IP (`api/auth/login/route.ts`) stojí na předpokladu „jediný admin účet" — je to i v komentáři u konstanty. S více uživateli je to DoS vektor: útočník uzamkne přihlášení všem. Náprava: **per-username** limit 5/15 min vedle stávajícího per-IP, globální strop ponechat, ale výrazně zvýšit jako pojistku poslední instance.
+10. **Nelze deaktivovat ani degradovat posledního aktivního admina.** Admin může měnit role a deaktivovat účty — včetně svého. Bez této pojistky si organizace jedním kliknutím zamkne správu systému (a bez samoobslužné eskalace by ji odemykal jen zásah do DB). Kontrolovat serverově v `PATCH /api/users/[id]`, ne jen v UI.
 
 ## 8. Admin UI
 
 - Nová položka sidebaru **Uživatelé** (ikona `Users`), viditelná jen pro `admin`, jako rozbalitelná skupina — vzor dnešních „Parametrů" v `src/components/AdminSidebar.tsx`:
-  - `/admin/users` — tabulka (jméno, aplikační role, pracovní role, stav), založit / deaktivovat / reset hesla, multiselect pracovních rolí. U uživatele zobrazit **odvozené štítky read-only** s uvedením role, ze které plynou (`user_effective_audiences.job_role_code`) — jinak není u M:N poznat, proč někdo na co vidí.
+  - `/admin/users` — tabulka (jméno, aplikační role, pracovní role, stav), založit / deaktivovat / reset hesla, multiselect pracovních rolí. Reset hesla i deaktivace posunou `sessions_invalid_before` uživatele (kap. 4). U uživatele zobrazit **odvozené štítky read-only** s uvedením role, ze které plynou (`user_effective_audiences.job_role_code`) — jinak není u M:N poznat, proč někdo na co vidí. V etapě B existuje stránka jen se sloupci aplikační role a stavu; sloupec pracovních rolí přibude v etapě C.
   - `/admin/users/job-roles` — pracovní role: kód, název, popis, multiselect štítků, počet nositelů.
   - `/admin/users/audiences` — číselník štítků (kód, název).
 - `AdminSidebar` je klientská komponenta, aplikační roli tedy musí dostat propem z admin layoutu (server), který uživatele stejně načítá. Skrytí položky je kosmetika — autorizace drží na routách.
-- `/admin/documents` — nový sloupec **Viditelnost** (badge, vzor `StatusBadge.tsx`) a editace štítků jako chipy. Výpis filtrovat podle efektivních štítků uživatele (admin vidí vše).
+- `/admin/documents` — nový sloupec **Viditelnost** (badge, vzor `StatusBadge.tsx`) a editace štítků jako chipy (zapisuje `PATCH /api/documents/[id]`). Výpis filtrovat podle efektivních štítků uživatele (admin vidí vše). `restricted` dokument **bez štítků** je legální mezistav po uploadu (nevidí ho nikdo kromě admina) — značit ho badge „bez štítků", jinak bude vypadat jako záhada „proč chat nevidí, co jsem nahrál".
 
 Vzor server `page.tsx` + klient `client.tsx` jako u `documents/`.
 
@@ -197,7 +206,7 @@ Průběh přihlášení:
 1. Redirect na IdP, ověření tam (včetně MFA).
 2. Z claims se čte `iss`, `sub`, `email`, `name`, `groups`.
 3. Vyhledání `users` podle **`(external_issuer, external_subject)`** — proto je na dvojici `UNIQUE`. **Nikdy podle e-mailu:** e-mail se mění (svatba, přejmenování domény) a párování přes něj je klasická díra na převzetí účtu, když si ho někdo nastaví u jiného vydavatele.
-4. Chybí-li řádek, založí se s `auth_provider='oidc'` a `app_role='viewer'`. Existuje-li, aktualizuje se `display_name`.
+4. Chybí-li řádek, založí se s `auth_provider='oidc'`, `app_role='viewer'` a `username` = e-mail z claims (jediný lidsky čitelný unikátní identifikátor, který claims nabízejí). Kolize s existujícím účtem → srozumitelná chyba loginu, ne tiché přejmenování. Změna e-mailu v IdP se do `username` propíše při dalším loginu — **identita stojí na `(iss, sub)`, username je jen zobrazované jméno účtu**. Existuje-li řádek, aktualizuje se `display_name` (a případně `username`).
 5. `groups` se přes `job_roles.external_group` přeloží na pracovní role a `user_job_roles` se přepíše podle claims.
 6. Vydá se obvyklá cookie v2 `v2.ts.uid.nonce.sig`. Od tohoto bodu je zbytek aplikace na způsobu přihlášení nezávislý — `getSessionUser()`, `requireAppRole()` ani `match_chunks` rozdíl nepoznají. To je hlavní důvod, proč cookie nese jen `uid` a žádné role.
 
@@ -219,23 +228,26 @@ Provozní důsledek k vědomí: volbou „IdP je zdroj pravdy" se správa přís
 - [ ] `src/lib/session-user.ts` — `getSessionUser()`
 - [ ] Cookie v2 (`v2.ts.uid.nonce.sig`) v `src/lib/auth.ts`, odmítnutí starého formátu
 - [ ] `requireAppRole(min)` místo `requireAdmin()` — všech 8 handlerů
-- [ ] Login proti tabulce `users` místo env konstant
+- [ ] Login proti tabulce `users` místo env konstant (vč. `is_active` a dummy scrypt pro neznámé username)
+- [ ] **Logout na per-user revokaci** místo `revokeAllSessions()` — jinak kterýkoli uživatel odhlásí všechny (kap. 4)
 - [ ] `scripts/seed-admin-user.mjs`
-- [ ] Přenavržení login rate limitu na per-username (invariant 9)
+- [ ] Přenavržení login rate limitu: per-username vedle per-IP (invariant 9)
 
 Navenek se nic nemění — admin funguje jako dnes.
 
 ### Etapa B — aplikační role v UI
 
-- [ ] Sekce `/admin/users` (server + klient), založení / deaktivace / reset hesla
+- [ ] Sekce `/admin/users` (server + klient), založení / deaktivace / reset hesla (obojí posouvá per-user revokaci); ochrana posledního admina (invariant 10)
 - [ ] Gating rout dle tabulky v kap. 5
+- [ ] Rozšíření proxy matcheru o `/api/users*`
 - [ ] Sidebar podle aplikační role (prop z layoutu)
 
 ### Etapa C — pracovní role a štítky
 
 - [ ] Migrace `015_job_roles_audiences.sql` + view `user_effective_audiences`
-- [ ] Číselníky `/admin/users/job-roles` a `/admin/users/audiences`
-- [ ] `documents.visibility` + `document_audiences` v admin UI (sloupec, chipy)
+- [ ] Číselníky `/admin/users/job-roles` a `/admin/users/audiences` + rozšíření proxy matcheru o `/api/job-roles*` a `/api/audiences*`
+- [ ] `PATCH /api/documents/[id]` — zápis viditelnosti a štítků (invariant 6)
+- [ ] `documents.visibility` + `document_audiences` v admin UI (sloupec, chipy, badge „bez štítků")
 - [ ] `visibility: 'restricted'` explicitně v upload routě
 - [ ] `match_chunks` s `caller_audiences`, `retrieve()` se čtvrtým parametrem
 - [ ] Napojení v `/api/chat` a `/api/retrieval-test`, filtrace výpisu dokumentů
@@ -255,9 +267,16 @@ Schéma z etap A a C ji už unese, žádná migrace dat.
 - **Eval runner** `scripts/langfuse-eval.mjs` volá `/api/chat` bez cookie → po etapě C uvidí jen `public` dokumenty. Dokud seed dokumenty zůstanou `public` (což `DEFAULT` zajistí), datasety a skóre se nezmění. Jakmile se nějaký eval dokument označí `restricted`, runner potřebuje servisní přihlášení — jinak začnou falešné fallbacky a skóre spadnou bez zjevné příčiny.
 - **pgvector + filtr:** HNSW index prohledává podle `ef_search` a filtr se aplikuje až na kandidáty. Při hodně restriktivních štítcích může `match_count` vrátit méně chunků, než by odpovídalo `top_k`. Při dnešní velikosti báze (stovky chunků) nehrozí; při růstu je řešením přednačíst víc kandidátů a ořezat v aplikaci.
 - **Telemetrie:** na `chat-pipeline` span přidat `chat.audience_count` a `chat.authenticated` — ne samotné kódy štítků ani pracovních rolí. Umožní odlišit anonymní a interní provoz, aniž by se do trace dostala organizační struktura.
-- **GDPR:** `users` je nová kategorie osobních údajů — patří do dnes odložených retenčních procesů.
+- **GDPR:** `users` je nová kategorie osobních údajů — patří do dnes odložených retenčních procesů. Provozně se účty jen deaktivují (kap. 4); skutečné mazání po uplynutí retence bude součástí GDPR procesů, až vzniknou.
 
 ## 12. Ověření
+
+E2E scénáře pro etapu A:
+
+1. Seed skript založí admina; opakované spuštění je idempotentní (nezaloží duplicitu, nepřepíše heslo bez `--force`).
+2. Starý tříčlenný formát cookie je odmítnut (401 / redirect na login) — přihlášení vydá cookie v2.
+3. Odhlášení uživatele A neodhlásí přihlášeného uživatele B; deaktivace a reset hesla ukončí běžící session dotčeného.
+4. Login s neexistujícím username vrací stejnou chybu i podobnou latenci jako se špatným heslem.
 
 E2E scénář pro etapu C:
 
