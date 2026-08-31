@@ -1,6 +1,6 @@
 # Plán: role uživatelů a řízení přístupu k dokumentům
 
-**Stav:** etapa A hotová (kód), etapy B–D neimplementované. Mimo číslované fáze; navazuje na produkční dluh „Autentizace a role" z `docs/IMPLEMENTATION_PLAN.md`.
+**Stav:** etapa A hotová a E2E ověřená (31. 8. 2026), etapy B–D neimplementované. Mimo číslované fáze; navazuje na produkční dluh „Autentizace a role" z `docs/IMPLEMENTATION_PLAN.md`.
 
 ---
 
@@ -262,6 +262,17 @@ přihlášeného a umí skrývat položky podle role (`minRole`), což využije 
 `supabase db push` je nutné spustit `node scripts/seed-admin-user.mjs`, jinak se
 nikdo nepřihlásí. Nasazení zároveň odhlásí stávající session (cookie v1 je
 odmítnuta) — to je záměr, ne regrese.
+
+**Ověřeno E2E (31. 8. 2026):** login vydá cookie v2 (5 segmentů); cookie v1 →
+401; `viewer` dostane 403 na `POST /api/settings` i `POST /api/documents` a 200
+na `GET /api/documents`; `admin` projde všude; **logout jednoho uživatele
+neodhlásí ostatní**; deaktivace účtu ukončí běžící session; per-username rate
+limit vrací 429 nezávisle na střídání IP; seed je idempotentní.
+
+**Známé omezení (drobné):** neexistující účet odpovídá asi o 40 ms rychleji než
+existující se špatným heslem — rozdíl nepochází z hashování (`burnPasswordTime`
+spálí stejný scrypt), ale z DB dotazu, který u existujícího účtu vrací řádek.
+Timing enumeraci to ztěžuje, ale zcela neodstraňuje.
 
 ### Etapa B — aplikační role v UI
 
