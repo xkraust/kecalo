@@ -139,9 +139,26 @@ Parametry se ladí za běhu v `/admin/parameters` (+ podsekce `/admin/parameters
 - [`src/instrumentation.ts`](../src/instrumentation.ts) registruje `NodeTracerProvider` + `LangfuseSpanProcessor` jednou při startu; bez Langfuse klíčů se neregistruje nic.
 - [`src/lib/telemetry.ts`](../src/lib/telemetry.ts) — singleton procesoru, `withSpan`/`getTracer`/`flushTelemetry`; bez klíčů no-op.
 - [`src/lib/langfuse-score.ts`](../src/lib/langfuse-score.ts) — zápis skóre `user-thumbs` přes REST klienta (`@langfuse/client`); záměrně mimo `telemetry.ts`, který je čistě o OTel a načítá se už při startu z `instrumentation.ts`. Líný singleton, fail-open, bez klíčů no-op.
-- Instrumentované cesty: chat (`chat-pipeline` → `retrieval` → `embed.query`/`vector-search` + LLM span z AI SDK), indexace (`document.process` → download/extract/clean/chunk/embed-batch/insert-chunks), upload, retrieval-test.
+- Instrumentované cesty: chat (`chat-pipeline` → `retrieval` → `embed.query`/`vector-search` + LLM span z AI SDK), shrnutí poptávek (`lead.summarize`), indexace (`document.process` → download/extract/clean/chunk/embed-batch/insert-chunks), upload, retrieval-test. `functionId` v AI SDK telemetrii: `chat-rag` a `lead-summarize`.
 - Na Vercelu `exportMode: "immediate"` — batched režim ztrácel spany končící po dostreamování (funkce zmrzne dřív, než se batch odešle). Rodičovský span chatu se ukončuje až v `onFinish`/`onError`/`onAbort` streamu.
-- **Soukromí:** default se neposílá obsah dotazů/odpovědí, jen metadata (tokeny, latence, parametry, počty chunků). Obsah zapíná runtime přepínač `record_content`; master vypínač `telemetry_enabled` zastaví export úplně.
+- **Soukromí:** default se neposílá obsah dotazů/odpovědí, jen metadata (tokeny, latence, parametry, počty chunků). Obsah zapíná runtime přepínač `record_content`; master vypínač `telemetry_enabled` zastaví export úplně. Z promptu se posílá **jen otisk, nikdy text**.
+
+**Identita trace a produkční zpětná vazba** (4. 8. 2026 — plán „headless Langfuse", etapy 2–4):
+
+| Co | Kde vzniká | K čemu |
+|---|---|---|
+| `langfuse.trace.name` = `chat-rag` | atribut spanu `chat-pipeline` | traces byly dřív nepojmenované (`name: ""`) a nešly filtrovat |
+| `langfuse.session.id` | nepovinné `sessionId` v těle `/api/chat` (`parseSessionId`, ≤ 64 zn.) | seskupení konverzace v Sessions view |
+| hlavička `X-Trace-Id` | `span.spanContext().traceId`; vrací se v **obou** větvích (stream i fallback) | klient si drží `ChatMessage.traceId` a přiloží ho ke zpětné vazbě |
+| skóre `user-thumbs` (`BOOLEAN`, 1/0) | `POST /api/feedback` → `recordUserThumbs()` v `after()` | poprvé měřitelná kvalita na **produkčním provozu**, ne jen na eval datasetech |
+| `prompt_hash` + `prompt_source` | `langfuse.trace.metadata.*` na `chat-pipeline` | porovnání skóre napříč verzemi promptu bez migrace do Prompt Managementu |
+
+Zásady, které tato vrstva dodržuje:
+
+- **Telemetrie nesmí ovlivnit odpověď** — nevalidní `sessionId` i `traceId` se tiše ignorují, zápis skóre je fail-open a běží v `after()`.
+- **Supabase zůstává zdrojem pravdy** pro zpětnou vazbu; Langfuse je druhý konzument, ne náhrada.
+- **Idempotence skóre** přes deterministické `id` (`thumbs:<sessionId>:<messageIndex>`) — přehlasování skóre přepíše, nezaloží duplicitu (odpovídá upsertu v DB).
+- Atributy dnes nese **trace, ne child observations**; filtrování observations podle session by vyžadovalo `propagateAttributes()` z `@langfuse/tracing`. Metadata promptu jsou schválně na trace, protože tam sedí i skóre — jinak by korelace „verze promptu × hodnocení" nešla.
 
 **Evaluace (`npm run eval`):** [`scripts/langfuse-eval.mjs`](../scripts/langfuse-eval.mjs) prožene otázky z Langfuse datasetů nasazeným `/api/chat` a založí experiment s deterministickými skóre (`fallback_correct`, `retrieved`, `doc_match`, `article_match`, `offer_correct` — kontrola tokenu `[[NABIDKA]]`). LLM-as-judge „Correctness in Czech" běží v Langfuse. Zdrojová CSV a postup: [evaluation/langfuse_datasets/](evaluation/langfuse_datasets/).
 
@@ -151,7 +168,7 @@ Chatová logika je sdílená mezi dvěma vstupními body přes jeden hook, aby s
 
 | Modul | Odpovědnost |
 |---|---|
-| [`src/lib/use-kecalo-chat.ts`](../src/lib/use-kecalo-chat.ts) | hook `useKecaloChat()` — stav zpráv, streamování z `POST /api/chat`, strip tokenu `[[NABIDKA]]`, `getSessionId` (localStorage `kecalo_session_id`), feedback, nová konverzace s abortem, auto-scroll |
+| [`src/lib/use-kecalo-chat.ts`](../src/lib/use-kecalo-chat.ts) | hook `useKecaloChat()` — stav zpráv, streamování z `POST /api/chat`, strip tokenu `[[NABIDKA]]`, `getSessionId` (localStorage `kecalo_session_id`) posílaný do chatu pro telemetrii, čtení `X-Trace-Id` do `ChatMessage.traceId` a jeho přiložení ke zpětné vazbě, nová konverzace s abortem, auto-scroll |
 | [`src/components/ChatMessages.tsx`](../src/components/ChatMessages.tsx) | scrollovatelná oblast zpráv (prázdný stav, vzorové otázky, mapování na `MessageBubble`); prop `compact` pro menší widget layout |
 | [`src/app/page.tsx`](../src/app/page.tsx) | `/` — fullscreen chat, skelet nad `useKecaloChat()` + `<ChatMessages />` |
 | [`src/components/ChatWidget.tsx`](../src/components/ChatWidget.tsx) | vysouvací widget (bublina v rohu → panel `380×600px`, vždy namountovaný, minimalizace čistě CSS + `inert`); `useKecaloChat()` žije v komponentě, takže konverzace i běžící stream přežijí minimalizaci |
@@ -163,8 +180,12 @@ Widget nepřidává žádnou útočnou plochu ani API — používá výhradně 
 
 ## 10. Známá omezení
 
+- **Bez automatizovaných testů** — v repozitáři není žádná test suite; ověřuje se manuálně (`npm run build`, `npm run lint`, E2E průchody v prohlížeči, `npm run eval` nad Langfuse datasety). Regrese se tedy zachytí až při ručním průchodu — před ostrým provozem první věc k doplnění.
 - **Autentizace prototypu** — jedna admin identita, HMAC cookie; pro produkci nahradit plnohodnotnou auth (SSO/JWT).
 - **In-memory rate limity** — per instance; na serverless škálování napříč instancemi nedrží globální stropy přesně (dokumentované zmírnění, ne eliminace).
 - **SEC-7 / SEC-8** — historie chatu jde z klienta (důvěra v klientský přepis), chybí CSRF token; vědomě odloženo.
 - **Deduplikace leadů** — podle přesné shody kontaktu v rámci typu; nepokrývá varianty zápisu.
 - **Náklady modelů v Langfuse** — `voyage-3.5` a `mistral-small-latest` je třeba definovat v Langfuse Settings → Models, jinak se cena počítá jako 0.
+- **Telemetrická identita jen na trace** — `session.id` a metadata promptu nese trace, ne child observations; filtrování observations podle session by vyžadovalo `propagateAttributes()`.
+- **Zpětná vazba na dvou místech** — hlas se zapisuje do Supabase (zdroj pravdy) i do Langfuse (skóre `user-thumbs`). Zápis do Langfuse je fail-open, takže při jeho výpadku data dočasně divergují; Supabase zůstává úplná.
+- **Faithfulness judge zatím nelze nasadit** — kontext je v traces slepený se systémovým promptem v jednom stringu a variable mapping umí jen JSONPath, ne extrakci ze stringu (řešení: poslat kontext samostatně do metadat).

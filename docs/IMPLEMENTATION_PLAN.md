@@ -735,6 +735,7 @@ Parametr #2 je per-request (čte se v chat route). Parametr #1 musí gateovat i 
 - [x] Český reasoning (10. 7. 2026): managed šablona nahrazena projektovou kopií **Correctness (project-level)** s instrukcí „Odůvodnění piš vždy česky." v promptu i v popisu pole `reasoning`; pravidlo **Correctness in Czech** (stejný filtr, mapování i sampling; skóre se nově jmenuje `Correctness in Czech`). Ověřeno na runu `judge-cz-test` (3/3 skóre s českým odůvodněním)
 - [x] Kalibrace šablony (v3, 10. 7. 2026): plně český prompt s explicitním pravidlem „informace nad rámec ground truth nepenalizuj, pokud jí neodporují" + dva few-shot příklady (rozpor → 0.1, korektní detaily navíc → 1.0) — reakce na rozptyl skóre 0.6 vs. 1.0 u téže otázky (judge dřív nekonzistentně penalizoval detaily nad rámec stručné ground truth). Ověřeno 2 runy × 3 otázky (`judge-cz-v3a/b`): 6/6 skóre 1.0, reasoning explicitně aplikuje nové pravidlo
 - Pozn.: šablona **Faithfulness** (odpověď vs. kontext) zatím nasadit nejde — trace nenese obsah chunků (`record_content` default vypnuto, `X-Sources` jen metadata zdrojů)
+  - ⚠️ **Upřesněno 4. 8. 2026:** důvod je jiný, než se tehdy zdálo. Obsah v traces **je** (kontext i odpověď na generation observation `chat-rag:ai.streamText.doStream`; `record_content` je v produkci navíc zapnutý). Skutečná překážka: proměnná `{{context}}` nejde namapovat, protože kontext je slepený se systémovým promptem v jednom stringu a variable mapping umí jen JSONPath, ne extrakci ze stringu. Řešení = poslat kontext samostatně do `experimental_telemetry.metadata` a mapovat `source: metadata`, `jsonPath: $.context`
 
 ### Krok 6 — Evaluace tokenu [[NABIDKA]] (11. 7. 2026) ✅
 
@@ -856,11 +857,45 @@ Podrobný plán s milníky, riziky a stavem:
 
 ---
 
+## Mimo číslované fáze — Headless Langfuse (etapy 1–4) ✅
+
+**Cíl:** ovládat Langfuse z coding agenta místo z UI (agent skill + CLI) a doplnit
+data, bez kterých je taková smyčka slepá. Analýza ukázala, že hodnota není
+v nástroji, ale v datech: v Langfuse nebyla **žádná produkční skóre** (palec
+nahoru/dolů končil jen v Supabase bez vazby na trace) a traces neměly jméno ani
+session. Plná migrace promptů do Langfuse Prompt Managementu **vědomě zamítnuta**
+(třetí zdroj pravdy, runtime závislost, kolize s Fází 17) — nahrazena otiskem verze
+promptu v trace metadatech.
+
+- [x] **Etapa 1** — Langfuse agent skill nainstalován globálně (`~/.claude/skills/langfuse`),
+  CLI ověřeno proti projektu (31 resources, 7 datasetů, 1142 traces). Bez zásahu do repa
+- [x] **Etapa 2** (`908193b`) — `langfuse.trace.name` = `chat-rag`, nepovinné `sessionId`
+  v těle `/api/chat` → `langfuse.session.id`, hlavička `X-Trace-Id` v obou větvích
+  (stream i fallback); klient drží `ChatMessage.traceId`
+- [x] **Etapa 3** (`3c39bfe`) — palec nahoru/dolů jako skóre `user-thumbs` (`BOOLEAN`)
+  přes nový [`src/lib/langfuse-score.ts`](../src/lib/langfuse-score.ts); zápis v `after()`,
+  fail-open, idempotentní přes `thumbs:<sessionId>:<messageIndex>`. Serverová cesta místo
+  `LangfuseWeb` — klíče zůstávají na serveru
+- [x] **Etapa 4** (`1102447`) — `prompt_hash` (SHA-256, 12 zn.) + `prompt_source`
+  (`default`/`override`) v `langfuse.trace.metadata.*`; na úrovni trace, protože tam sedí
+  i skóre — jinak by korelace „verze promptu × hodnocení" nešla. Posílá se jen otisk,
+  nikdy text promptu
+- [x] Vedlejší opravy: `@langfuse/tracing` doplněn do `package.json` (držel jen na
+  hoistingu) a `@langfuse/otel` srovnán na 5.9.1 (`21e087c`); `npm run lint` opraven —
+  `@ts-nocheck` v eval skriptu byl bez efektu, `tsconfig` neincluduje `**/*.mjs` (`cf70cfc`)
+- [ ] **Etapa 5** — dataset z reálných traces s palcem dolů. Čeká na nasbíraný provoz
+  a na rozhodnutí, zda `record_content` v produkci zůstane zapnutý (GDPR)
+
+Ověření: session i skóre dohledány přes Langfuse CLI; otisk promptu nezávisle přepočítán
+ze zdrojáku. Zbytek dluhu viz [`plans/LANGFUSE_PLAN.md`](plans/LANGFUSE_PLAN.md).
+
+---
+
 ## Přehled API rout
 
 | Metoda | Route | Účel |
 |---|---|---|
-| `POST` | `/api/chat` | RAG pipeline → stream odpovědi + metadata zdrojů |
+| `POST` | `/api/chat` | RAG pipeline → stream odpovědi + metadata zdrojů (`X-Sources`) + `X-Trace-Id`; nepovinné `sessionId` v těle (jen telemetrie) |
 | `POST` | `/api/documents` | Upload + spuštění indexace |
 | `GET` | `/api/documents` | Seznam dokumentů + stav |
 | `DELETE` | `/api/documents/:id` | Smazání dokumentu, chunků, souboru |
@@ -868,8 +903,8 @@ Podrobný plán s milníky, riziky a stavem:
 | `POST` | `/api/retrieval-test` | Top-k chunků pro dotaz (admin) |
 | `GET` | `/api/settings` | Aktuální runtime parametry + přepínače telemetrie z DB |
 | `POST` | `/api/settings` | Uložení globálních runtime parametrů RAG (admin) |
-| `POST` | `/api/feedback` | Uložení zpětné vazby (thumbs up/down) |
-| `POST` | `/api/leads` | Uložení poptávky (veřejné) — deduplikace + Haiku shrnutí |
+| `POST` | `/api/feedback` | Uložení zpětné vazby (thumbs up/down); s `traceId` navíc skóre `user-thumbs` v Langfuse |
+| `POST` | `/api/leads` | Uložení poptávky (veřejné) — deduplikace + shrnutí Mistral modelem |
 | `PATCH` | `/api/leads/:id` | Změna stavu poptávky: in_progress/closed (admin) |
 | `POST` | `/api/auth/login` | Ověření údajů, nastavení session cookie |
 | `POST` | `/api/auth/logout` | Smazání session cookie |
@@ -902,7 +937,7 @@ kecalo/
 │   │       ├── documents/route.ts
 │   │       ├── documents/[id]/route.ts
 │   │       ├── documents/[id]/reprocess/route.ts  # reindexace bez re-uploadu
-│   │       ├── leads/route.ts        # POST poptávka (veřejné) + Haiku shrnutí + dedup
+│   │       ├── leads/route.ts        # POST poptávka (veřejné) + shrnutí (Mistral) + dedup
 │   │       ├── leads/[id]/route.ts   # PATCH stav poptávky (admin)
 │   │       ├── retrieval-test/route.ts
 │   │       ├── settings/route.ts
@@ -924,6 +959,7 @@ kecalo/
 │   └── lib/
 │       ├── config.ts
 │       ├── telemetry.ts              # OTel: span processor + withSpan/getTracer/flush
+│       ├── langfuse-score.ts         # zápis skóre user-thumbs (REST klient, fail-open)
 │       ├── supabase.ts
 │       ├── auth.ts                   # podpis/ověření session cookie (HMAC), safeEqual
 │       ├── require-admin.ts          # druhá obranná linie autorizace admin API (SEC-2)
@@ -971,7 +1007,8 @@ kecalo/
 - ~~Rate limiting~~ — **hotovo** (SEC-1 + `code_check.md` B1): in-memory limitery na `/api/chat`, `/api/leads`, `/api/feedback` a loginu, identita klienta z `x-real-ip`; sdílené úložiště (Upstash/Vercel KV) místo per-instance in-memory zůstává dluh
 - Zbylé bezpečnostní nálezy odložené jako produkční dluh (viz balíček G výše): SEC-4 (server-side invalidace session), SEC-7 (serverová historie chatu), SEC-8 (CSRF token). Dále ochrana proti prompt injection z obsahu dokumentů
 - GDPR: retence konverzací, mazání dat
-- RAG evaluace — golden dataset, evals pipeline
+- ~~RAG evaluace — golden dataset, evals pipeline~~ — **hotovo** (Fáze 15): Langfuse datasety, `npm run eval`, deterministická skóre + LLM-as-judge „Correctness in Czech". Zbývá Faithfulness judge (viz Fáze 15, krok 5) a dataset stavěný z reálných traces
+- ~~Zpětná vazba měřitelná na produkci~~ — **hotovo** (headless Langfuse, etapy 2–3): skóre `user-thumbs` na trace + seskupení konverzací přes session id
 - Verzování dokumentů a platnost podmínek v čase
 - Podpora DOCX / HTML / skenovaných PDF (OCR)
 - Monitoring nákladů a latence — základ hotov ve Fázi 9 (Langfuse traces); zbývá custom Voyage model pro přesné náklady a dashboard metriky z Langfuse API

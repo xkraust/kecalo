@@ -4,7 +4,7 @@
 
 **Milník:** Každý chat dotaz, retrieval a indexace dokumentu generují trace v Langfuse dashboardu s vnořenou strukturou (retrieval → embedding → vector search → LLM generování). App funguje i bez Langfuse klíčů (graceful degradace).
 
-> **Pozn.:** Jde o základní prototypovou integraci přes OpenTelemetry — cíl je vidět traces, latence a token usage v Langfuse Cloud (free tier, 50k eventů/měsíc). Pokročilé funkce (user feedback, prompt management, evaluace) jsou odložené — viz „Produkční dluh" na konci.
+> **Pozn.:** Tato fáze pokrývá základní integraci přes OpenTelemetry — traces, latence a token usage v Langfuse Cloud (free tier, 50k eventů/měsíc). Pokročilé funkce se doplňovaly později: **evaluace** ve Fázi 15 (datasety + LLM-as-judge), **user feedback jako skóre**, **session tracking** a **otisk verze promptu** mimo číslované fáze 4. 8. 2026. Aktuální stav a zbytek dluhu viz „Produkční dluh" na konci.
 
 ---
 
@@ -108,7 +108,7 @@ Tento modul je **jediný zdroj pravdy** pro OTel: vytváří a drží sdílenou 
   ```typescript
   experimental_telemetry: {
     isEnabled: true,
-    functionId: "chat-rag",           // nebo "chat-fallback" pro fallback větev
+    functionId: "chat-rag",           // pozn.: "chat-fallback" už neexistuje, viz níže
     recordInputs: false,              // viz poznámka o soukromí níže
     recordOutputs: false,
     metadata: {
@@ -140,6 +140,8 @@ Tento modul je **jediný zdroj pravdy** pro OTel: vytváří a drží sdílenou 
 - [x] Otestovat fallback (dotaz mimo bázi) — trace ukazuje `chat-fallback`, 0 chunků — ověřeno
 
 **Dílčí milník:** ✅ Chat traces jsou viditelné v Langfuse s vnořenou strukturou; latence rodiče zahrnuje generování.
+
+> ⚠️ **Neplatí od opravy B3** (viz [reviews/issues_correction_plan.md](../reviews/issues_correction_plan.md)): span ani `functionId` **`chat-fallback` už neexistuje**. Fallback se od té doby vrací jako statický `text/plain` bez volání LLM — pozná se podle atributu `retrieval.is_fallback = true` na spanu `chat-pipeline`. Jediné dva `functionId` v kódu jsou dnes `chat-rag` a `lead-summarize`. Historické záznamy v tomto dokumentu popisují stav v době Fáze 9.
 
 ---
 
@@ -322,13 +324,21 @@ Tento modul je **jediný zdroj pravdy** pro OTel: vytváří a drží sdílenou 
 
 ---
 
-## Produkční dluh (po Fázi 9, odložené)
+## Produkční dluh (po Fázi 9)
 
-- User feedback z frontendu (`@langfuse/browser`) — tlačítko palec nahoru/dolů u odpovědi
-- Prompt management přes Langfuse (verzování systémového promptu)
-- Langfuse evaluace — automatické skórování odpovědí (relevance, faithfulness)
-- Session tracking — sdružení více dotazů do jedné konverzace přes `sessionId`
-- User ID propagace — identifikace uživatelů v traces
-- Logování obsahu promptů/odpovědí (`recordInputs/recordOutputs`) — ve Fázi 11 přidán runtime přepínač v `/admin/parameters` (default vypnuto); zbývá ošetření GDPR/retence pro produkci
-- Nákladové reporty — Voyage AI custom model definition v Langfuse pro přesné kalkulace
-- Dashboard metriky z Langfuse API (průměrná latence, fallback rate, token spotřeba)
+### Vyřešeno mimo číslované fáze (4. 8. 2026, plán „headless Langfuse")
+
+- ✅ **User feedback** — palec nahoru/dolů se ukládá jako skóre `user-thumbs` (`BOOLEAN`). Realizováno **serverem** ([`src/lib/langfuse-score.ts`](../../src/lib/langfuse-score.ts) volaný z `POST /api/feedback`), ne přes `@langfuse/browser`: routa už existovala, má rate limit a klíče zůstanou na serveru. Klient posílá `traceId` z hlavičky `X-Trace-Id`.
+- ✅ **Session tracking** — `sessionId` z localStorage jde v těle `/api/chat` a propisuje se na trace jako `langfuse.session.id`. Traces navíc dostaly jméno (`langfuse.trace.name` = `chat-rag`) — dřív byly nepojmenované a nešly filtrovat.
+- ✅ **Langfuse evaluace** — Fáze 15: datasety, experimenty a LLM-as-judge „Correctness in Czech". *Faithfulness* zatím ne, viz níže.
+- ⛔️ **Prompt management** — vědomě **zamítnuto** (třetí zdroj pravdy vedle `prompts.ts` a `app_settings`, runtime závislost v horké cestě chatu, kolize s Fází 17). Nahrazeno levnější variantou: trace nese `prompt_hash` + `prompt_source`, takže skóre jde porovnávat napříč verzemi promptu bez migrace promptů.
+
+### Zbývá
+
+- **Faithfulness judge** — data v traces jsou (kontext i odpověď), ale proměnná `{{context}}` nejde namapovat: kontext je slepený se systémovým promptem v jednom stringu a variable mapping umí jen JSONPath, ne extrakci ze stringu. Řešení = poslat kontext samostatně do `experimental_telemetry.metadata` a mapovat `source: metadata`, `jsonPath: $.context`.
+- **User ID propagace** — identifikace uživatelů v traces (aplikace dnes nemá přihlášení návštěvníků).
+- **Propagace atributů na child observations** — `session.id` dnes nese jen trace; filtrování observations podle session by vyžadovalo `propagateAttributes()`.
+- **Logování obsahu promptů/odpovědí** (`recordInputs/recordOutputs`) — runtime přepínač přidán ve Fázi 11; zbývá ošetření GDPR/retence pro produkci. ⚠️ Ověřeno 26. 7. 2026: v produkci je `record_content` **zapnutý**, ačkoli výchozí hodnota v kódu je vypnuto.
+- **Nákladové reporty** — `voyage-3.5` a `mistral-small-latest` definovat v Langfuse Settings → Models pro přesné kalkulace.
+- **Dashboard metriky z Langfuse API** (průměrná latence, fallback rate, token spotřeba).
+- **Dataset z reálných traces** — s nasbíranými hlasy `user-thumbs` postavit edge-case dataset z konverzací s palcem dolů.

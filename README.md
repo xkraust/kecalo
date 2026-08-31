@@ -1,6 +1,8 @@
 # Kecalo
 
-RAG chatbot pro pojišťovnu — prototyp jednodenního kurzu vibecodingu. V UI vystupuje jako „Pojišťovna Jistota", znalostní báze čerpá z reálných dokumentů Kooperativy ([docs/seed-docs/](docs/seed-docs/)).
+RAG chatbot pro pojišťovnu. Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je to **funkční aplikace v předprodukční fázi**: s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí. Do ostrého provozu jí chybí především plnohodnotná autentizace, automatizované testy a GDPR procesy (viz [Známá omezení](#známá-omezení)).
+
+V UI vystupuje jako „Pojišťovna Jistota", znalostní báze čerpá z reálných dokumentů Kooperativy ([docs/seed-docs/](docs/seed-docs/)).
 
 Návštěvník klade otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a u každé odpovědi cituje zdroj (dokument, článek, strana). Na dotazy mimo znalostní bázi odpovídá řízeným fallbackem s odkazem na infolinku. U produktových dotazů nabídne kartu poptávky — kontakty se sbírají do admin sekce. Správa znalostní báze, poptávek, RAG parametrů i promptů probíhá za běhu v administraci, bez redeploye.
 
@@ -28,6 +30,8 @@ Návštěvník klade otázky česky k pojistným produktům; bot odpovídá výh
 
 **Provoz**
 - Observabilita: OpenTelemetry tracing s exportem do Langfuse (volitelné; obsah dotazů se ve výchozím stavu neloguje)
+- Konverzace jsou v Langfuse seskupené přes session id; každá odpověď vrací `X-Trace-Id`, takže palec nahoru/dolů se ukládá jako skóre `user-thumbs` přímo na trace — kvalitu lze měřit i na reálném provozu, nejen na testovacích datasetech
+- Každá trace nese otisk (hash) použité verze systémového promptu, takže jde porovnat dopad jeho úprav na hodnocení — bez stěhování promptů mimo repozitář
 - Evaluace: `npm run eval` prožene testovací otázky z Langfuse datasetů nasazenou aplikací a založí experiment s deterministickými skóre
 - Bezpečnost: admin auth je **na úrovni prototypu** (jedna identita, podepsaná HMAC cookie — ne SSO/JWT); detaily a vědomé kompromisy viz [ARCHITECTURE.md, sekce 6](docs/ARCHITECTURE.md#6-bezpečnost)
 
@@ -96,13 +100,15 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · shadcn/u
 
 ## Známá omezení
 
-Jde o prototyp — několik vědomých kompromisů (detaily viz [ARCHITECTURE.md, sekce 10](docs/ARCHITECTURE.md#10-známá-omezení)):
+Aplikace zatím není určená pro ostrý provoz — několik vědomých kompromisů (detaily viz [ARCHITECTURE.md, sekce 10](docs/ARCHITECTURE.md#10-známá-omezení)):
 
+- **Bez automatizovaných testů** — ověřování je manuální (build, lint, E2E průchody, eval runner nad datasety). Před ostrým provozem je to první věc k doplnění.
 - **Autentizace na úrovni prototypu** — jedna admin identita, podepsaná HMAC cookie; pro produkci nahradit plnohodnotnou auth (SSO/JWT).
 - **In-memory rate limity** — per-instance; na serverless škálování napříč instancemi nedrží globální stropy přesně.
 - **Vědomě odloženo (SEC-7 / SEC-8)** — serverová rekonstrukce historie chatu a explicitní CSRF token.
 - **Deduplikace leadů** — podle přesné shody kontaktu v rámci typu; nepokrývá varianty zápisu.
 - **Náklady modelů v Langfuse** — `voyage-3.5` a `mistral-small-latest` je třeba definovat v Langfuse Settings → Models, jinak se cena počítá jako 0.
+- **Zpětná vazba na dvou místech** — hlas se ukládá do Supabase (zdroj pravdy) i do Langfuse; zápis do Langfuse je fail-open, takže při jeho výpadku data dočasně divergují.
 
 ## Dokumentace
 

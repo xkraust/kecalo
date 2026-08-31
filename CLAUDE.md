@@ -18,11 +18,13 @@ Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživat
 
 **Widget mini Kecalo (mimo číslované fáze):** vysouvací chat widget v rohu obrazovky (bublina → panel) na nové demo stránce `/demo`, která simuluje web „Pojišťovny Jistota" — dle `docs/plans/widget_mini_kecalo_plan.md`. **Hotové a E2E ověřené** (14. 7. 2026): chatová logika vytažena do sdíleného hooku `useKecaloChat()` a komponenty `ChatMessages` (fullscreen `/` beze změny chování), nová komponenta `ChatWidget` (panel vždy namountovaný — konverzace i běžící stream přežijí minimalizaci). Ověřeno stream/zdroje/karta poptávky (obě varianty)/persistence/mobilní šířka/konzole bez chyb. Žádná nová API routa ani útočná plocha — widget používá jen existující veřejné routy. Fáze 2 (embeddovatelný widget na cizí web přes `/widget` + `public/embed.js`) zůstává vědomě neimplementovaná.
 
+**Headless Langfuse (mimo číslované fáze):** ovládání Langfuse z coding agenta (agent skill + CLI) místo z UI, plus doplnění dat, bez kterých je taková smyčka slepá. **Etapy 1–4 hotové a ověřené** (4. 8. 2026): skill nainstalován globálně (mimo repo), traces dostaly jméno `chat-rag` a `langfuse.session.id`, `/api/chat` vrací `X-Trace-Id`, palec nahoru/dolů se ukládá jako skóre `user-thumbs` (`BOOLEAN`, idempotentní, fail-open) a trace nese `prompt_hash`/`prompt_source`. Tím jsou poprvé v Langfuse **produkční skóre** — kvalita jde měřit i mimo eval datasety. Migrace promptů do Langfuse Prompt Managementu **vědomě zamítnuta** (třetí zdroj pravdy vedle `prompts.ts` a `app_settings`, runtime závislost, kolize s Fází 17) — nahrazena otiskem verze promptu. Zbývá **etapa 5** (dataset z reálných traces s palcem dolů) — čeká na nasbíraný provoz a na rozhodnutí, zda `record_content` v produkci zůstane zapnutý (GDPR). Detaily: `docs/IMPLEMENTATION_PLAN.md`, dluh v `docs/plans/LANGFUSE_PLAN.md`.
+
 Podrobná historie fází, měření a průběžný stav: `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
 
-**Kecalo** je prototyp RAG chatbota pro pojišťovnu, vytvořený jako projekt jednodenního kurzu vibecodingu. V UI vystupuje jako „Pojišťovna Jistota", znalostní báze ale čerpá z reálných dokumentů Kooperativy ze složky `docs/seed-docs/`. Uživatelé kladou otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
+**Kecalo** je RAG chatbot pro pojišťovnu. Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je v **předprodukční fázi**: funkční aplikace s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí, které do ostrého provozu chybí především plnohodnotná autentizace (dnes jedna identita), automatizované testy (žádné — ověřuje se manuálně) a GDPR procesy (retence, mazání). V UI vystupuje jako „Pojišťovna Jistota", znalostní báze ale čerpá z reálných dokumentů Kooperativy ze složky `docs/seed-docs/`. Uživatelé kladou otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
 
 ## Technologický stack
 
@@ -206,6 +208,7 @@ src/
     ├── use-kecalo-chat.ts             # hook useKecaloChat() — sdílená chat logika (/ i ChatWidget)
     ├── config.ts                     # konstanty z env, default hodnoty
     ├── telemetry.ts                  # OTel: singleton span processoru + withSpan/getTracer/flushTelemetry
+    ├── langfuse-score.ts             # zápis skóre user-thumbs do Langfuse (REST klient, líný singleton, fail-open)
     ├── supabase.ts                   # Supabase client (service role)
     ├── auth.ts                       # podpis/ověření session cookie (HMAC), safeEqual
     ├── require-admin.ts              # druhá obranná linie: requireAdmin() v admin handlerech (SEC-2)
