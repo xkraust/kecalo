@@ -363,7 +363,7 @@ chunks (
 
 ## 15. Produkční dluh (co by se muselo dořešit mimo prototyp)
 
-Autentizace a role (admin vs. editor), GDPR a retence konverzací, rate limiting a ochrana proti prompt injection z nahraných dokumentů, evaluace kvality RAG (golden dataset otázek), verzování dokumentů a platnost podmínek v čase, eskalace na operátora, monitoring nákladů a latence, podpora DOCX/HTML/skenovaných PDF (OCR).
+Autentizace a role (admin vs. editor — návrh viz `docs/plans/roles_and_document_access_plan.md`), GDPR a retence konverzací, rate limiting a ochrana proti prompt injection z nahraných dokumentů, evaluace kvality RAG (golden dataset otázek), verzování dokumentů a platnost podmínek v čase, eskalace na operátora, monitoring nákladů a latence, podpora DOCX/HTML/skenovaných PDF (OCR).
 
 ---
 

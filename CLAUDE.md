@@ -248,7 +248,7 @@ docs/
 ├── IMPLEMENTATION_PLAN.md            # hlavní prováděcí checklist projektu (fáze + průběžný stav)
 ├── PRD_pojistovaci_RAG_chatbot.md    # zadání/PRD
 ├── seed-docs/                        # reálné PDF dokumenty Kooperativy (obsah znalostní báze)
-├── plans/                            # feature/experimentální plány (Langfuse, lead-gen, Mistral, widget, demo)
+├── plans/                            # feature/experimentální plány (Langfuse, lead-gen, Mistral, widget, demo, role a přístup k dokumentům)
 ├── reviews/                          # nálezy a opravné plány z code/security revizí
 └── evaluation/
     ├── testovaci_otazky*.md          # sady testovacích otázek (markdown)
