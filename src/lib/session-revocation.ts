@@ -1,10 +1,15 @@
 // Server-side revokace admin session (oprava SEC-4). Logout jen mazal cookie —
 // podepsaný token platil do expirace (8 h) a odcizená cookie fungovala i po
-// odhlášení. Řešení pro jediný admin účet: jednořádková tabulka auth_state
-// (migrace 011) s časovým razítkem sessions_invalid_before. Logout ho posune na
-// now(); token vydaný dřív se odmítne. Kontrola běží v Node runtimu (requireAdmin
-// pro admin API, admin layout pro stránky) — proxy v edge zůstává rychlým
-// podpisovým gatem. Service-role klient (RLS obchází).
+// odhlášení. Kontrola běží v Node runtimu (requireAppRole pro admin API, admin
+// layout pro stránky) — proxy v edge zůstává rychlým podpisovým gatem.
+// Service-role klient (RLS obchází).
+//
+// Dvě úrovně (etapa A plánu rolí):
+//   - per-user `users.sessions_invalid_before` — běžná cesta: logout, reset
+//     hesla, deaktivace účtu. Odhlásí jen dotčeného uživatele.
+//   - globální `auth_state` (migrace 011) — od zavedení tabulky users už jen
+//     RUČNÍ kill-switch pro incident. Volat ho z logoutu by znamenalo, že
+//     kterýkoli uživatel odhlásí všechny ostatní.
 import { supabase } from "@/lib/supabase";
 
 /** Časové razítko (ms), před nímž jsou všechny tokeny neplatné. Při chybějící
@@ -24,19 +29,28 @@ export async function getSessionsInvalidBefore(): Promise<number> {
   }
 }
 
-/** Zneplatní všechny existující session (nastaví hranici na now()). Volá logout.
- * Best-effort: chybu jen zaloguje, aby logout nikdy neselhal (cookie se maže tak
- * jako tak). */
+/** Zneplatní session VŠECH uživatelů (ruční kill-switch pro incident).
+ * Nevolat z logoutu — odhlásilo by to celou organizaci. Best-effort: chybu jen
+ * zaloguje. */
 export async function revokeAllSessions(): Promise<void> {
   const now = new Date().toISOString();
   const { error } = await supabase
     .from("auth_state")
     .update({ sessions_invalid_before: now, updated_at: now })
     .eq("id", 1);
-  if (error) console.error("Revokace session selhala:", error);
+  if (error) console.error("Globální revokace session selhala:", error);
 }
 
-/** Byl token vydaný v čase `issuedAtMs` zneplatněn pozdějším logoutem? */
-export async function isSessionRevoked(issuedAtMs: number): Promise<boolean> {
-  return issuedAtMs < (await getSessionsInvalidBefore());
+/**
+ * Zneplatní session jednoho uživatele (logout, reset hesla, deaktivace, změna
+ * rolí). Best-effort: chybu jen zaloguje, aby logout nikdy neselhal — cookie se
+ * maže tak jako tak.
+ */
+export async function revokeUserSessions(userId: string): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("users")
+    .update({ sessions_invalid_before: now, updated_at: now })
+    .eq("id", userId);
+  if (error) console.error("Revokace session uživatele selhala:", error);
 }

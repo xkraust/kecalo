@@ -10,7 +10,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0–17 jsou **hotové a ověřené end-to-end** (poslední: Fáze 17 — správa promptů v adminu: system prompt chatu a prompt shrnutí poptávek editovatelné za běhu v `/admin/parameters/prompts`, NULL = výchozí z kódu; migrace `013_prompt_settings.sql` aplikovaná. Fáze 16 — zpětná vazba u odpovědi: palec nahoru poděkování, palec dolů karta kontaktu → lead typu `hodnoceni`; migrace `012_lead_type.sql` aplikovaná. Fáze 15 — evaluace přes Langfuse datasety, eval runner `scripts/langfuse-eval.mjs` a LLM-as-judge „Correctness in Czech" nakonfigurovaný v Langfuse UI; šablona Faithfulness zatím nejde — trace nenese obsah chunků, `record_content` default off). Hotové a ověřené jsou i všechny opravy z revize kódu (`docs/reviews/code_check.md`, 15 nálezů, balíčky A–E dle `docs/reviews/issues_correction_plan.md`) a z bezpečnostní revize (`docs/reviews/security_issues.md`, SEC-1 až SEC-6 + SEC-9 + SEC-10, balíčky A–F dle `docs/reviews/security_correction_plan.md`; následně i SEC-4 — server-side revokace session). SEC-7 a SEC-8 (serverová historie chatu, CSRF token) zůstávají vědomě odložené jako produkční dluh. Migrace `001`–`013` jsou aplikované na Supabase.
+Fáze 0–17 jsou **hotové a ověřené end-to-end** (poslední: Fáze 17 — správa promptů v adminu: system prompt chatu a prompt shrnutí poptávek editovatelné za běhu v `/admin/parameters/prompts`, NULL = výchozí z kódu; migrace `013_prompt_settings.sql` aplikovaná. Fáze 16 — zpětná vazba u odpovědi: palec nahoru poděkování, palec dolů karta kontaktu → lead typu `hodnoceni`; migrace `012_lead_type.sql` aplikovaná. Fáze 15 — evaluace přes Langfuse datasety, eval runner `scripts/langfuse-eval.mjs` a LLM-as-judge „Correctness in Czech" nakonfigurovaný v Langfuse UI; šablona Faithfulness zatím nejde — trace nenese obsah chunků, `record_content` default off). Hotové a ověřené jsou i všechny opravy z revize kódu (`docs/reviews/code_check.md`, 15 nálezů, balíčky A–E dle `docs/reviews/issues_correction_plan.md`) a z bezpečnostní revize (`docs/reviews/security_issues.md`, SEC-1 až SEC-6 + SEC-9 + SEC-10, balíčky A–F dle `docs/reviews/security_correction_plan.md`; následně i SEC-4 — server-side revokace session). SEC-7 a SEC-8 (serverová historie chatu, CSRF token) zůstávají vědomě odložené jako produkční dluh. Migrace `001`–`013` jsou aplikované na Supabase; `014` (tabulka `users`) čeká na aplikaci.
 
 Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživatel nahraje přes admin UI) a fallback otázky mimo bázi dál vracejí chunky nad prahem 0,35 (čisté odmítnutí zajišťuje systémový prompt; případně zvýšit práh v `/admin/parameters`).
 
@@ -20,11 +20,13 @@ Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživat
 
 **Headless Langfuse (mimo číslované fáze):** ovládání Langfuse z coding agenta (agent skill + CLI) místo z UI, plus doplnění dat, bez kterých je taková smyčka slepá. **Etapy 1–4 hotové a ověřené** (4. 8. 2026): skill nainstalován globálně (mimo repo), traces dostaly jméno `chat-rag` a `langfuse.session.id`, `/api/chat` vrací `X-Trace-Id`, palec nahoru/dolů se ukládá jako skóre `user-thumbs` (`BOOLEAN`, idempotentní, fail-open) a trace nese `prompt_hash`/`prompt_source`. Tím jsou poprvé v Langfuse **produkční skóre** — kvalita jde měřit i mimo eval datasety. Migrace promptů do Langfuse Prompt Managementu **vědomě zamítnuta** (třetí zdroj pravdy vedle `prompts.ts` a `app_settings`, runtime závislost, kolize s Fází 17) — nahrazena otiskem verze promptu. Zbývá **etapa 5** (dataset z reálných traces s palcem dolů) — čeká na nasbíraný provoz a na rozhodnutí, zda `record_content` v produkci zůstane zapnutý (GDPR). Detaily: `docs/IMPLEMENTATION_PLAN.md`, dluh v `docs/plans/LANGFUSE_PLAN.md`.
 
+**Role a přístup k dokumentům (mimo číslované fáze):** třívrstvý model oprávnění dle `docs/plans/roles_and_document_access_plan.md` — aplikační role (co smíš dělat), pracovní role sdružující štítky publika (kdo jsi v organizaci) a štítky na dokumentech (komu obsah patří). **Etapa A hotová v kódu** (31. 8. 2026): tabulka `users` (migrace `014`), scrypt hesla, session cookie v2 s `uid`, `requireAppRole` v 8 handlerech, per-user revokace session, seed skript, per-username rate limit. Build/lint/typecheck procházejí; **E2E ověření a aplikace migrace na Supabase zbývají**. Etapy B (správa uživatelů v UI), C (pracovní role + viditelnost dokumentů v retrievalu) a D (SSO/OIDC) neimplementované.
+
 Podrobná historie fází, měření a průběžný stav: `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
 
-**Kecalo** je RAG chatbot pro pojišťovnu. Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je v **předprodukční fázi**: funkční aplikace s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí, které do ostrého provozu chybí především plnohodnotná autentizace (dnes jedna identita), automatizované testy (žádné — ověřuje se manuálně) a GDPR procesy (retence, mazání). V UI vystupuje jako „Pojišťovna Jistota", znalostní báze ale čerpá z reálných dokumentů Kooperativy ze složky `docs/seed-docs/`. Uživatelé kladou otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
+**Kecalo** je RAG chatbot pro pojišťovnu. Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je v **předprodukční fázi**: funkční aplikace s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí, které do ostrého provozu chybí především dokončení autentizace (etapa A plánu rolí zavedla víc identit s aplikačními rolemi; SSO a správa uživatelů v UI zbývají), automatizované testy (žádné — ověřuje se manuálně) a GDPR procesy (retence, mazání). V UI vystupuje jako „Pojišťovna Jistota", znalostní báze ale čerpá z reálných dokumentů Kooperativy ze složky `docs/seed-docs/`. Uživatelé kladou otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
 
 ## Technologický stack
 
@@ -97,7 +99,7 @@ supabase init                    # jednorázová inicializace Supabase projektu
 supabase db push                 # aplikuje migrace na Supabase (vyžaduje DATABASE_URL)
 ```
 
-Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `004_enable_rls.sql` (zapnutí Row-Level Security na `documents`/`chunks`/`app_settings` — bez policy pro anon; app používá service-role klíč, který RLS obchází), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu), `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`), `009_chunk_batch.sql` (`chunks` += `batch_id` — reindexace bez ztráty dat, oprava C1), `010_leads.sql` (tabulka `leads` — poptávky/lead generation, včetně RLS), `011_auth_state.sql` (jednořádková tabulka `auth_state` — revokace admin session po logoutu, oprava SEC-4; vč. RLS), `012_lead_type.sql` (`leads` += `type` — `produkt`/`hodnoceni`, Fáze 16; stávající řádky `produkt` přes DEFAULT) a `013_prompt_settings.sql` (`app_settings` += `system_prompt`/`lead_summary_prompt` — nullable, NULL = výchozí konstanta v kódu; Fáze 17).
+Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `004_enable_rls.sql` (zapnutí Row-Level Security na `documents`/`chunks`/`app_settings` — bez policy pro anon; app používá service-role klíč, který RLS obchází), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu), `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`), `009_chunk_batch.sql` (`chunks` += `batch_id` — reindexace bez ztráty dat, oprava C1), `010_leads.sql` (tabulka `leads` — poptávky/lead generation, včetně RLS), `011_auth_state.sql` (jednořádková tabulka `auth_state` — revokace admin session po logoutu, oprava SEC-4; vč. RLS), `012_lead_type.sql` (`leads` += `type` — `produkt`/`hodnoceni`, Fáze 16; stávající řádky `produkt` přes DEFAULT) `013_prompt_settings.sql` (`app_settings` += `system_prompt`/`lead_summary_prompt` — nullable, NULL = výchozí konstanta v kódu; Fáze 17) a `014_users_roles.sql` (tabulka `users` — identity a aplikační role, rozšíření `citext`; etapa A plánu rolí).
 
 ## Proměnné prostředí
 
@@ -110,8 +112,8 @@ Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabas
 | `NEXT_PUBLIC_SUPABASE_URL` | URL Supabase projektu (může být veřejná) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin klíč Supabase (pouze server, nikdy na klienta) |
 | `DATABASE_URL` | Postgres connection string pro migrace |
-| `ADMIN_USERNAME` | Uživatelské jméno pro admin (povinné) |
-| `ADMIN_PASSWORD` | Heslo pro admin sekci |
+| `ADMIN_USERNAME` | Jméno prvního uživatele — jen pro `scripts/seed-admin-user.mjs`, ne pro běh aplikace |
+| `ADMIN_PASSWORD` | Heslo prvního uživatele — dtto (min. 12 znaků) |
 | `SESSION_SECRET` | Podpisový klíč admin session cookie (dlouhý náhodný řetězec, povinný) |
 | `TOP_K` | Výchozí počet výsledků z retrievalu (5) |
 | `SIMILARITY_THRESHOLD` | Výchozí práh kosinové podobnosti (0.35) |
@@ -210,9 +212,11 @@ src/
     ├── telemetry.ts                  # OTel: singleton span processoru + withSpan/getTracer/flushTelemetry
     ├── langfuse-score.ts             # zápis skóre user-thumbs do Langfuse (REST klient, líný singleton, fail-open)
     ├── supabase.ts                   # Supabase client (service role)
-    ├── auth.ts                       # podpis/ověření session cookie (HMAC), safeEqual
-    ├── require-admin.ts              # druhá obranná linie: requireAdmin() v admin handlerech (SEC-2)
-    ├── session-revocation.ts         # server-side revokace session po logoutu (SEC-4)
+    ├── auth.ts                       # podpis/ověření session cookie v2 (HMAC, nese uid)
+    ├── password.ts                   # scrypt hash/verify hesel + burnPasswordTime (timing)
+    ├── session-user.ts               # getSessionUser(): identita + aplikační role z DB
+    ├── require-role.ts               # druhá obranná linie: requireAppRole(min) v handlerech (SEC-2)
+    ├── session-revocation.ts         # revokace session: per-user + globální kill-switch (SEC-4)
     ├── rate-limit.ts                 # sdílený in-memory rate limit (sliding window per IP; x-real-ip, eviction bez clear)
     ├── settings.ts                   # server: getSettings/saveSettings (app_settings)
     ├── settings-meta.ts              # sdílená metadata + validace parametrů (klient i server)
@@ -238,10 +242,12 @@ supabase/
     ├── 008_chunking_settings.sql     # app_settings += chunk_*, documents += chunking_config
     ├── 009_chunk_batch.sql           # chunks += batch_id (reindexace bez ztráty dat)
     ├── 010_leads.sql                 # tabulka leads (poptávky/lead generation, vč. RLS)
-    └── 011_auth_state.sql            # auth_state (revokace session po logoutu, SEC-4)
+    ├── 011_auth_state.sql            # auth_state (globální revokace session, SEC-4)
+    └── 014_users_roles.sql           # tabulka users (identity + aplikační role, etapa A)
 scripts/
 ├── langfuse-eval.mjs                 # eval runner (Fáze 15) — experiment.run nad Langfuse datasety
 ├── langfuse-sync-metadata.mjs        # sync metadat items (expects_offer) do Langfuse — upsert podle id
+├── seed-admin-user.mjs               # založení prvního admin uživatele (etapa A plánu rolí)
 └── verify-rate-limit.mjs             # ověření SEC-1 rate-limitu na Vercelu
 docs/
 ├── ARCHITECTURE.md                   # technický popis architektury pro vývojáře (aktuální stav)
@@ -360,7 +366,31 @@ Hodnoty `status` poptávky: `new`/`updated` → `in_progress` → `closed` (`clo
 
 ## Admin autentizace
 
-`/admin` a admin API routy (`/api/documents*`, `/api/leads*`, `/api/settings`, `/api/retrieval-test`) jsou chráněny proxy vrstvou (`src/proxy.ts` — dřív `middleware.ts`, přejmenováno dle konvence Next.js 16), která kontroluje session cookie nastavenou na `/admin/login`; stránky bez cookie přesměruje na login, API routy vracejí 401 JSON. Admin API handlery mají navíc **druhou obrannou linii** (oprava SEC-2, viz `docs/reviews/security_correction_plan.md`): každý z 8 handlerů volá na prvním řádku `requireAdmin()` z `src/lib/require-admin.ts` (ověření téže session cookie přes `verifySession`), takže 401 vrací i při selhání či obejití proxy. Veřejné zůstávají `/api/chat`, `/api/feedback`, `/api/auth/*` a **`POST /api/leads`** (odeslání poptávky z chatu; ostatní metody na `/api/leads*`, zejména `PATCH`, vyžadují session). Přihlášení vyžaduje uživatelské jméno (`ADMIN_USERNAME`, povinné) a heslo (`ADMIN_PASSWORD`). Session cookie (`ts.nonce.sig`, platnost 8 h) je podepsaná HMAC-SHA256 klíčem `SESSION_SECRET` (nikdy ne heslem); ověření podpisu je constant-time (`crypto.subtle.verify`), při chybějícím `SESSION_SECRET` proxy přístup zamítá. Login má constant-time porovnání údajů (`safeEqual`) a in-memory rate limit 5 pokusů / 15 min na IP + **globální strop 30 selhání / 15 min přes všechny IP** (oprava SEC-1 — pojistka nezávislá na spoofovatelné identitě IP; per-instance zmírnění). Identita klienta pro všechny rate limity se bere z `x-real-ip` (na Vercelu ji dosazuje platforma), fallback pravá hodnota `x-forwarded-for`, jinak `unknown` (`lib/rate-limit.ts` — `clientIp`); levá, klientem spoofovatelná hodnota XFF se nepoužívá. Auth API routy jsou v `/api/auth/login` a `/api/auth/logout`; logout maže cookie a navíc **server-side revokuje session** (oprava SEC-4): posune `auth_state.sessions_invalid_before` na `now()`, takže token vydaný dřív je odmítnut i před vypršením 8 h. Revokaci kontroluje `requireAdmin()` (admin API) i admin layout (stránky) v Node runtimu přes `isSessionRevoked` (`src/lib/session-revocation.ts`); proxy v edge ověří jen podpis+expiraci. `verifiedSessionIssuedAt` v `auth.ts` vrací ověřený čas vydání tokenu. Fail-open při chybějící tabulce `auth_state` (migrace `011`) — revokace se neuplatní, ostatní kontroly běží dál. Jde o autentizaci na úrovni prototypu — ne JWT, ne SSO.
+`/admin` a admin API routy (`/api/documents*`, `/api/leads*`, `/api/settings`, `/api/retrieval-test`) jsou chráněny proxy vrstvou (`src/proxy.ts` — dřív `middleware.ts`, přejmenováno dle konvence Next.js 16), která kontroluje session cookie nastavenou na `/admin/login`; stránky bez cookie přesměruje na login, API routy vracejí 401 JSON. Veřejné zůstávají `/api/chat`, `/api/feedback`, `/api/auth/*` a **`POST /api/leads`** (odeslání poptávky z chatu; ostatní metody na `/api/leads*`, zejména `PATCH`, vyžadují session).
+
+**Identity a aplikační role (etapa A plánu rolí, `docs/plans/roles_and_document_access_plan.md`):** uživatelé žijí v tabulce `users` (migrace `014`), ne v env proměnných. Každý má právě jednu **aplikační roli** — `admin` / `editor` / `viewer` (co smí dělat). Hierarchie je `viewer < editor < admin`; `roleAtLeast()` v `src/lib/session-user.ts`. Rozdělení rout:
+
+| Routa | Minimální role |
+|---|---|
+| `GET /api/documents`, `POST /api/retrieval-test`, `GET /api/settings` | `viewer` |
+| `POST /api/documents`, `DELETE /api/documents/[id]`, `.../reprocess`, `PATCH /api/leads/[id]` | `editor` |
+| `POST /api/settings` (vč. promptů) | `admin` |
+
+Vodicí pravidlo: **editor spravuje obsah a agendu, ne systém.** Prompty a RAG parametry jsou konfigurace chování bota, proto zůstávají adminovi.
+
+**Druhá obranná linie** (oprava SEC-2): každý z 8 admin handlerů volá na prvním řádku `requireAppRole(min)` z `src/lib/require-role.ts` (dřív `requireAdmin()` z `require-admin.ts`) — vrací `{ ok: true, user }`, nebo hotovou odpověď **401** (nepřihlášen) / **403** (přihlášen, ale nemá roli). Proxy v edge runtimu nemá přístup k DB, takže roli i revokaci ověřuje až tato Node vrstva; proxy zůstává rychlým podpisovým gatem.
+
+**Session cookie v2** (`v2.ts.uid.nonce.sig`, platnost 8 h) je podepsaná HMAC-SHA256 klíčem `SESSION_SECRET` (nikdy ne heslem); ověření podpisu je constant-time (`crypto.subtle.verify`), při chybějícím `SESSION_SECRET` proxy přístup zamítá. Oproti v1 nese **id uživatele** — starý tříčlenný formát je záměrně odmítnut. Aplikační role se do cookie **nedává**: čte se z DB při každém požadavku (`getSessionUser()`), aby odebrání oprávnění platilo okamžitě a cookie nebyla zdrojem pravdy.
+
+**Hesla** se hashují `scrypt`em z `node:crypto` (`src/lib/password.ts`, formát `scrypt$N$r$p$salt$hash`, porovnání `timingSafeEqual`). Login ověřuje i `is_active` a `auth_provider` — účet s `auth_provider='oidc'` se heslem přihlásit nesmí (byla by to cesta okolo IdP, tedy okolo MFA i deaktivace). Pro neznámé, neaktivní i SSO uživatelské jméno se volá `burnPasswordTime()`, aby latence neprozradila existenci účtu.
+
+**Rate limit loginu:** per-IP 5 pokusů / 15 min, **per-username 5 / 15 min** (cílený útok na jeden účet nezablokuje ostatní) a globální strop 300 selhání / 15 min jako pojistka poslední instance. Globální strop byl původně 30 — s jedinou identitou to dávalo smysl, s více účty by se stal DoS vektorem. Identita klienta se bere z `x-real-ip`, fallback pravá hodnota `x-forwarded-for` (`lib/rate-limit.ts` — `clientIp`).
+
+**Revokace session** je dvouúrovňová: per-user `users.sessions_invalid_before` (logout, reset hesla, deaktivace — odhlásí jen dotčeného) a globální `auth_state` (migrace `011`), z níž je od zavedení `users` už jen **ruční kill-switch pro incident**. Logout volá `revokeUserSessions(userId)`; volat z něj `revokeAllSessions()` by znamenalo, že kterýkoli uživatel odhlásí celou organizaci. Fail-open při chybějící tabulce `auth_state`.
+
+**Založení prvního uživatele:** `node scripts/seed-admin-user.mjs` (idempotentní, `--force` přepíše heslo a odhlásí session). `ADMIN_USERNAME`/`ADMIN_PASSWORD` slouží už jen jemu — v `src/lib/config.ts` záměrně nejsou, aplikace je za běhu nepoužívá. Lazy bootstrap při loginu je vědomě neimplementovaný (byla by to trvalá zadní vrátka).
+
+Jde stále o autentizaci na úrovni prototypu — ne SSO (etapa D plánu), bez samoobslužné změny hesla a bez správy uživatelů v UI (etapa B).
 
 ## Runtime parametry RAG (`/admin/parameters`)
 

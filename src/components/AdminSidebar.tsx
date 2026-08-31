@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { AppRole } from "@/lib/session-user";
 
 interface NavItem {
   label: string;
@@ -23,6 +24,8 @@ interface NavItem {
   external?: boolean;
   /** Rozbalitelná skupina (styl platform.claude.com) — Fáze 17. */
   children?: { label: string; href: string }[];
+  /** Minimální aplikační role; bez uvedení vidí položku každý přihlášený. */
+  minRole?: AppRole;
 }
 
 const navItems: NavItem[] = [
@@ -42,11 +45,24 @@ const navItems: NavItem[] = [
   { label: "Chat", href: "/", icon: MessageSquare, external: true },
 ];
 
-export function AdminSidebar() {
+const ROLE_RANK: Record<AppRole, number> = { viewer: 1, editor: 2, admin: 3 };
+
+export function AdminSidebar({
+  appRole,
+  username,
+}: {
+  appRole: AppRole;
+  username: string;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   // Explicitní toggly uživatele; bez záznamu platí auto-expand aktivní skupiny.
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  // Skrytí položky je jen kosmetika — autorizace drží na routách (requireAppRole).
+  const visibleItems = navItems.filter(
+    (item) => !item.minRole || ROLE_RANK[appRole] >= ROLE_RANK[item.minRole]
+  );
 
   function isActive(href: string) {
     if (href === "/admin") return pathname === "/admin";
@@ -70,7 +86,7 @@ export function AdminSidebar() {
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 px-3">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
 
           if (item.children) {
@@ -151,6 +167,9 @@ export function AdminSidebar() {
       </nav>
 
       <div className="px-3 pb-4">
+        <div className="truncate px-3 pb-2 text-xs text-sidebar-foreground/70">
+          {username}
+        </div>
         <button
           onClick={handleLogout}
           className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"

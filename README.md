@@ -33,7 +33,7 @@ Návštěvník klade otázky česky k pojistným produktům; bot odpovídá výh
 - Konverzace jsou v Langfuse seskupené přes session id; každá odpověď vrací `X-Trace-Id`, takže palec nahoru/dolů se ukládá jako skóre `user-thumbs` přímo na trace — kvalitu lze měřit i na reálném provozu, nejen na testovacích datasetech
 - Každá trace nese otisk (hash) použité verze systémového promptu, takže jde porovnat dopad jeho úprav na hodnocení — bez stěhování promptů mimo repozitář
 - Evaluace: `npm run eval` prožene testovací otázky z Langfuse datasetů nasazenou aplikací a založí experiment s deterministickými skóre
-- Bezpečnost: admin auth je **na úrovni prototypu** (jedna identita, podepsaná HMAC cookie — ne SSO/JWT); detaily a vědomé kompromisy viz [ARCHITECTURE.md, sekce 6](docs/ARCHITECTURE.md#6-bezpečnost)
+- Bezpečnost: admin auth je **na úrovni prototypu** (vlastní tabulka uživatelů s rolemi admin/editor/viewer, podepsaná HMAC cookie — zatím ne SSO/JWT); detaily a vědomé kompromisy viz [ARCHITECTURE.md, sekce 6](docs/ARCHITECTURE.md#6-bezpečnost)
 
 ## Stack
 
@@ -50,7 +50,7 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · shadcn/u
 
 2. **Nastavit env proměnné:** zkopírovat `.env.example` na `.env.local` a vyplnit hodnoty (viz tabulka níže).
 
-3. **Aplikovat DB migrace** (`supabase/migrations/001`–`013`):
+3. **Aplikovat DB migrace** (`supabase/migrations/001`–`014`):
    ```bash
    supabase db push --db-url "$DATABASE_URL"
    ```
@@ -103,7 +103,7 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · shadcn/u
 Aplikace zatím není určená pro ostrý provoz — několik vědomých kompromisů (detaily viz [ARCHITECTURE.md, sekce 10](docs/ARCHITECTURE.md#10-známá-omezení)):
 
 - **Bez automatizovaných testů** — ověřování je manuální (build, lint, E2E průchody, eval runner nad datasety). Před ostrým provozem je to první věc k doplnění.
-- **Autentizace na úrovni prototypu** — jedna admin identita, podepsaná HMAC cookie; pro produkci nahradit plnohodnotnou auth (SSO/JWT).
+- **Autentizace na úrovni prototypu** — vlastní tabulka uživatelů s aplikačními rolemi a podepsaná HMAC cookie; chybí SSO, správa uživatelů v UI a samoobslužná změna hesla (etapy B–D [plánu rolí](docs/plans/roles_and_document_access_plan.md)).
 - **In-memory rate limity** — per-instance; na serverless škálování napříč instancemi nedrží globální stropy přesně.
 - **Vědomě odloženo (SEC-7 / SEC-8)** — serverová rekonstrukce historie chatu a explicitní CSRF token.
 - **Deduplikace leadů** — podle přesné shody kontaktu v rámci typu; nepokrývá varianty zápisu.

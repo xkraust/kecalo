@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import { getSettings, saveSettings } from "@/lib/settings";
-import { requireAdmin } from "@/lib/require-admin";
+import { requireAppRole } from "@/lib/require-role";
 
 export async function GET() {
-  const denied = await requireAdmin();
-  if (denied) return denied;
+  const auth = await requireAppRole("viewer");
+  if (!auth.ok) return auth.response;
 
   const settings = await getSettings();
   return NextResponse.json(settings);
 }
 
 export async function POST(request: Request) {
-  const denied = await requireAdmin();
-  if (denied) return denied;
+  const auth = await requireAppRole("admin");
+  if (!auth.ok) return auth.response;
 
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== "object") {

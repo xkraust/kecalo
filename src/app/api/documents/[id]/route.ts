@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { requireAdmin } from "@/lib/require-admin";
+import { requireAppRole } from "@/lib/require-role";
 
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const denied = await requireAdmin();
-  if (denied) return denied;
+  const auth = await requireAppRole("editor");
+  if (!auth.ok) return auth.response;
 
   const { id } = await params;
 

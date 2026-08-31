@@ -1,6 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { requireAdmin } from "@/lib/require-admin";
+import { requireAppRole } from "@/lib/require-role";
 import { processDocument } from "@/lib/rag/pipeline";
 
 export const maxDuration = 60;
@@ -14,8 +14,8 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const denied = await requireAdmin();
-  if (denied) return denied;
+  const auth = await requireAppRole("editor");
+  if (!auth.ok) return auth.response;
 
   const { id } = await params;
 

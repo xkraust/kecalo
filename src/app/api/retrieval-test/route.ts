@@ -1,7 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { retrieve } from "@/lib/rag/retrieve";
 import { getSettings } from "@/lib/settings";
-import { requireAdmin } from "@/lib/require-admin";
+import { requireAppRole } from "@/lib/require-role";
 import { withSpan, flushTelemetry } from "@/lib/telemetry";
 
 export const maxDuration = 60;
@@ -10,8 +10,8 @@ export const maxDuration = 60;
 const MAX_QUERY_LENGTH = 4000;
 
 export async function POST(request: Request) {
-  const denied = await requireAdmin();
-  if (denied) return denied;
+  const auth = await requireAppRole("viewer");
+  if (!auth.ok) return auth.response;
 
   const body = await request.json().catch(() => null);
   const query =

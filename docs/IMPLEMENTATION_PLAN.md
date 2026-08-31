@@ -1002,7 +1002,7 @@ kecalo/
 
 ## Produkční dluh (po MVP)
 
-- Autentizace a role (SSO, admin/editor) — **návrh hotov**, neimplementováno: `docs/plans/roles_and_document_access_plan.md` (aplikační role · pracovní role sdružující štítky · viditelnost dokumentů v retrievalu · JIT provisioning přes OIDC)
+- Autentizace a role (SSO, admin/editor) — **etapa A hotová v kódu** (identity v tabulce `users`, aplikační role admin/editor/viewer, scrypt hesla, cookie v2, per-user revokace; migrace `014` čeká na aplikaci a E2E ověření). Zbývají etapy B–D: `docs/plans/roles_and_document_access_plan.md` (správa uživatelů v UI · pracovní role sdružující štítky + viditelnost dokumentů v retrievalu · JIT provisioning přes OIDC)
 - ~~Samostatný `SESSION_SECRET` pro podpis session cookie~~ — **hotovo** (revize `code_check.md`, balíček A2): session se podepisuje odděleným `SESSION_SECRET`, ne heslem
 - ~~Rate limiting~~ — **hotovo** (SEC-1 + `code_check.md` B1): in-memory limitery na `/api/chat`, `/api/leads`, `/api/feedback` a loginu, identita klienta z `x-real-ip`; sdílené úložiště (Upstash/Vercel KV) místo per-instance in-memory zůstává dluh
 - Zbylé bezpečnostní nálezy odložené jako produkční dluh (viz balíček G výše): SEC-4 (server-side invalidace session), SEC-7 (serverová historie chatu), SEC-8 (CSRF token). Dále ochrana proti prompt injection z obsahu dokumentů

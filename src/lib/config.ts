@@ -7,8 +7,9 @@ const required = (key: string): string => {
 export const config = {
   supabaseUrl: required("NEXT_PUBLIC_SUPABASE_URL"),
   supabaseServiceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
-  adminUsername: required("ADMIN_USERNAME"),
-  adminPassword: required("ADMIN_PASSWORD"),
+  // ADMIN_USERNAME / ADMIN_PASSWORD tu záměrně nejsou: od etapy A plánu rolí
+  // se přihlašuje proti tabulce `users`. Env údaje slouží jen skriptu
+  // scripts/seed-admin-user.mjs, který si je načte sám.
   sessionSecret: required("SESSION_SECRET"),
   anthropicApiKey: required("ANTHROPIC_API_KEY"),
   voyageApiKey: required("VOYAGE_API_KEY"),

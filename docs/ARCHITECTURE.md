@@ -83,7 +83,7 @@ Chyby se ukládají do `documents.error_message` a dokument končí ve stavu `er
 
 ## 4. Datový model
 
-Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`013`), nikdy ručně v SQL editoru. Aplikace přistupuje service-role klíčem (obchází RLS); RLS je na tabulkách zapnuté bez policy pro anon — přímý anonymní přístup je tak zablokovaný.
+Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`014`), nikdy ručně v SQL editoru. Aplikace přistupuje service-role klíčem (obchází RLS); RLS je na tabulkách zapnuté bez policy pro anon — přímý anonymní přístup je tak zablokovaný.
 
 | Tabulka | Účel |
 |---|---|
@@ -114,7 +114,8 @@ CHECK constrainty v migracích zrcadlí rozsahy definované v [`src/lib/settings
 Autentizace je **na úrovni prototypu** (ne JWT, ne SSO) — vědomé rozhodnutí. Detailní nálezy a opravy: [reviews/security_issues.md](reviews/security_issues.md) + [reviews/security_correction_plan.md](reviews/security_correction_plan.md).
 
 - **Session:** cookie `ts.nonce.sig` podepsaná HMAC-SHA256 klíčem `SESSION_SECRET` (nikdy heslem), platnost 8 h, ověření constant-time (`crypto.subtle.verify`). Viz [`src/lib/auth.ts`](../src/lib/auth.ts).
-- **Dvě obranné linie:** proxy vrstva [`src/proxy.ts`](../src/proxy.ts) (edge — podpis + expirace) chrání `/admin` stránky i admin API; každý admin handler navíc volá `requireAdmin()` ([`src/lib/require-admin.ts`](../src/lib/require-admin.ts)) — 401 i při obejití proxy (SEC-2).
+- **Dvě obranné linie:** proxy vrstva [`src/proxy.ts`](../src/proxy.ts) (edge — podpis + expirace) chrání `/admin` stránky i admin API; každý admin handler navíc volá `requireAppRole(min)` ([`src/lib/require-role.ts`](../src/lib/require-role.ts)) — 401/403 i při obejití proxy (SEC-2). Roli a revokaci ověřuje až tato Node vrstva, protože edge runtime nemá přístup k DB.
+- **Identity a aplikační role:** uživatelé v tabulce `users` (migrace `014`), role `admin`/`editor`/`viewer`, hesla scryptem ([`src/lib/password.ts`](../src/lib/password.ts)), session cookie v2 nese `uid` a role se čte z DB per request ([`src/lib/session-user.ts`](../src/lib/session-user.ts)). Viz [plán rolí](plans/roles_and_document_access_plan.md).
 - **Revokace session (SEC-4):** logout posune `auth_state.sessions_invalid_before` na `now()` — starší tokeny jsou odmítnuty i před expirací. Kontroluje se v Node runtimu (`requireAdmin()` + admin layout); fail-open při chybějící tabulce.
 - **Login:** constant-time porovnání údajů (`safeEqual`), rate limit 5 pokusů / 15 min na IP + globální strop 30 selhání / 15 min přes všechny IP (SEC-1 — nezávislé na spoofovatelné IP).
 - **Identita klienta:** `x-real-ip` (na Vercelu dosazuje platforma), fallback pravá hodnota `x-forwarded-for`; levá (spoofovatelná) se nepoužívá.

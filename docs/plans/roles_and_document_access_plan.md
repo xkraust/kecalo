@@ -1,18 +1,21 @@
 # Plán: role uživatelů a řízení přístupu k dokumentům
 
-**Stav:** návrh — neimplementováno. Mimo číslované fáze; navazuje na produkční dluh „Autentizace a role" z `docs/IMPLEMENTATION_PLAN.md`.
+**Stav:** etapa A hotová (kód), etapy B–D neimplementované. Mimo číslované fáze; navazuje na produkční dluh „Autentizace a role" z `docs/IMPLEMENTATION_PLAN.md`.
 
 ---
 
 ## 1. Proč
 
-Kecalo je dnes jednoidentitní prototyp:
+Výchozí stav před etapou A byl jednoidentitní prototyp:
 
-- jméno a heslo jsou konstanty z env (`src/lib/config.ts` — `adminUsername`, `adminPassword`),
-- session cookie `ts.nonce.sig` nenese žádného nositele identity (`src/lib/auth.ts`, `createSessionCookie`),
-- autorizace je binární „přihlášen / nepřihlášen" (`requireAdmin()` v `src/lib/require-admin.ts`),
+- jméno a heslo byly konstanty z env (`config.adminUsername`, `config.adminPassword`),
+- session cookie `ts.nonce.sig` nenesla žádného nositele identity,
+- autorizace byla binární „přihlášen / nepřihlášen" (`requireAdmin()`),
 - chat je zcela anonymní (`POST /api/chat` je veřejná routa),
 - `match_chunks` filtruje jen podle `documents.status = 'ready'` (`supabase/migrations/007_chunk_sections.sql`).
+
+První tři body **řeší hotová etapa A** (tabulka `users`, cookie v2 s `uid`,
+`requireAppRole`); poslední dva zůstávají a jsou předmětem etapy C.
 
 Důsledek: **kdokoli, kdo se dostane k chatu, vidí obsah všech nahraných dokumentů**, a kdokoli zná jedno heslo, může mazat znalostní bázi i přepisovat systémový prompt. Pro pojišťovnu, která má vedle veřejných pojistných podmínek i interní metodiku, je to blokující omezení.
 
@@ -241,17 +244,24 @@ Provozní důsledek k vědomí: volbou „IdP je zdroj pravdy" se správa přís
 
 ### Etapa A — identity a aplikační role
 
-- [ ] Migrace `014_users_roles.sql` (+ `citext` extension)
-- [ ] `src/lib/password.ts` — scrypt hash/verify
-- [ ] `src/lib/session-user.ts` — `getSessionUser()`
-- [ ] Cookie v2 (`v2.ts.uid.nonce.sig`) v `src/lib/auth.ts`, odmítnutí starého formátu
-- [ ] `requireAppRole(min)` místo `requireAdmin()` — všech 8 handlerů
-- [ ] Login proti tabulce `users` místo env konstant (vč. `is_active` a dummy scrypt pro neznámé username)
-- [ ] **Logout na per-user revokaci** místo `revokeAllSessions()` — jinak kterýkoli uživatel odhlásí všechny (kap. 4)
-- [ ] `scripts/seed-admin-user.mjs`
-- [ ] Přenavržení login rate limitu: per-username vedle per-IP (invariant 9)
+- [x] Migrace `014_users_roles.sql` (+ `citext` extension)
+- [x] `src/lib/password.ts` — scrypt hash/verify + `burnPasswordTime`
+- [x] `src/lib/session-user.ts` — `getSessionUser()`, `AppRole`, `roleAtLeast`
+- [x] Cookie v2 (`v2.ts.uid.nonce.sig`) v `src/lib/auth.ts`, odmítnutí starého formátu
+- [x] `requireAppRole(min)` v `src/lib/require-role.ts` (přejmenováno z `require-admin.ts`) — všech 8 handlerů
+- [x] Login proti tabulce `users` místo env konstant (vč. `is_active`, `auth_provider` a dummy scrypt pro neznámé username)
+- [x] **Logout na per-user revokaci** (`revokeUserSessions`) místo `revokeAllSessions()` — jinak kterýkoli uživatel odhlásí všechny (kap. 4)
+- [x] `scripts/seed-admin-user.mjs` (idempotentní, `--force` pro přepis hesla)
+- [x] Přenavržení login rate limitu: per-username vedle per-IP (invariant 9)
+- [x] Úklid osiřelého kódu: `safeEqual` v `auth.ts`, `adminUsername`/`adminPassword` v `config.ts`
 
-Navenek se nic nemění — admin funguje jako dnes.
+Navenek se nic nemění — admin funguje jako dnes. Sidebar navíc zobrazuje jméno
+přihlášeného a umí skrývat položky podle role (`minRole`), což využije etapa B.
+
+**Provozní poznámka k nasazení:** migrace `014` sama nikoho nezaloží. Po
+`supabase db push` je nutné spustit `node scripts/seed-admin-user.mjs`, jinak se
+nikdo nepřihlásí. Nasazení zároveň odhlásí stávající session (cookie v1 je
+odmítnuta) — to je záměr, ne regrese.
 
 ### Etapa B — aplikační role v UI
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { requireAdmin } from "@/lib/require-admin";
+import { requireAppRole } from "@/lib/require-role";
 import { processDocument } from "@/lib/rag/pipeline";
 import { withSpan, flushTelemetry } from "@/lib/telemetry";
 
@@ -40,8 +40,8 @@ function hasPdfMagic(buffer: Uint8Array): boolean {
 }
 
 export async function GET() {
-  const denied = await requireAdmin();
-  if (denied) return denied;
+  const auth = await requireAppRole("viewer");
+  if (!auth.ok) return auth.response;
 
   const { data, error } = await supabase
     .from("documents")
@@ -62,8 +62,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const denied = await requireAdmin();
-  if (denied) return denied;
+  const auth = await requireAppRole("editor");
+  if (!auth.ok) return auth.response;
 
   let formData: FormData;
   try {

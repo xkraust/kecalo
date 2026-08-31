@@ -1,9 +1,14 @@
 // Podpis a ověření admin session cookie (HMAC-SHA256 přes Web Crypto — funguje
 // v Node i edge runtime proxy). Podpisový klíč je SESSION_SECRET (nikdy ne
-// ADMIN_PASSWORD — uniklá cookie by jinak umožnila offline brute-force hesla).
+// heslo — uniklá cookie by jinak umožnila offline brute-force hesla).
+//
+// Formát v2 (etapa A plánu rolí): `v2.ts.uid.nonce.sig`. Oproti v1 nese id
+// uživatele, takže session je vázaná na konkrétní účet. Aplikační role ani
+// štítky se do cookie ZÁMĚRNĚ nedávají — čtou se z DB při každém požadavku,
+// aby odebrání oprávnění platilo okamžitě a cookie nebyla zdrojem pravdy.
 export const SESSION_COOKIE_NAME = "admin_session";
-// 8 h — zmírnění chybějící server-side invalidace (logout jen maže cookie,
-// token platí do expirace; dokumentované omezení prototypu).
+const SESSION_VERSION = "v2";
+// 8 h; revokaci před vypršením řeší per-user sessions_invalid_before.
 const SESSION_MAX_AGE = 28800;
 
 const enc = new TextEncoder();
@@ -33,31 +38,49 @@ async function hmacKey(secret: string, usage: "sign" | "verify") {
   );
 }
 
-/** Cookie má tvar `ts.nonce.sig` — nonce zajišťuje, že tokeny nejsou deterministické. */
-export async function createSessionCookie(secret: string): Promise<string> {
+/** Cookie má tvar `v2.ts.uid.nonce.sig` — nonce zajišťuje, že tokeny nejsou deterministické. */
+export async function createSessionCookie(
+  secret: string,
+  userId: string
+): Promise<string> {
+  // Tečka je oddělovač; uuid ji neobsahuje, ale kontrola je levná pojistka
+  // proti podvržení dalších segmentů přes uměle sestavené id.
+  if (userId.includes(".")) throw new Error("Neplatné id uživatele pro session");
   const ts = Date.now().toString();
   const nonce = toHex(crypto.getRandomValues(new Uint8Array(16)));
-  const data = `${ts}.${nonce}`;
+  const data = `${SESSION_VERSION}.${ts}.${userId}.${nonce}`;
   const key = await hmacKey(secret, "sign");
   const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
   return `${data}.${toHex(new Uint8Array(sig))}`;
 }
 
+/** Ověřená session: kdo ji vlastní a kdy byla vydána. */
+export interface VerifiedSession {
+  userId: string;
+  issuedAt: number;
+}
+
 /**
- * Ověří podpis a stáří cookie a vrátí čas vydání tokenu (ms), nebo `null` když
- * je neplatná/expirovaná. Čistá krypto (žádný I/O) → bezpečné i v edge runtime
- * proxy. Čas vydání využívá revokace session (SEC-4): token vydaný před
- * logoutem se odmítne, i když podpis a expirace sedí.
+ * Ověří podpis a stáří cookie a vrátí id uživatele s časem vydání, nebo `null`
+ * když je neplatná/expirovaná. Čistá krypto (žádný I/O) → bezpečné i v edge
+ * runtime proxy. Čas vydání využívá revokace session (SEC-4 + per-user
+ * revokace): token vydaný před logoutem se odmítne, i když podpis a expirace
+ * sedí. Ověření role a revokace probíhá až v Node vrstvě (session-user.ts).
+ *
+ * Starý formát v1 (`ts.nonce.sig`) je záměrně odmítnut — nenese uživatele,
+ * takže by se nedal navázat na účet. Jediný dosavadní admin se po nasazení
+ * jednou přihlásí znovu.
  */
-export async function verifiedSessionIssuedAt(
+export async function verifySessionCookie(
   value: string,
   secret: string
-): Promise<number | null> {
+): Promise<VerifiedSession | null> {
   if (!secret) return null;
 
   const parts = value.split(".");
-  if (parts.length !== 3) return null;
-  const [ts, nonce, sigHex] = parts;
+  if (parts.length !== 5) return null;
+  const [version, ts, userId, nonce, sigHex] = parts;
+  if (version !== SESSION_VERSION || !userId) return null;
 
   const issuedAt = parseInt(ts, 10);
   const age = Date.now() - issuedAt;
@@ -72,33 +95,17 @@ export async function verifiedSessionIssuedAt(
     "HMAC",
     key,
     sig,
-    enc.encode(`${ts}.${nonce}`)
+    enc.encode(`${version}.${ts}.${userId}.${nonce}`)
   );
-  return ok ? issuedAt : null;
+  return ok ? { userId, issuedAt } : null;
 }
 
+/** Rychlá kontrola podpisu a expirace pro edge proxy (bez přístupu k DB). */
 export async function verifySession(
   value: string,
   secret: string
 ): Promise<boolean> {
-  return (await verifiedSessionIssuedAt(value, secret)) !== null;
-}
-
-/**
- * Constant-time porovnání dvou řetězců (přihlašovací údaje). Porovnávají se
- * SHA-256 otisky pevné délky — doba běhu nezávisí na tom, kde se hodnoty liší,
- * a nic neprozrazuje ani rozdílná délka vstupů.
- */
-export async function safeEqual(a: string, b: string): Promise<boolean> {
-  const [ha, hb] = await Promise.all([
-    crypto.subtle.digest("SHA-256", enc.encode(a)),
-    crypto.subtle.digest("SHA-256", enc.encode(b)),
-  ]);
-  const va = new Uint8Array(ha);
-  const vb = new Uint8Array(hb);
-  let diff = 0;
-  for (let i = 0; i < va.length; i++) diff |= va[i] ^ vb[i];
-  return diff === 0;
+  return (await verifySessionCookie(value, secret)) !== null;
 }
 
 export const COOKIE_OPTIONS = {
