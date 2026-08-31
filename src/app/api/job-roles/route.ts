@@ -1,6 +1,6 @@
 // Číselník pracovních rolí (etapa C plánu rolí). Jen pro aplikační roli admin.
 //
-// Pracovní role sdružuje štítky publika: uživatel dostane roli a štítky z ní
+// Pracovní role sdružuje štítky dokumentů: uživatel dostane roli a štítky z ní
 // odvodí. Přímá vazba uživatel↔štítek záměrně neexistuje, aby se oprávnění
 // měnila na jednom místě a nevznikaly individuální výjimky.
 import { NextResponse } from "next/server";

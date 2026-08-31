@@ -1,4 +1,4 @@
-// Úprava a mazání štítku publika (etapa C plánu rolí).
+// Úprava a mazání štítku dokumentu (etapa C plánu rolí).
 //
 // `code` je primární klíč ve dvou vazebních tabulkách, takže je po založení
 // NEMĚNNÝ — přejmenování by byl update PK s kaskádou. Přejmenovat štítek ale

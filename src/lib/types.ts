@@ -14,7 +14,7 @@ export interface DocumentRecord {
   chunking_config: ChunkingConfig | null;
   /** Viditelnost vůči anonymnímu chatu (etapa C plánu rolí). */
   visibility?: "public" | "restricted";
-  /** Přiřazené štítky publika (z vazební tabulky document_audiences). */
+  /** Přiřazené štítky dokumentů (z vazební tabulky document_audiences). */
   document_audiences?: { audience_code: string }[];
 }
 
@@ -54,7 +54,7 @@ export interface AdminUser {
   created_at: string;
 }
 
-/** Štítek publika s počty použití (etapa C plánu rolí). */
+/** Štítek dokumentu s počty použití (etapa C plánu rolí). */
 export interface AudienceWithUsage {
   code: string;
   label: string;

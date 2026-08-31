@@ -1,4 +1,4 @@
-// Odvození štítků publika pro filtr retrievalu (etapa C plánu rolí).
+// Odvození štítků dokumentů pro filtr retrievalu (etapa C plánu rolí).
 //
 // Bezpečnostní jádro celé viditelnosti dokumentů: hodnota MUSÍ vzniknout
 // serverově ze session, nikdy z těla požadavku, query parametru ani hlavičky.

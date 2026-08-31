@@ -29,7 +29,7 @@ Slovo „role" se v této oblasti používá pro tři různé věci. Návrh je p
 |---|---|---|---|---|
 | **Aplikační role** | *Co smíš dělat?* | `admin` / `editor` / `viewer` | uživatel (právě jedna) | admin sekce, admin API |
 | **Pracovní role** | *Kdo jsi v organizaci?* | ředitel, vedoucí účtárny, … | uživatel (M:N) | odvození štítků |
-| **Štítek publika** | *Komu obsah patří?* | Právní oddělení, Obchod, Účtárna, … | pracovní role + dokument | retrieval, výpisy |
+| **Štítek dokumentu** | *Komu obsah patří?* | Právní oddělení, Obchod, Účtárna, … | pracovní role + dokument | retrieval, výpisy |
 
 Názvy štítků i pracovních rolí se vedou **česky, s diakritikou**; technické kódy (`pravni-oddeleni`, `obchod`, `uctarna`) si aplikace odvozuje sama — viz „Životní cyklus štítku" v kap. 4.
 

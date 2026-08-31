@@ -1,12 +1,12 @@
--- Kecalo — pracovní role, štítky publika a viditelnost dokumentů
+-- Kecalo — pracovní role, štítky a viditelnost dokumentů
 -- (etapa C, docs/plans/roles_and_document_access_plan.md)
 --
 -- Tři vrstvy oprávnění: aplikační role (co smíš dělat, migrace 014), pracovní
--- role (kdo jsi v organizaci) a štítky publika (komu obsah patří). Efektivní
+-- role (kdo jsi v organizaci) a štítky dokumentů (komu obsah patří). Efektivní
 -- štítky uživatele = sjednocení štítků všech jeho pracovních rolí; přímá vazba
 -- uživatel↔štítek ZÁMĚRNĚ neexistuje, aby oprávnění šlo měnit na jednom místě.
 
--- Číselník štítků publika. `label` je český název s diakritikou (jediné, co kdo
+-- Číselník štítků dokumentů. `label` je český název s diakritikou (jediné, co kdo
 -- v adminu čte), `code` je technický slug odvozený transliterací — ASCII proto,
 -- že jde o primární klíč a „č" má v Unicode dva zápisy (NFC/NFD), takže by
 -- vznikly vizuálně shodné duplicity.

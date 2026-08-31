@@ -51,7 +51,7 @@ export const VISIBILITY_CHOICES: readonly {
     value: "restricted",
     label: "Omezené",
     description:
-      "Nově nahraný dokument nevidí nikdo, dokud mu někdo nepřidělí štítky publika. Pro interní znalostní bázi.",
+      "Nově nahraný dokument nevidí nikdo, dokud mu někdo nepřidělí štítky dokumentů. Pro interní znalostní bázi.",
   },
 ];
 

@@ -15,7 +15,7 @@ export interface RetrievalResult {
 /**
  * Vyhledá chunky k dotazu.
  *
- * @param audiences štítky publika volajícího (etapa C plánu rolí).
+ * @param audiences štítky dokumentů volajícího (etapa C plánu rolí).
  *   POZOR na rozdíl mezi `null` a prázdným polem:
  *   - `null` = bez filtru viditelnosti (aplikační role admin vidí vše),
  *   - `[]`   = jen veřejné dokumenty (anonymní tazatel) — bezpečný default.

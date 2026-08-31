@@ -1,4 +1,4 @@
-// Číselník štítků publika (etapa C plánu rolí). Jen pro aplikační roli admin.
+// Číselník štítků dokumentů (etapa C plánu rolí). Jen pro aplikační roli admin.
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { requireAppRole } from "@/lib/require-role";

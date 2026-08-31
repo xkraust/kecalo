@@ -103,7 +103,7 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · shadcn/u
 Aplikace zatím není určená pro ostrý provoz — několik vědomých kompromisů (detaily viz [ARCHITECTURE.md, sekce 10](docs/ARCHITECTURE.md#10-známá-omezení)):
 
 - **Bez automatizovaných testů** — ověřování je manuální (build, lint, E2E průchody, eval runner nad datasety). Před ostrým provozem je to první věc k doplnění.
-- **Autentizace na úrovni prototypu** — vlastní tabulka uživatelů s aplikačními rolemi (admin/editor/čtenář), správa v `/admin/users` a podepsaná HMAC cookie; chybí SSO a obnova zapomenutého hesla bez admina (etapa D [plánu rolí](docs/plans/roles_and_document_access_plan.md)). Dokumenty lze omezit štítky publika, ale koncoví tazatelé se zatím nepřihlašují — omezení tak chrání obsah před veřejným chatem.
+- **Autentizace na úrovni prototypu** — vlastní tabulka uživatelů s aplikačními rolemi (admin/editor/čtenář), správa v `/admin/users` a podepsaná HMAC cookie; chybí SSO a obnova zapomenutého hesla bez admina (etapa D [plánu rolí](docs/plans/roles_and_document_access_plan.md)). Dokumenty lze omezit štítky, ale koncoví tazatelé se zatím nepřihlašují — omezení tak chrání obsah před veřejným chatem.
 - **In-memory rate limity** — per-instance; na serverless škálování napříč instancemi nedrží globální stropy přesně.
 - **Vědomě odloženo (SEC-7 / SEC-8)** — serverová rekonstrukce historie chatu a explicitní CSRF token.
 - **Deduplikace leadů** — podle přesné shody kontaktu v rámci typu; nepokrývá varianty zápisu.
