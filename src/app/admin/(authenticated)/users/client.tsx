@@ -178,21 +178,19 @@ export function UsersPageClient({
           onSubmit={handleCreate}
           className="space-y-4 rounded-lg border border-border bg-card p-4"
         >
-          <div className="flex gap-3">
-            <Input
-              placeholder="Jméno"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              autoFocus
-              required
-            />
-            <Input
-              placeholder="Příjmení"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              required
-            />
-          </div>
+          <Input
+            placeholder="Jméno"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            autoFocus
+            required
+          />
+          <Input
+            placeholder="Příjmení"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            required
+          />
           <Input
             type="email"
             placeholder="E-mail (slouží i jako přihlašovací jméno)"
