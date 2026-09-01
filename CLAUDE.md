@@ -10,7 +10,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0–17 jsou **hotové a ověřené end-to-end** (poslední: Fáze 17 — správa promptů v adminu: system prompt chatu a prompt shrnutí poptávek editovatelné za běhu v `/admin/parameters/prompts`, NULL = výchozí z kódu; migrace `013_prompt_settings.sql` aplikovaná. Fáze 16 — zpětná vazba u odpovědi: palec nahoru poděkování, palec dolů karta kontaktu → lead typu `hodnoceni`; migrace `012_lead_type.sql` aplikovaná. Fáze 15 — evaluace přes Langfuse datasety, eval runner `scripts/langfuse-eval.mjs` a LLM-as-judge „Correctness in Czech" nakonfigurovaný v Langfuse UI; šablona Faithfulness zatím nejde — trace nenese obsah chunků, `record_content` default off). Hotové a ověřené jsou i všechny opravy z revize kódu (`docs/reviews/code_check.md`, 15 nálezů, balíčky A–E dle `docs/reviews/issues_correction_plan.md`) a z bezpečnostní revize (`docs/reviews/security_issues.md`, SEC-1 až SEC-6 + SEC-9 + SEC-10, balíčky A–F dle `docs/reviews/security_correction_plan.md`; následně i SEC-4 — server-side revokace session). SEC-7 a SEC-8 (serverová historie chatu, CSRF token) zůstávají vědomě odložené jako produkční dluh. Migrace `001`–`017` jsou aplikované na Supabase. Pozn.: `004`–`013` byly kdysi aplikované ručně mimo CLI, takže je bylo nutné doevidovat přes `supabase migration repair --status applied` — od `014` je historie srovnaná a `supabase db push` funguje normálně.
+Fáze 0–17 jsou **hotové a ověřené end-to-end** (poslední: Fáze 17 — správa promptů v adminu: system prompt chatu a prompt shrnutí poptávek editovatelné za běhu v `/admin/parameters/prompts`, NULL = výchozí z kódu; migrace `013_prompt_settings.sql` aplikovaná. Fáze 16 — zpětná vazba u odpovědi: palec nahoru poděkování, palec dolů karta kontaktu → lead typu `hodnoceni`; migrace `012_lead_type.sql` aplikovaná. Fáze 15 — evaluace přes Langfuse datasety, eval runner `scripts/langfuse-eval.mjs` a LLM-as-judge „Correctness in Czech" nakonfigurovaný v Langfuse UI; šablona Faithfulness zatím nejde — trace nenese obsah chunků, `record_content` default off). Hotové a ověřené jsou i všechny opravy z revize kódu (`docs/reviews/code_check.md`, 15 nálezů, balíčky A–E dle `docs/reviews/issues_correction_plan.md`) a z bezpečnostní revize (`docs/reviews/security_issues.md`, SEC-1 až SEC-6 + SEC-9 + SEC-10, balíčky A–F dle `docs/reviews/security_correction_plan.md`; následně i SEC-4 — server-side revokace session). SEC-7 a SEC-8 (serverová historie chatu, CSRF token) zůstávají vědomě odložené jako produkční dluh. Migrace `001`–`018` jsou aplikované na Supabase. Pozn.: `004`–`013` byly kdysi aplikované ručně mimo CLI, takže je bylo nutné doevidovat přes `supabase migration repair --status applied` — od `014` je historie srovnaná a `supabase db push` funguje normálně.
 
 Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživatel nahraje přes admin UI) a fallback otázky mimo bázi dál vracejí chunky nad prahem 0,35 (čisté odmítnutí zajišťuje systémový prompt; případně zvýšit práh v `/admin/parameters`).
 
@@ -112,8 +112,9 @@ Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabas
 | `NEXT_PUBLIC_SUPABASE_URL` | URL Supabase projektu (může být veřejná) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin klíč Supabase (pouze server, nikdy na klienta) |
 | `DATABASE_URL` | Postgres connection string pro migrace |
-| `ADMIN_USERNAME` | Jméno prvního uživatele — jen pro `scripts/seed-admin-user.mjs`, ne pro běh aplikace |
+| `ADMIN_EMAIL` | E-mail prvního uživatele — jen pro `scripts/seed-admin-user.mjs`, ne pro běh aplikace (`ADMIN_USERNAME` je starší fallback) |
 | `ADMIN_PASSWORD` | Heslo prvního uživatele — dtto (min. 12 znaků) |
+| `ADMIN_FIRST_NAME` / `ADMIN_LAST_NAME` | Jméno a příjmení prvního uživatele (volitelné) |
 | `SESSION_SECRET` | Podpisový klíč admin session cookie (dlouhý náhodný řetězec, povinný) |
 | `TOP_K` | Výchozí počet výsledků z retrievalu (5) |
 | `SIMILARITY_THRESHOLD` | Výchozí práh kosinové podobnosti (0.35) |
@@ -161,9 +162,9 @@ POST   /api/feedback            → uloží zpětnou vazbu (thumbs up/down); lim
 POST   /api/leads               → uloží poptávku (veřejné); rate limit 5/min, pole `type` (`produkt`/`hodnoceni`, default `produkt`; jiná hodnota → 400), deduplikace podle kontaktu **v rámci téhož typu**, shrnutí konverzace pro oba typy Mistral modelem (`@ai-sdk/mistral`, `SUMMARY_MODEL` default `mistral-small-latest` — prototypový test, Varianta B; prompt `LEAD_SUMMARY_PROMPT` z `lib/rag/prompts.ts`, runtime override v `app_settings.lead_summary_prompt`; přepis izolován v bloku <transcript> jako nedůvěryhodný vstup — oprava SEC-9, wrapping i sanitizace zůstávají v kódu)
 PATCH  /api/leads/[id]          → změna stavu poptávky (pouze admin): in_progress/closed; 400/404/409
 GET    /api/users               → seznam uživatelů (pouze admin)
-POST   /api/users               → založení uživatele s vygenerovaným heslem (admin); heslo se vrací JEDNOU v odpovědi, 409 při duplicitě
-PATCH  /api/users/[id]          → změna role / aktivace / reset hesla (admin); 409 u posledního admina i u vlastní role, 404 neexistující
-POST   /api/auth/login          → ověření username + password proti tabulce users, nastavení session cookie
+POST   /api/users               → založení uživatele (admin): povinné `firstName`, `lastName`, `email` + `appRole`; heslo vygeneruje aplikace a vrátí JEDNOU v odpovědi, 409 při duplicitním e-mailu
+PATCH  /api/users/[id]          → změna jména, e-mailu, role, aktivace, reset hesla, pracovní role (admin); 409 u posledního admina, vlastní role i u osobních údajů SSO účtu, 404 neexistující
+POST   /api/auth/login          → ověření e-mailu + hesla proti tabulce users, nastavení session cookie
 POST   /api/auth/logout         → smazání session cookie + per-user revokace
 POST   /api/auth/change-password → změna vlastního hesla (přihlášený); projde i účtu s must_change_password
 GET    /api/auth/oidc/start     → zahájení SSO (redirect na IdP; state + nonce + PKCE ve stavové cookie)
@@ -236,6 +237,7 @@ src/
     ├── auth/oidc-flow.ts             # stav OIDC toku (state/nonce/PKCE) v podepsané cookie
     ├── auth/provision.ts             # JIT provisioning SSO účtu + sync rolí ze skupin
     ├── password.ts                   # scrypt hash/verify hesel + burnPasswordTime (timing)
+    ├── validation.ts                 # sdílené validace (e-mail, jméno) + fullName()
     ├── session-user.ts               # getSessionUser(): identita + aplikační role z DB
     ├── require-role.ts               # druhá obranná linie: requireAppRole(min) v handlerech (SEC-2)
     ├── session-revocation.ts         # revokace session: per-user + globální kill-switch (SEC-4)
@@ -268,7 +270,8 @@ supabase/
     ├── 014_users_roles.sql           # tabulka users (identity + aplikační role, etapa A)
     ├── 015_must_change_password.sql  # users += must_change_password (etapa B)
     ├── 016_job_roles_audiences.sql   # pracovní role, štítky, viditelnost dokumentů (etapa C)
-    └── 017_job_role_external_group_unique.sql  # jedna skupina IdP = nejvýš jedna role (etapa D)
+    ├── 017_job_role_external_group_unique.sql  # jedna skupina IdP = nejvýš jedna role (etapa D)
+    └── 018_user_names.sql            # users: username → email, + first_name/last_name, −display_name
 scripts/
 ├── langfuse-eval.mjs                 # eval runner (Fáze 15) — experiment.run nad Langfuse datasety
 ├── langfuse-sync-metadata.mjs        # sync metadat items (expects_offer) do Langfuse — upsert podle id
@@ -379,15 +382,20 @@ leads (id uuid PK, name text, email text NULL, phone text NULL, note text NULL,
 --   'hodnoceni' = kontakt zanechaný po palci dolů; deduplikace je type-scoped
 -- poptávky se nemažou — uzavření jen nastaví status closed
 
-users (id uuid PK, username citext UNIQUE, display_name text NULL,
+users (id uuid PK, email citext UNIQUE, first_name text, last_name text,
        app_role text DEFAULT 'viewer' CHECK ('admin'/'editor'/'viewer'),
        auth_provider text DEFAULT 'local' CHECK ('local'/'oidc'),
        password_hash text NULL, external_issuer text NULL, external_subject text NULL,
        is_active boolean DEFAULT true, must_change_password boolean DEFAULT false,
        sessions_invalid_before timestamptz DEFAULT epoch,
        created_at timestamptz, updated_at timestamptz)
--- identity a aplikační role (migrace 014, etapa A plánu rolí); citext = jméno
--- se nesmí lišit velikostí písmen. CHECK: local účet musí mít heslo, oidc účet
+-- identity a aplikační role (migrace 014, etapa A plánu rolí)
+-- e-mail je zároveň PŘIHLAŠOVACÍ ÚDAJ (migrace 018 přejmenovala `username`);
+--   citext = adresa se nesmí lišit velikostí písmen. Formát se kontroluje jen
+--   v API, ne v DB — seedovaný účet `admin` adresou není a CHECK by migraci
+--   shodil; správce si ho opraví v /admin/users
+-- first_name/last_name NOT NULL (migrace 018); u účtů z doby před ní padlo
+--   jméno na e-mail a příjmení na pomlčku CHECK: local účet musí mít heslo, oidc účet
 -- external_subject; UNIQUE (external_issuer, external_subject) — identita SSO
 -- stojí na dvojici (vydavatel, subjekt), nikdy na e-mailu
 -- must_change_password (migrace 015, etapa B): iniciální heslo od admina;

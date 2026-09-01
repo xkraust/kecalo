@@ -117,21 +117,24 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => null);
-  if (
-    !body ||
-    typeof body.username !== "string" ||
-    typeof body.password !== "string" ||
-    !body.username ||
-    !body.password
-  ) {
+  // Klient posílá `email`; `username` zůstává přijímaný kvůli starším
+  // uloženým formulářům a skriptům (migrace 018 sloupec přejmenovala).
+  const login =
+    typeof body?.email === "string"
+      ? body.email
+      : typeof body?.username === "string"
+        ? body.username
+        : null;
+
+  if (!body || !login || typeof body.password !== "string" || !body.password) {
     return NextResponse.json(
-      { error: "Uživatelské jméno a heslo jsou povinné" },
+      { error: "E-mail a heslo jsou povinné" },
       { status: 400 }
     );
   }
 
-  const username = body.username.trim();
-  const userKey = username.toLowerCase();
+  const email = login.trim();
+  const userKey = email.toLowerCase();
   if (isRateLimited(failedByUser, userKey, MAX_ATTEMPTS_PER_USER)) {
     return NextResponse.json(
       { error: "Příliš mnoho pokusů o přihlášení. Zkuste to za 15 minut." },
@@ -144,16 +147,16 @@ export async function POST(request: NextRequest) {
   const fail = () => {
     recordFailure(ip, userKey);
     return NextResponse.json(
-      { error: "Nesprávné uživatelské jméno nebo heslo" },
+      { error: "Nesprávný e-mail nebo heslo" },
       { status: 401 }
     );
   };
 
-  // username je v DB citext → porovnání ignoruje velikost písmen.
+  // email je v DB citext → porovnání ignoruje velikost písmen.
   const { data: user, error } = await supabase
     .from("users")
     .select("id, password_hash, is_active, auth_provider")
-    .eq("username", username)
+    .eq("email", email)
     .maybeSingle<LoginRow>();
 
   if (error) {

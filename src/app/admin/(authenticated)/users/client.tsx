@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { AppRoleBadge } from "@/components/AppRoleBadge";
 import type { AdminUser, JobRoleWithUsage } from "@/lib/types";
 import type { AppRole } from "@/lib/session-user";
+import { fullName } from "@/lib/validation";
 
 const ROLE_OPTIONS: { value: AppRole; label: string; hint: string }[] = [
   { value: "viewer", label: "Čtenář", hint: "Vidí dokumenty a test retrievalu" },
@@ -34,7 +35,9 @@ export function UsersPageClient({
 }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
-  const [username, setUsername] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
   const [appRole, setAppRole] = useState<AppRole>("viewer");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -75,11 +78,16 @@ export function UsersPageClient({
     e.preventDefault();
     const data = await call("/api/users", {
       method: "POST",
-      body: JSON.stringify({ username, appRole }),
+      body: JSON.stringify({ firstName, lastName, email, appRole }),
     });
     if (data?.password) {
-      setIssued({ username, password: data.password as string });
-      setUsername("");
+      setIssued({
+        username: `${firstName} ${lastName} (${email})`,
+        password: data.password as string,
+      });
+      setFirstName("");
+      setLastName("");
+      setEmail("");
       setAppRole("viewer");
       setCreating(false);
     }
@@ -87,7 +95,7 @@ export function UsersPageClient({
 
   async function handleReset(user: AdminUser) {
     const ok = confirm(
-      `Vygenerovat nové heslo pro uživatele ${user.username}? Stávající přestane platit a uživatel bude odhlášen.`
+      `Vygenerovat nové heslo pro uživatele ${fullName(user.first_name, user.last_name, user.email)}? Stávající přestane platit a uživatel bude odhlášen.`
     );
     if (!ok) return;
     const data = await call(`/api/users/${user.id}`, {
@@ -95,7 +103,10 @@ export function UsersPageClient({
       body: JSON.stringify({ resetPassword: true }),
     });
     if (data?.password) {
-      setIssued({ username: user.username, password: data.password as string });
+      setIssued({
+        username: fullName(user.first_name, user.last_name, user.email),
+        password: data.password as string,
+      });
     }
   }
 
@@ -119,7 +130,8 @@ export function UsersPageClient({
 
   async function handleActive(user: AdminUser) {
     const verb = user.is_active ? "Deaktivovat" : "Aktivovat";
-    if (!confirm(`${verb} uživatele ${user.username}?`)) return;
+    if (!confirm(`${verb} uživatele ${fullName(user.first_name, user.last_name, user.email)}?`))
+      return;
     await call(`/api/users/${user.id}`, {
       method: "PATCH",
       body: JSON.stringify({ isActive: !user.is_active }),
@@ -166,11 +178,26 @@ export function UsersPageClient({
           onSubmit={handleCreate}
           className="space-y-4 rounded-lg border border-border bg-card p-4"
         >
+          <div className="flex gap-3">
+            <Input
+              placeholder="Jméno"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              autoFocus
+              required
+            />
+            <Input
+              placeholder="Příjmení"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              required
+            />
+          </div>
           <Input
-            placeholder="Uživatelské jméno"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoFocus
+            type="email"
+            placeholder="E-mail (slouží i jako přihlašovací jméno)"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
           />
           <div className="flex flex-wrap gap-2">
@@ -233,7 +260,7 @@ export function UsersPageClient({
                       u.is_active ? "" : "text-muted-foreground line-through"
                     }
                   >
-                    {u.username}
+                    {fullName(u.first_name, u.last_name, u.email)}
                   </span>
                   {u.id === currentUserId && (
                     <span className="ml-2 text-xs text-muted-foreground">
@@ -245,6 +272,12 @@ export function UsersPageClient({
                       čeká na změnu hesla
                     </span>
                   )}
+                  <p className="text-xs text-muted-foreground">{u.email}</p>
+                  {u.auth_provider === "oidc" && (
+                    <p className="text-xs text-muted-foreground">
+                      účet z firemního přihlášení
+                    </p>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <select
@@ -252,7 +285,7 @@ export function UsersPageClient({
                     disabled={busy}
                     onChange={(e) => handleRole(u, e.target.value as AppRole)}
                     className="rounded-md border border-border bg-transparent px-2 py-1 text-sm"
-                    aria-label={`Role uživatele ${u.username}`}
+                    aria-label={`Role uživatele ${fullName(u.first_name, u.last_name, u.email)}`}
                   >
                     {ROLE_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>

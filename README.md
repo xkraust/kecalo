@@ -59,7 +59,7 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · shadcn/u
 
 2. **Nastavit env proměnné:** zkopírovat `.env.example` na `.env.local` a vyplnit hodnoty (viz tabulka níže).
 
-3. **Aplikovat DB migrace** (`supabase/migrations/001`–`017`):
+3. **Aplikovat DB migrace** (`supabase/migrations/001`–`018`):
    ```bash
    supabase db push --db-url "$DATABASE_URL"
    ```

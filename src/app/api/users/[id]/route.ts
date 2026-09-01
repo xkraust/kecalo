@@ -7,6 +7,11 @@ import { requireAppRole } from "@/lib/require-role";
 import { generatePassword, hashPassword } from "@/lib/password";
 import { revokeUserSessions } from "@/lib/session-revocation";
 import type { AppRole } from "@/lib/session-user";
+import {
+  isValidEmail,
+  isValidPersonName,
+  MAX_NAME_LENGTH,
+} from "@/lib/validation";
 
 const APP_ROLES: AppRole[] = ["admin", "editor", "viewer"];
 
@@ -57,12 +62,16 @@ export async function PATCH(
     return NextResponse.json({ error: "Neplatný vstup" }, { status: 400 });
   }
 
-  const { appRole, isActive, resetPassword, jobRoles } = body as {
-    appRole?: unknown;
-    isActive?: unknown;
-    resetPassword?: unknown;
-    jobRoles?: unknown;
-  };
+  const { appRole, isActive, resetPassword, jobRoles, email, firstName, lastName } =
+    body as {
+      appRole?: unknown;
+      isActive?: unknown;
+      resetPassword?: unknown;
+      jobRoles?: unknown;
+      email?: unknown;
+      firstName?: unknown;
+      lastName?: unknown;
+    };
 
   if (appRole !== undefined && (typeof appRole !== "string" || !APP_ROLES.includes(appRole as AppRole))) {
     return NextResponse.json({ error: "Neplatná aplikační role." }, { status: 400 });
@@ -119,6 +128,48 @@ export async function PATCH(
   if (appRole !== undefined) update.app_role = nextRole;
   if (isActive !== undefined) update.is_active = nextActive;
 
+  // Osobní údaje SSO účtu spravuje IdP — každé přihlášení je přepíše podle
+  // claims, takže ruční změna by se tiše ztratila (stejně jako u rolí).
+  const identityFields = [email, firstName, lastName].some((v) => v !== undefined);
+  if (identityFields) {
+    if (target.auth_provider === "oidc") {
+      return NextResponse.json(
+        {
+          error:
+            "Jméno a e-mail SSO účtu se spravují v identity provideru.",
+        },
+        { status: 409 }
+      );
+    }
+    if (firstName !== undefined) {
+      if (typeof firstName !== "string" || !isValidPersonName(firstName)) {
+        return NextResponse.json(
+          { error: `Jméno je povinné (max. ${MAX_NAME_LENGTH} znaků).` },
+          { status: 400 }
+        );
+      }
+      update.first_name = firstName.trim();
+    }
+    if (lastName !== undefined) {
+      if (typeof lastName !== "string" || !isValidPersonName(lastName)) {
+        return NextResponse.json(
+          { error: `Příjmení je povinné (max. ${MAX_NAME_LENGTH} znaků).` },
+          { status: 400 }
+        );
+      }
+      update.last_name = lastName.trim();
+    }
+    if (email !== undefined) {
+      if (typeof email !== "string" || !isValidEmail(email.trim())) {
+        return NextResponse.json(
+          { error: "Zadejte platnou e-mailovou adresu." },
+          { status: 400 }
+        );
+      }
+      update.email = email.trim();
+    }
+  }
+
   if (resetPassword === true) {
     // SSO účet heslo nemá a mít nesmí (invariant 8) — reset by mu vytvořil
     // cestu okolo IdP, tedy okolo MFA i deaktivace po odchodu ze zaměstnání.
@@ -135,6 +186,12 @@ export async function PATCH(
 
   const { error: updErr } = await supabase.from("users").update(update).eq("id", id);
   if (updErr) {
+    if (updErr.code === "23505") {
+      return NextResponse.json(
+        { error: "Uživatel s tímto e-mailem už existuje." },
+        { status: 409 }
+      );
+    }
     console.error("Úprava uživatele selhala:", updErr);
     return NextResponse.json({ error: "Uložení se nezdařilo." }, { status: 500 });
   }
@@ -189,11 +246,14 @@ export async function PATCH(
   // Změna role, deaktivace, reset hesla i změna pracovních rolí musí ukončit
   // běžící session dotčeného (invariant 10) — jinak by dojezdila se starými
   // oprávněními.
+  // Změna e-mailu mění přihlašovací údaj, takže i ta ukončí běžící session —
+  // uživatel se musí přihlásit novou adresou.
   if (
     appRole !== undefined ||
     isActive !== undefined ||
     newPassword ||
-    jobRoles !== undefined
+    jobRoles !== undefined ||
+    email !== undefined
   ) {
     await revokeUserSessions(id);
   }

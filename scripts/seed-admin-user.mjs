@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Založí prvního admin uživatele z ADMIN_USERNAME / ADMIN_PASSWORD
+ * Založí prvního admin uživatele z ADMIN_EMAIL / ADMIN_PASSWORD
  * (etapa A, docs/plans/roles_and_document_access_plan.md).
  *
  * Migrace nemůže hashovat heslo v SQL, proto samostatný skript. Lazy bootstrap
@@ -14,10 +14,11 @@
  * Použití:
  *   node scripts/seed-admin-user.mjs            # založí, pokud neexistuje
  *   node scripts/seed-admin-user.mjs --force    # přepíše heslo existujícího účtu
- *   node scripts/seed-admin-user.mjs --username=jan --role=editor
+ *   node scripts/seed-admin-user.mjs --email=jan@firma.cz --role=editor
  *
  * Env (z .env.local / .env): NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
- * ADMIN_USERNAME, ADMIN_PASSWORD.
+ * ADMIN_EMAIL (nebo starší ADMIN_USERNAME), ADMIN_PASSWORD,
+ * volitelně ADMIN_FIRST_NAME a ADMIN_LAST_NAME.
  */
 
 import { readFileSync } from "node:fs";
@@ -95,11 +96,21 @@ if (!supabaseUrl || !serviceKey) {
   fail("Chybí NEXT_PUBLIC_SUPABASE_URL nebo SUPABASE_SERVICE_ROLE_KEY.");
 }
 
-const username = (args.username || process.env.ADMIN_USERNAME || "").trim();
+// ADMIN_USERNAME zůstává fallbackem: migrace 018 sloupec přejmenovala na
+// `email`, ale starší .env soubory proměnnou pořád mají.
+const email = (
+  args.email ||
+  process.env.ADMIN_EMAIL ||
+  args.username ||
+  process.env.ADMIN_USERNAME ||
+  ""
+).trim();
+const firstName = (args.firstName || process.env.ADMIN_FIRST_NAME || "Správce").trim();
+const lastName = (args.lastName || process.env.ADMIN_LAST_NAME || "Kecala").trim();
 const password = process.env.ADMIN_PASSWORD || "";
 const role = args.role || "admin";
 
-if (!username) fail("Chybí ADMIN_USERNAME (nebo --username=).");
+if (!email) fail("Chybí ADMIN_EMAIL (nebo --email=).");
 if (!password) fail("Chybí ADMIN_PASSWORD.");
 if (password.length < 12) {
   fail("ADMIN_PASSWORD má méně než 12 znaků — zvolte delší heslo.");
@@ -114,14 +125,14 @@ const supabase = createClient(supabaseUrl, serviceKey, {
 
 const { data: existing, error: selectErr } = await supabase
   .from("users")
-  .select("id, username, app_role")
-  .eq("username", username)
+  .select("id, email, app_role")
+  .eq("email", email)
   .maybeSingle();
 
 if (selectErr) {
   fail(
     `Dotaz na tabulku users selhal: ${selectErr.message}\n` +
-      "Je aplikovaná migrace 014_users_roles.sql? (supabase db push)"
+      "Jsou aplikované migrace 014 a 018? (supabase db push)"
   );
 }
 
@@ -130,7 +141,7 @@ const passwordHash = await hashPassword(password);
 if (existing) {
   if (!args.force) {
     console.log(
-      `Uživatel "${existing.username}" už existuje (role ${existing.app_role}) — nic se nemění.\n` +
+      `Uživatel "${existing.email}" už existuje (role ${existing.app_role}) — nic se nemění.\n` +
         "Heslo přepíšete pomocí --force."
     );
     process.exit(0);
@@ -146,13 +157,14 @@ if (existing) {
     })
     .eq("id", existing.id);
   if (error) fail(`Aktualizace hesla selhala: ${error.message}`);
-  console.log(`Heslo uživatele "${username}" přepsáno, session odhlášeny.`);
+  console.log(`Heslo uživatele "${email}" přepsáno, session odhlášeny.`);
   process.exit(0);
 }
 
 const { error: insertErr } = await supabase.from("users").insert({
-  username,
-  display_name: username,
+  email,
+  first_name: firstName,
+  last_name: lastName,
   app_role: role,
   auth_provider: "local",
   password_hash: passwordHash,
@@ -160,4 +172,4 @@ const { error: insertErr } = await supabase.from("users").insert({
 
 if (insertErr) fail(`Založení uživatele selhalo: ${insertErr.message}`);
 
-console.log(`Uživatel "${username}" založen s rolí ${role}.`);
+console.log(`Uživatel "${email}" (${firstName} ${lastName}) založen s rolí ${role}.`);

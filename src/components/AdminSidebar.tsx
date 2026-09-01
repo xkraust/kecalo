@@ -61,10 +61,10 @@ const ROLE_RANK: Record<AppRole, number> = { viewer: 1, editor: 2, admin: 3 };
 
 export function AdminSidebar({
   appRole,
-  username,
+  displayName,
 }: {
   appRole: AppRole;
-  username: string;
+  displayName: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -180,7 +180,7 @@ export function AdminSidebar({
 
       <div className="px-3 pb-4">
         <div className="truncate px-3 pb-2 text-xs text-sidebar-foreground/70">
-          {username}
+          {displayName}
         </div>
         <button
           onClick={handleLogout}

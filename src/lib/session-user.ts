@@ -24,8 +24,10 @@ export function roleAtLeast(role: AppRole, min: AppRole): boolean {
 
 export interface SessionUser {
   id: string;
-  username: string;
-  displayName: string | null;
+  /** E-mail je zároveň přihlašovací údaj (migrace 018). */
+  email: string;
+  firstName: string;
+  lastName: string;
   appRole: AppRole;
   /** Iniciální heslo od admina — dokud je true, uživatel smí jen změnit heslo. */
   mustChangePassword: boolean;
@@ -33,8 +35,9 @@ export interface SessionUser {
 
 interface UserRow {
   id: string;
-  username: string;
-  display_name: string | null;
+  email: string;
+  first_name: string;
+  last_name: string;
   app_role: AppRole;
   is_active: boolean;
   must_change_password: boolean;
@@ -59,7 +62,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const { data, error } = await supabase
     .from("users")
     .select(
-      "id, username, display_name, app_role, is_active, must_change_password, sessions_invalid_before"
+      "id, email, first_name, last_name, app_role, is_active, must_change_password, sessions_invalid_before"
     )
     .eq("id", session.userId)
     .maybeSingle<UserRow>();
@@ -80,8 +83,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   return {
     id: data.id,
-    username: data.username,
-    displayName: data.display_name,
+    email: data.email,
+    firstName: data.first_name,
+    lastName: data.last_name,
     appRole: data.app_role,
     mustChangePassword: data.must_change_password,
   };

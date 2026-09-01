@@ -4,6 +4,7 @@
 // vznikl nekonečný redirect.
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session-user";
+import { fullName } from "@/lib/validation";
 import { ChangePasswordForm } from "./client";
 
 export default async function ChangePasswordPage() {
@@ -12,7 +13,7 @@ export default async function ChangePasswordPage() {
 
   return (
     <ChangePasswordForm
-      username={user.username}
+      displayName={fullName(user.firstName, user.lastName, user.email)}
       forced={user.mustChangePassword}
     />
   );

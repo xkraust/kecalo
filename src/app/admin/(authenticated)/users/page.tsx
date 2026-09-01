@@ -14,7 +14,7 @@ export default async function UsersPage() {
     supabase
       .from("users")
       .select(
-        "id, username, display_name, app_role, auth_provider, is_active, must_change_password, created_at"
+        "id, email, first_name, last_name, app_role, auth_provider, is_active, must_change_password, created_at"
       )
       .order("created_at", { ascending: true }),
     supabase

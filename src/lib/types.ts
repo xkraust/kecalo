@@ -45,8 +45,10 @@ export interface Lead {
 /** Uživatel administrace (etapa B plánu rolí). */
 export interface AdminUser {
   id: string;
-  username: string;
-  display_name: string | null;
+  /** E-mail je zároveň přihlašovací údaj (migrace 018). */
+  email: string;
+  first_name: string;
+  last_name: string;
   app_role: "admin" | "editor" | "viewer";
   auth_provider: "local" | "oidc";
   is_active: boolean;

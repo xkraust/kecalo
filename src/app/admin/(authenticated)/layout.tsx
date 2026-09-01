@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session-user";
+import { fullName } from "@/lib/validation";
 import { AdminSidebar } from "@/components/AdminSidebar";
 
 export default async function AdminLayout({
@@ -19,7 +20,10 @@ export default async function AdminLayout({
 
   return (
     <div className="flex min-h-screen">
-      <AdminSidebar appRole={user.appRole} username={user.username} />
+      <AdminSidebar
+        appRole={user.appRole}
+        displayName={fullName(user.firstName, user.lastName, user.email)}
+      />
       <main className="flex-1 min-w-0 p-8">{children}</main>
     </div>
   );

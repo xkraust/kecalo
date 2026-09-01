@@ -10,10 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 const MIN_LENGTH = 12;
 
 export function ChangePasswordForm({
-  username,
+  displayName,
   forced,
 }: {
-  username: string;
+  displayName: string;
   forced: boolean;
 }) {
   const router = useRouter();
@@ -66,7 +66,7 @@ export function ChangePasswordForm({
             K
           </div>
           <CardTitle className="text-xl">Změna hesla</CardTitle>
-          <p className="text-sm text-muted-foreground">{username}</p>
+          <p className="text-sm text-muted-foreground">{displayName}</p>
         </CardHeader>
         <CardContent>
           {forced && (

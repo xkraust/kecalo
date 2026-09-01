@@ -80,7 +80,8 @@ export interface IdpClaims {
   issuer: string;
   subject: string;
   email: string | null;
-  name: string | null;
+  firstName: string | null;
+  lastName: string | null;
   groups: string[];
 }
 
@@ -104,18 +105,44 @@ export function extractClaims(
 
   const email =
     typeof claims.email === "string" && claims.email ? claims.email : null;
-  const name =
-    typeof claims.name === "string" && claims.name
-      ? claims.name
-      : typeof claims.preferred_username === "string"
-        ? claims.preferred_username
-        : null;
+
+  // Standardní OIDC claims pro rozpad jména; ne každý IdP je posílá, proto
+  // fallback rozdělí `name` podle PRVNÍ mezery: „Jan Novák" → Jan / Novák,
+  // „Jan van Beek" → Jan / van Beek. U víceslovných příjmení je to správně,
+  // u dvou křestních jmen ne — proto jsou v adminu obě pole editovatelná.
+  const given =
+    typeof claims.given_name === "string" && claims.given_name
+      ? claims.given_name
+      : null;
+  const family =
+    typeof claims.family_name === "string" && claims.family_name
+      ? claims.family_name
+      : null;
+
+  let firstName = given;
+  let lastName = family;
+  if (!firstName || !lastName) {
+    const full =
+      typeof claims.name === "string" && claims.name
+        ? claims.name.trim()
+        : typeof claims.preferred_username === "string"
+          ? claims.preferred_username.trim()
+          : "";
+    const space = full.indexOf(" ");
+    if (space > 0) {
+      firstName = firstName ?? full.slice(0, space);
+      lastName = lastName ?? full.slice(space + 1);
+    } else if (full) {
+      firstName = firstName ?? full;
+    }
+  }
 
   return {
     issuer: String(claims.iss),
     subject: String(claims.sub),
     email,
-    name,
+    firstName,
+    lastName,
     groups,
   };
 }

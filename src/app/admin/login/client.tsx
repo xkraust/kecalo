@@ -29,7 +29,7 @@ export function LoginForm({
   ssoError?: string;
 }) {
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(
@@ -46,7 +46,7 @@ export function LoginForm({
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (res.ok) {
@@ -74,12 +74,12 @@ export function LoginForm({
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <Input
-              type="text"
-              placeholder="Uživatelské jméno"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email"
+              placeholder="E-mail"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               autoFocus
-              autoComplete="username"
+              autoComplete="email"
             />
             <div className="relative">
               <Input
@@ -104,7 +104,7 @@ export function LoginForm({
             )}
             <Button
               type="submit"
-              disabled={loading || !username || !password}
+              disabled={loading || !email || !password}
             >
               {loading ? "Přihlašování…" : "Přihlásit se"}
             </Button>

@@ -15,8 +15,9 @@ export type ProvisionResult =
 
 interface UserRow {
   id: string;
-  username: string;
-  display_name: string | null;
+  email: string;
+  first_name: string;
+  last_name: string;
   is_active: boolean;
   auth_provider: string;
 }
@@ -95,7 +96,7 @@ export async function provisionSsoUser(
   // Párování výhradně přes (iss, sub) — viz komentář v oidc.ts.
   const { data: existing, error: findErr } = await supabase
     .from("users")
-    .select("id, username, display_name, is_active, auth_provider")
+    .select("id, email, first_name, last_name, is_active, auth_provider")
     .eq("external_issuer", claims.issuer)
     .eq("external_subject", claims.subject)
     .maybeSingle<UserRow>();
@@ -106,20 +107,29 @@ export async function provisionSsoUser(
   }
 
   const desiredRoles = await rolesForGroups(claims.groups);
-  // `username` je jen zobrazované jméno účtu; identita stojí na (iss, sub).
-  const username = claims.email ?? `${claims.subject}@${new URL(claims.issuer).host}`;
+  // E-mail je přihlašovací údaj, ale identita SSO účtu stojí na (iss, sub) —
+  // proto se změna adresy propíše a účet zůstane tentýž. Bez e-mailu v claims
+  // sestavíme náhradní adresu, aby NOT NULL sloupec měl hodnotu.
+  const email = claims.email ?? `${claims.subject}@${new URL(claims.issuer).host}`;
+  // IdP nemusí jméno poslat vůbec; NOT NULL sloupce potřebují hodnotu.
+  const firstName = claims.firstName ?? email;
+  const lastName = claims.lastName ?? "—";
 
   if (existing) {
     if (!existing.is_active) {
       return { ok: false, error: "Účet je deaktivovaný. Obraťte se na správce." };
     }
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (claims.name && claims.name !== existing.display_name) {
-      patch.display_name = claims.name;
+    // IdP je zdroj pravdy i pro osobní údaje — v adminu jsou proto read-only.
+    if (claims.firstName && claims.firstName !== existing.first_name) {
+      patch.first_name = claims.firstName;
+    }
+    if (claims.lastName && claims.lastName !== existing.last_name) {
+      patch.last_name = claims.lastName;
     }
     // Změna e-mailu v IdP se propíše; kolize s cizím účtem se ignoruje
     // (unique violation), aby přejmenování nezablokovalo přihlášení.
-    if (username !== existing.username) patch.username = username;
+    if (email !== existing.email) patch.email = email;
 
     const { error: updErr } = await supabase
       .from("users")
@@ -140,8 +150,9 @@ export async function provisionSsoUser(
   const { data: created, error: insErr } = await supabase
     .from("users")
     .insert({
-      username,
-      display_name: claims.name ?? username,
+      email,
+      first_name: firstName,
+      last_name: lastName,
       // app_role se nenastavuje — platí DEFAULT 'viewer' ze schématu.
       auth_provider: "oidc",
       external_issuer: claims.issuer,
@@ -156,7 +167,7 @@ export async function provisionSsoUser(
       // srozumitelná chyba, protože by správce nepoznal, co se stalo.
       return {
         ok: false,
-        error: `Uživatelské jméno „${username}" už v Kecalu existuje jako lokální účet. Požádejte správce o jeho přejmenování.`,
+        error: `E-mail „${email}" už v Kecalu patří lokálnímu účtu. Požádejte správce o jeho změnu.`,
       };
     }
     console.error("Založení SSO uživatele selhalo:", insErr);

@@ -40,6 +40,8 @@ const USER = {
   sub: args.sub ?? "user-1",
   email: args.email ?? "jan.novak@firma.cz",
   name: args.name ?? "Jan Novák",
+  givenName: args.givenName ?? "Jan",
+  familyName: args.familyName ?? "Novák",
   groups: String(args.groups ?? "Obchod").split(",").map((g) => g.trim()).filter(Boolean),
 };
 
@@ -168,6 +170,8 @@ const server = createServer(async (req, res) => {
       email: USER.email,
       email_verified: true,
       name: USER.name,
+      given_name: USER.givenName,
+      family_name: USER.familyName,
       groups: USER.groups,
     });
 
