@@ -28,6 +28,11 @@ Návštěvník klade otázky česky k pojistným produktům; bot odpovídá výh
 - Runtime parametry RAG (top-k, práh podobnosti, teplota, chunkování) — změny bez redeploye
 - Editace system promptu chatu a promptu shrnutí poptávek za běhu
 
+**Přihlášení firemním účtem (SSO)**
+
+Volitelné — zapíná se proměnnými `OIDC_*`. Postup nasazení včetně registrace
+aplikace u identity providera a mapování skupin na role: [docs/sso-setup.md](docs/sso-setup.md).
+
 **Testování SSO bez firemního tenantu**
 
 ```bash
