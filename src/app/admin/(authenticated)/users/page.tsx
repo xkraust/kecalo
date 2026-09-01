@@ -17,7 +17,10 @@ export default async function UsersPage() {
         "id, username, display_name, app_role, auth_provider, is_active, must_change_password, created_at"
       )
       .order("created_at", { ascending: true }),
-    supabase.from("job_roles").select("code, label, description, created_at").order("label"),
+    supabase
+      .from("job_roles")
+      .select("code, label, description, external_group, created_at")
+      .order("label"),
     supabase.from("user_job_roles").select("user_id, job_role_code"),
     // Odvozené štítky i s rolí, ze které plynou — u M:N vazby jinak není
     // poznat, proč někdo na co vidí.
@@ -28,6 +31,7 @@ export default async function UsersPage() {
     code: r.code,
     label: r.label,
     description: r.description,
+    external_group: r.external_group,
     created_at: r.created_at,
     audiences: [],
     member_count: 0,

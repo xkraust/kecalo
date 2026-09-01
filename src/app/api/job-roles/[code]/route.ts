@@ -36,10 +36,11 @@ export async function PATCH(
     return NextResponse.json({ error: "Neplatný vstup" }, { status: 400 });
   }
 
-  const { label, description, audiences } = body as {
+  const { label, description, audiences, externalGroup } = body as {
     label?: unknown;
     description?: unknown;
     audiences?: unknown;
+    externalGroup?: unknown;
   };
 
   const { data: role, error: findErr } = await supabase
@@ -55,8 +56,24 @@ export async function PATCH(
     return NextResponse.json({ error: "Pracovní role neexistuje." }, { status: 404 });
   }
 
-  if (label !== undefined || description !== undefined) {
+  if (label !== undefined || description !== undefined || externalGroup !== undefined) {
     const update: Record<string, unknown> = {};
+    if (externalGroup !== undefined) {
+      if (externalGroup !== null && typeof externalGroup !== "string") {
+        return NextResponse.json(
+          { error: "Neplatná skupina v IdP." },
+          { status: 400 }
+        );
+      }
+      const group = (externalGroup as string | null)?.trim() || null;
+      if (group && group.length > 200) {
+        return NextResponse.json(
+          { error: "Název skupiny je delší než 200 znaků." },
+          { status: 400 }
+        );
+      }
+      update.external_group = group;
+    }
     if (label !== undefined) {
       if (typeof label !== "string" || label.trim().length < 2) {
         return NextResponse.json(
@@ -74,6 +91,12 @@ export async function PATCH(
     }
     const { error } = await supabase.from("job_roles").update(update).eq("code", code);
     if (error) {
+      if (error.code === "23505") {
+        return NextResponse.json(
+          { error: "Tato skupina už je namapovaná na jinou pracovní roli." },
+          { status: 409 }
+        );
+      }
       console.error("Úprava pracovní role selhala:", error);
       return NextResponse.json({ error: "Uložení se nezdařilo." }, { status: 500 });
     }

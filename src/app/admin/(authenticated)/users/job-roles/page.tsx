@@ -8,7 +8,7 @@ export default async function JobRolesPage() {
   const [roles, audiences, links, members] = await Promise.all([
     supabase
       .from("job_roles")
-      .select("code, label, description, created_at")
+      .select("code, label, description, external_group, created_at")
       .order("label"),
     supabase.from("audiences").select("code, label, created_at").order("label"),
     supabase.from("job_role_audiences").select("job_role_code, audience_code"),
@@ -19,6 +19,7 @@ export default async function JobRolesPage() {
     code: r.code,
     label: r.label,
     description: r.description,
+    external_group: r.external_group,
     created_at: r.created_at,
     audiences: (links.data ?? [])
       .filter((l) => l.job_role_code === r.code)

@@ -366,6 +366,7 @@ Schéma z etap A a C ji uneslo beze změny — **etapa D nepřidala žádnou mig
 - [x] Read-only zobrazení pracovních rolí u SSO uživatelů v admin UI + 409 při pokusu o ruční změnu přes API
 - [x] Tlačítko „Přihlásit přes firemní účet" na loginu (login rozdělen na server `page.tsx` + klient `client.tsx`)
 - [x] `scripts/mock-idp.mjs` — minimální OIDC provider pro E2E test bez firemního tenantu
+- [x] Pole **Skupina v IdP** ve formuláři pracovní role (`job_roles.external_group`) + migrace `017` s partial unique indexem — bez UI by mapování vyžadovalo zásah do produkční DB u každé role
 
 **Rozhodnutí, která si vyžádala implementace:**
 
@@ -388,6 +389,11 @@ pravdy:** po odebrání skupiny a novém přihlášení uživatel roli ztratil a
 session dostala 401 (invariant 10). SSO účet se nepřihlásí heslem (invariant 8);
 ruční změna jeho pracovních rolí → 409; callback bez stavové cookie →
 přesměrování na login s chybou, ne vydání session.
+
+**Doplněk (1. 9. 2026):** `external_group` se nastavuje v administraci, ne přes SQL.
+Migrace `017` přidala partial unique index — dvě role se stejnou skupinou by
+nositeli daly sjednocení obou sad štítků, což je tichá chyba admina, ne útok,
+ale uživatel by viděl víc, než měl.
 
 **Zbývá k produkčnímu nasazení:** registrace aplikace u reálného IdP (tenant ID,
 client ID/secret, redirect URI `<origin>/api/auth/oidc/callback`) a u Entra ID

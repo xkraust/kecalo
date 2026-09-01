@@ -68,6 +68,8 @@ export interface JobRoleWithUsage {
   code: string;
   label: string;
   description: string | null;
+  /** Název skupiny v IdP, která tuto roli přiděluje při SSO (etapa D). */
+  external_group: string | null;
   created_at: string;
   audiences: string[];
   member_count: number;

@@ -19,6 +19,9 @@ export function JobRolesClient({
   const [creating, setCreating] = useState(false);
   const [label, setLabel] = useState("");
   const [description, setDescription] = useState("");
+  const [externalGroup, setExternalGroup] = useState("");
+  // Editace mapování u existující role: kód role → rozepsaná hodnota.
+  const [groupDraft, setGroupDraft] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -49,11 +52,12 @@ export function JobRolesClient({
     e.preventDefault();
     const ok = await call("/api/job-roles", {
       method: "POST",
-      body: JSON.stringify({ label, description }),
+      body: JSON.stringify({ label, description, externalGroup }),
     });
     if (ok) {
       setLabel("");
       setDescription("");
+      setExternalGroup("");
       setCreating(false);
     }
   }
@@ -66,6 +70,21 @@ export function JobRolesClient({
       method: "PATCH",
       body: JSON.stringify({ audiences: next }),
     });
+  }
+
+  async function saveGroup(role: JobRoleWithUsage) {
+    const value = groupDraft[role.code] ?? "";
+    const ok = await call(`/api/job-roles/${role.code}`, {
+      method: "PATCH",
+      body: JSON.stringify({ externalGroup: value.trim() || null }),
+    });
+    if (ok) {
+      setGroupDraft((prev) => {
+        const next = { ...prev };
+        delete next[role.code];
+        return next;
+      });
+    }
   }
 
   async function handleDelete(role: JobRoleWithUsage) {
@@ -108,6 +127,11 @@ export function JobRolesClient({
             placeholder="Popis (nepovinný)"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+          />
+          <Input
+            placeholder="Skupina v IdP (nepovinné, např. Obchod)"
+            value={externalGroup}
+            onChange={(e) => setExternalGroup(e.target.value)}
           />
           <p className="text-xs text-muted-foreground">
             Kód se odvodí z názvu:{" "}
@@ -167,6 +191,37 @@ export function JobRolesClient({
                 >
                   <Trash2 size={14} /> Smazat
                 </Button>
+              </div>
+
+              <div className="mt-4">
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Skupina v IdP — tuto roli dostane při SSO přihlášení každý,
+                  kdo je v uvedené skupině. Prázdné = role se přiděluje jen
+                  ručně.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={groupDraft[role.code] ?? role.external_group ?? ""}
+                    onChange={(e) =>
+                      setGroupDraft((prev) => ({
+                        ...prev,
+                        [role.code]: e.target.value,
+                      }))
+                    }
+                    placeholder="např. Obchod"
+                    className="h-8 max-w-xs"
+                  />
+                  {groupDraft[role.code] !== undefined &&
+                    groupDraft[role.code] !== (role.external_group ?? "") && (
+                      <Button
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => saveGroup(role)}
+                      >
+                        Uložit
+                      </Button>
+                    )}
+                </div>
               </div>
 
               {audiences.length > 0 && (

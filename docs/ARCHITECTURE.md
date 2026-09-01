@@ -83,7 +83,7 @@ Chyby se ukládají do `documents.error_message` a dokument končí ve stavu `er
 
 ## 4. Datový model
 
-Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`016`), nikdy ručně v SQL editoru. Aplikace přistupuje service-role klíčem (obchází RLS); RLS je na tabulkách zapnuté bez policy pro anon — přímý anonymní přístup je tak zablokovaný.
+Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`017`), nikdy ručně v SQL editoru. Aplikace přistupuje service-role klíčem (obchází RLS); RLS je na tabulkách zapnuté bez policy pro anon — přímý anonymní přístup je tak zablokovaný.
 
 | Tabulka | Účel |
 |---|---|

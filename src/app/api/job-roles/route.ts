@@ -15,7 +15,7 @@ export async function GET() {
   const [roles, audienceLinks, userLinks] = await Promise.all([
     supabase
       .from("job_roles")
-      .select("code, label, description, created_at")
+      .select("code, label, description, external_group, created_at")
       .order("label"),
     supabase.from("job_role_audiences").select("job_role_code, audience_code"),
     supabase.from("user_job_roles").select("job_role_code"),
@@ -59,6 +59,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const label = (body as { label?: unknown } | null)?.label;
   const description = (body as { description?: unknown } | null)?.description;
+  const externalGroup = (body as { externalGroup?: unknown } | null)?.externalGroup;
 
   if (typeof label !== "string" || label.trim().length < 2) {
     return NextResponse.json(
@@ -76,6 +77,16 @@ export async function POST(request: Request) {
   if (description !== undefined && typeof description !== "string") {
     return NextResponse.json({ error: "Neplatný popis." }, { status: 400 });
   }
+  if (externalGroup !== undefined && externalGroup !== null && typeof externalGroup !== "string") {
+    return NextResponse.json({ error: "Neplatná skupina v IdP." }, { status: 400 });
+  }
+  const group = (externalGroup as string | undefined)?.trim() || null;
+  if (group && group.length > 200) {
+    return NextResponse.json(
+      { error: "Název skupiny je delší než 200 znaků." },
+      { status: 400 }
+    );
+  }
 
   const code = slugify(name);
   if (!isValidCode(code)) {
@@ -91,16 +102,18 @@ export async function POST(request: Request) {
       code,
       label: name,
       description: (description as string | undefined)?.trim() || null,
+      external_group: group,
     })
-    .select("code, label, description, created_at")
+    .select("code, label, description, external_group, created_at")
     .single();
 
   if (error) {
     if (error.code === "23505") {
-      return NextResponse.json(
-        { error: `Kód „${code}" už existuje — zvolte jiný název.` },
-        { status: 409 }
-      );
+      // Rozlišit kolizi kódu od kolize skupiny — jinak admin netuší, co opravit.
+      const msg = error.message?.includes("external_group")
+        ? `Skupina „${group}" už je namapovaná na jinou pracovní roli.`
+        : `Kód „${code}" už existuje — zvolte jiný název.`;
+      return NextResponse.json({ error: msg }, { status: 409 });
     }
     console.error("Založení pracovní role selhalo:", error);
     return NextResponse.json(
