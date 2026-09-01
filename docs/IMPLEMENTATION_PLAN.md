@@ -909,103 +909,25 @@ ze zdrojáku. Zbytek dluhu viz [`plans/LANGFUSE_PLAN.md`](plans/LANGFUSE_PLAN.md
 | `POST` | `/api/auth/login` | Ověření údajů, nastavení session cookie |
 | `POST` | `/api/auth/logout` | Smazání session cookie |
 
-> **Autorizace:** admin routy (`/api/documents*`, `/api/leads*` mimo `POST`, `/api/settings`, `/api/retrieval-test`) chrání proxy vrstva (`src/proxy.ts`) i druhá obranná linie `requireAdmin()` přímo v handleru (SEC-2). Veřejné: `/api/chat`, `/api/feedback`, `POST /api/leads`, `/api/auth/*`.
+> **Autorizace:** tabulka výše zachycuje stav k Fázi 17. Chráněné routy hlídá proxy vrstva (`src/proxy.ts`) i druhá obranná linie `requireAppRole(min)` přímo v handleru (SEC-2, dřív `requireAdmin()`). Veřejné: `/api/chat`, `/api/feedback`, `POST /api/leads`, `/api/auth/*`.
+>
+> Etapy A–D plánu rolí přidaly `/api/users*`, `/api/job-roles*`, `/api/audiences*`, `PATCH /api/documents/[id]`, `/api/auth/change-password` a `/api/auth/oidc/*` a rozdělily oprávnění na `viewer`/`editor`/`admin`. **Úplný a udržovaný seznam rout včetně minimálních rolí je v [ARCHITECTURE.md §5](ARCHITECTURE.md#5-api)** — zde se záměrně needituje, aby nevznikla třetí rozcházející se kopie.
 
-## Adresářová struktura (aktuální stav)
+## Adresářová struktura
 
-```
-kecalo/
-├── src/
-│   ├── proxy.ts                      # ochrana /admin + admin API rout (dřív middleware.ts)
-│   ├── instrumentation.ts            # registrace OTel provideru + Langfuse processoru
-│   ├── app/
-│   │   ├── page.tsx                  # Chat UI (vč. karty LeadForm u produktových dotazů)
-│   │   ├── admin/
-│   │   │   ├── login/page.tsx        # Admin login (mimo route group)
-│   │   │   └── (authenticated)/     # route group chráněná proxy vrstvou
-│   │   │       ├── layout.tsx        # Sidebar layout (Console styl)
-│   │   │       ├── page.tsx          # Admin dashboard
-│   │   │       ├── documents/page.tsx    # server část
-│   │   │       ├── documents/client.tsx  # klientská část (upload + tabulka)
-│   │   │       ├── leads/page.tsx        # server část (načtení poptávek)
-│   │   │       ├── leads/client.tsx      # klient (tabulka + Převzít/Uzavřít)
-│   │   │       ├── retrieval-test/page.tsx
-│   │   │       ├── parameters/page.tsx    # server část (getSettings)
-│   │   │       └── parameters/client.tsx  # klient (slidery + uložení)
-│   │   └── api/
-│   │       ├── chat/route.ts
-│   │       ├── documents/route.ts
-│   │       ├── documents/[id]/route.ts
-│   │       ├── documents/[id]/reprocess/route.ts  # reindexace bez re-uploadu
-│   │       ├── leads/route.ts        # POST poptávka (veřejné) + shrnutí (Mistral) + dedup
-│   │       ├── leads/[id]/route.ts   # PATCH stav poptávky (admin)
-│   │       ├── retrieval-test/route.ts
-│   │       ├── settings/route.ts
-│   │       ├── feedback/route.ts
-│   │       └── auth/{login,logout}/route.ts
-│   ├── components/
-│   │   ├── MessageBubble.tsx
-│   │   ├── SourcesBlock.tsx
-│   │   ├── LeadForm.tsx              # karta poptávky pod odpovědí (token [[NABIDKA]])
-│   │   ├── UploadZone.tsx
-│   │   ├── DocumentsTable.tsx
-│   │   ├── AdminSidebar.tsx
-│   │   ├── StatusBadge.tsx           # badge stavu dokumentu
-│   │   ├── LeadStatusBadge.tsx       # badge stavu poptávky
-│   │   ├── StatCard.tsx
-│   │   ├── FeedbackCard.tsx          # karta spokojenosti na dashboardu
-│   │   ├── ChunksByDocChart.tsx
-│   │   └── ui/                       # shadcn/ui primitiva
-│   └── lib/
-│       ├── config.ts
-│       ├── telemetry.ts              # OTel: span processor + withSpan/getTracer/flush
-│       ├── langfuse-score.ts         # zápis skóre user-thumbs (REST klient, fail-open)
-│       ├── supabase.ts
-│       ├── auth.ts                   # podpis/ověření session cookie (HMAC), safeEqual
-│       ├── require-admin.ts          # druhá obranná linie autorizace admin API (SEC-2)
-│       ├── session-revocation.ts     # server-side revokace session po logoutu (SEC-4)
-│       ├── rate-limit.ts             # sdílený in-memory rate limit (x-real-ip)
-│       ├── settings.ts               # server: getSettings/saveSettings
-│       ├── settings-meta.ts          # sdílená metadata + validace parametrů
-│       ├── types.ts
-│       ├── utils.ts
-│       └── rag/
-│           ├── extract.ts
-│           ├── clean.ts              # čištění textu (záhlaví/patičky, slepení řádků)
-│           ├── chunk.ts              # strukturní chunkování (parser + skladač)
-│           ├── embed.ts
-│           ├── retrieve.ts
-│           ├── prompts.ts            # systémový prompt, fallback, kontext blok
-│           └── pipeline.ts           # indexace dokumentu (processDocument)
-├── scripts/
-│   ├── langfuse-eval.mjs             # eval runner — Langfuse experiment nad datasety (Fáze 15)
-│   └── verify-rate-limit.mjs         # ověření SEC-1 (vazba limitu na x-real-ip)
-├── supabase/
-│   └── migrations/
-│       ├── 001_init.sql              # tabulky documents/chunks + HNSW index
-│       ├── 002_match_chunks.sql      # RPC match_chunks (retrieval)
-│       ├── 003_app_settings.sql      # app_settings (runtime parametry RAG)
-│       ├── 004_enable_rls.sql        # RLS na documents/chunks/app_settings
-│       ├── 005_feedback.sql          # feedback (zpětná vazba thumbs up/down)
-│       ├── 006_telemetry_settings.sql # app_settings += telemetry_enabled, record_content
-│       ├── 007_chunk_sections.sql    # chunks += section_path, match_chunks vrací sekci
-│       ├── 008_chunking_settings.sql # app_settings += chunk_*, documents += chunking_config
-│       ├── 009_chunk_batch.sql       # chunks += batch_id (reindexace bez ztráty dat)
-│       ├── 010_leads.sql             # tabulka leads (poptávky, vč. RLS)
-│       └── 011_auth_state.sql        # auth_state (revokace session po logoutu, SEC-4)
-├── next.config.ts                    # serverExternalPackages (OTel) + bezpečnostní hlavičky
-├── .env.example
-└── README.md
-```
+Strom se z tohoto dokumentu odstranil: existoval ve třech kopiích (zde, v `CLAUDE.md`
+a částečně v `ARCHITECTURE.md`) a zdejší verze zamrzla u migrace `011`, tedy před
+celými etapami A–D plánu rolí. Aktuální strukturu drží **`CLAUDE.md`** (sekce
+„Cílová adresářová struktura“) a technický popis modulů **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ---
 
 ## Produkční dluh (po MVP)
 
-- Autentizace a role (SSO, admin/editor) — **všechny etapy A–D hotové a ověřené** (identity v tabulce `users`, aplikační role admin/editor/viewer, scrypt hesla, cookie v2, per-user revokace, správa uživatelů v `/admin/users` s vygenerovaným iniciálním heslem a vynucenou změnou; pracovní role, štítky dokumentů a viditelnost dokumentů v retrievalu; SSO přes OIDC s JIT provisioningem; migrace `014`–`016` aplikované, E2E ověřeno 31. 8.–1. 9. 2026 — SSO proti lokálnímu mock IdP). Zbývá napojit reálný tenant (jen env, kód se nemění): `docs/plans/roles_and_document_access_plan.md`
+- Autentizace a role (SSO, admin/editor) — **všechny etapy A–D hotové a ověřené** (identity v tabulce `users`, aplikační role admin/editor/viewer, scrypt hesla, cookie v2, per-user revokace, správa uživatelů v `/admin/users` s vygenerovaným iniciálním heslem a vynucenou změnou; pracovní role, štítky dokumentů a viditelnost dokumentů v retrievalu; SSO přes OIDC s JIT provisioningem; migrace `014`–`018` aplikované, E2E ověřeno 31. 8.–1. 9. 2026 — SSO proti lokálnímu mock IdP). Zbývá napojit reálný tenant (jen env, kód se nemění): `docs/plans/roles_and_document_access_plan.md`
 - ~~Samostatný `SESSION_SECRET` pro podpis session cookie~~ — **hotovo** (revize `code_check.md`, balíček A2): session se podepisuje odděleným `SESSION_SECRET`, ne heslem
 - ~~Rate limiting~~ — **hotovo** (SEC-1 + `code_check.md` B1): in-memory limitery na `/api/chat`, `/api/leads`, `/api/feedback` a loginu, identita klienta z `x-real-ip`; sdílené úložiště (Upstash/Vercel KV) místo per-instance in-memory zůstává dluh
-- Zbylé bezpečnostní nálezy odložené jako produkční dluh (viz balíček G výše): SEC-4 (server-side invalidace session), SEC-7 (serverová historie chatu), SEC-8 (CSRF token). Dále ochrana proti prompt injection z obsahu dokumentů
+- Zbylé bezpečnostní nálezy odložené jako produkční dluh (viz balíček G výše): SEC-7 (serverová historie chatu), SEC-8 (CSRF token). Dále ochrana proti prompt injection z obsahu dokumentů. ~~SEC-4 (server-side invalidace session)~~ — **hotovo**: per-user revokace přes `users.sessions_invalid_before` + globální kill-switch `auth_state`
 - GDPR: retence konverzací, mazání dat
 - ~~RAG evaluace — golden dataset, evals pipeline~~ — **hotovo** (Fáze 15): Langfuse datasety, `npm run eval`, deterministická skóre + LLM-as-judge „Correctness in Czech". Zbývá Faithfulness judge (viz Fáze 15, krok 5) a dataset stavěný z reálných traces
 - ~~Zpětná vazba měřitelná na produkci~~ — **hotovo** (headless Langfuse, etapy 2–3): skóre `user-thumbs` na trace + seskupení konverzací přes session id

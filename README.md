@@ -1,6 +1,6 @@
 # Kecalo
 
-RAG chatbot pro pojišťovnu. Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je to **funkční aplikace v předprodukční fázi**: s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí. Do ostrého provozu jí chybí především plnohodnotná autentizace, automatizované testy a GDPR procesy (viz [Známá omezení](#známá-omezení)).
+RAG chatbot pro pojišťovnu. Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je to **funkční aplikace v předprodukční fázi**: s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí. Do ostrého provozu jí chybí především automatizované testy a GDPR procesy; autentizace má identity, role i volitelné SSO, ale zatím jen proti mock IdP (viz [Známá omezení](#známá-omezení)).
 
 V UI vystupuje jako „Pojišťovna Jistota", znalostní báze čerpá z reálných dokumentů Kooperativy ([docs/seed-docs/](docs/seed-docs/)).
 
@@ -27,6 +27,8 @@ Návštěvník klade otázky česky k pojistným produktům; bot odpovídá výh
 - Test retrievalu — top-k chunků se skóre pro libovolný dotaz
 - Runtime parametry RAG (top-k, práh podobnosti, teplota, chunkování) — změny bez redeploye
 - Editace system promptu chatu a promptu shrnutí poptávek za běhu
+- Správa uživatelů (`/admin/users`, jen pro roli admin) — založení účtu s vygenerovaným iniciálním heslem, změna role, deaktivace, reset hesla
+- Pracovní role a štítky dokumentů (`/admin/users/job-roles`, `/admin/users/audiences`) — omezení viditelnosti dokumentů v retrievalu, mapování skupin z IdP na pracovní role
 
 **Přihlášení firemním účtem (SSO)**
 
@@ -47,7 +49,7 @@ a vydá token komukoli — slouží **výhradně** k lokálnímu ověření toku
 - Konverzace jsou v Langfuse seskupené přes session id; každá odpověď vrací `X-Trace-Id`, takže palec nahoru/dolů se ukládá jako skóre `user-thumbs` přímo na trace — kvalitu lze měřit i na reálném provozu, nejen na testovacích datasetech
 - Každá trace nese otisk (hash) použité verze systémového promptu, takže jde porovnat dopad jeho úprav na hodnocení — bez stěhování promptů mimo repozitář
 - Evaluace: `npm run eval` prožene testovací otázky z Langfuse datasetů nasazenou aplikací a založí experiment s deterministickými skóre
-- Bezpečnost: admin auth je **na úrovni prototypu** (vlastní tabulka uživatelů s rolemi admin/editor/viewer, podepsaná HMAC cookie — zatím ne SSO/JWT); detaily a vědomé kompromisy viz [ARCHITECTURE.md, sekce 6](docs/ARCHITECTURE.md#6-bezpečnost)
+- Bezpečnost: vlastní tabulka uživatelů s aplikačními rolemi admin/editor/viewer, hesla scryptem, podepsaná HMAC cookie a volitelné SSO přes OIDC; přístup k obsahu se dá omezit štítky dokumentů. Detaily a vědomé kompromisy viz [ARCHITECTURE.md, sekce 6](docs/ARCHITECTURE.md#6-bezpečnost)
 
 ## Stack
 
@@ -97,9 +99,15 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · shadcn/u
 | `NEXT_PUBLIC_SUPABASE_URL` | URL Supabase projektu |
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin klíč Supabase (pouze server) |
 | `DATABASE_URL` | Postgres connection string (pro migrace) |
-| `ADMIN_USERNAME` | Uživatelské jméno pro admin sekci |
-| `ADMIN_PASSWORD` | Heslo pro admin sekci |
+| `ADMIN_EMAIL` | E-mail prvního uživatele — jen pro `scripts/seed-admin-user.mjs`, aplikace ho za běhu nečte |
+| `ADMIN_PASSWORD` | Heslo prvního uživatele (min. 12 znaků) — dtto |
+| `ADMIN_FIRST_NAME` / `ADMIN_LAST_NAME` | Jméno a příjmení prvního uživatele (volitelné) |
 | `SESSION_SECRET` | Podpisový klíč admin session cookie (dlouhý náhodný řetězec, např. `openssl rand -hex 32`) |
+| `OIDC_ISSUER` | URL firemního IdP — bez něj se SSO vůbec nenabídne (volitelné) |
+| `OIDC_CLIENT_ID` | Client ID aplikace registrované u IdP |
+| `OIDC_CLIENT_SECRET` | Client secret (pouze server) |
+| `OIDC_GROUPS_CLAIM` | Název claimu se skupinami (volitelné, default `groups`) |
+| `OIDC_REDIRECT_BASE_URL` | Základ redirect URI, když se origin liší od veřejné adresy (volitelné) |
 | `CHAT_MODEL` | Model pro chat (volitelné, default `claude-sonnet-4-6`) |
 | `SUMMARY_MODEL` | Model pro shrnutí poptávek (volitelné, default `mistral-small-latest`) |
 | `TOP_K` | Počet výsledků retrievalu (výchozí: 5) |
@@ -128,8 +136,9 @@ Aplikace zatím není určená pro ostrý provoz — několik vědomých komprom
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — technický popis: architektura, RAG pipeline, datový model, API, bezpečnost
 - [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) — prováděcí checklist projektu (fáze 0–17 + průběžný stav)
+- [docs/sso-setup.md](docs/sso-setup.md) — návod na zapnutí SSO ve firemní síti
 - [docs/PRD_pojistovaci_RAG_chatbot.md](docs/PRD_pojistovaci_RAG_chatbot.md) — zadání/PRD
-- [docs/plans/](docs/plans/) — feature a experimentální plány (Langfuse, poptávky, Mistral, widget, demo)
+- [docs/plans/](docs/plans/) — feature a experimentální plány (Langfuse, poptávky, Mistral, widget, demo, role a přístup k dokumentům)
 - [docs/reviews/](docs/reviews/) — nálezy a opravné plány z code/security revizí
 - [docs/evaluation/](docs/evaluation/) — testovací otázky a Langfuse datasety
 - [docs/seed-docs/](docs/seed-docs/) — PDF dokumenty pro znalostní bázi

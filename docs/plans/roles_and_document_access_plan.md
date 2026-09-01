@@ -69,19 +69,22 @@ Navazuje na stávající `013_prompt_settings.sql`. Rozdělené na dvě migrace 
 Vyžaduje `create extension if not exists citext;`
 
 ```sql
-users (id uuid PK, username citext UNIQUE, display_name text,
+users (id uuid PK, email citext UNIQUE, first_name text, last_name text,
        app_role text NOT NULL DEFAULT 'viewer'
                 CHECK ('admin'/'editor'/'viewer'),          -- aplikační role
        auth_provider text CHECK ('local'/'oidc') DEFAULT 'local',
        password_hash text NULL,                             -- jen local
        external_issuer text NULL, external_subject text NULL,  -- jen oidc
        is_active boolean DEFAULT true,
+       must_change_password boolean DEFAULT false,          -- migrace 015 (etapa B)
        sessions_invalid_before timestamptz DEFAULT epoch,   -- per-user revokace
        created_at, updated_at)
   CHECK (auth_provider='local' AND password_hash IS NOT NULL
       OR auth_provider='oidc'  AND external_subject IS NOT NULL)
   UNIQUE (external_issuer, external_subject)
 ```
+
+> **Pozn. k pozdějším migracím:** `015` přidala `must_change_password`, `018` přejmenovala `username` → `email` a `display_name` nahradila dvojicí `first_name`/`last_name`. Blok výše už tento stav zachycuje; **přihlašovacím údajem je e-mail**. Formát e-mailu se kontroluje jen v API, ne CHECKem v DB — seedovaný účet `admin` adresou není a CHECK by migraci shodil.
 
 Sloupec se jmenuje `app_role`, ne `role` — `role` je v Postgresu vyhrazené slovo a v kódu by se pletlo s `role` u chatových zpráv (`parseMessages` v `src/app/api/chat/route.ts`).
 
@@ -265,7 +268,7 @@ Průběh přihlášení:
 1. Redirect na IdP, ověření tam (včetně MFA).
 2. Z claims se čte `iss`, `sub`, `email`, `name`, `groups`.
 3. Vyhledání `users` podle **`(external_issuer, external_subject)`** — proto je na dvojici `UNIQUE`. **Nikdy podle e-mailu:** e-mail se mění (svatba, přejmenování domény) a párování přes něj je klasická díra na převzetí účtu, když si ho někdo nastaví u jiného vydavatele.
-4. Chybí-li řádek, založí se s `auth_provider='oidc'`, `app_role='viewer'` a `username` = e-mail z claims (jediný lidsky čitelný unikátní identifikátor, který claims nabízejí). Kolize s existujícím účtem → srozumitelná chyba loginu, ne tiché přejmenování. Změna e-mailu v IdP se do `username` propíše při dalším loginu — **identita stojí na `(iss, sub)`, username je jen zobrazované jméno účtu**. Existuje-li řádek, aktualizuje se `display_name` (a případně `username`).
+4. Chybí-li řádek, založí se s `auth_provider='oidc'`, `app_role='viewer'` a `email` z claims (chybí-li, odvodí se ze `sub` a hostu vydavatele). Kolize s lokálním účtem na stejném e-mailu → srozumitelná chyba loginu, ne tiché převzetí účtu. Změna e-mailu v IdP se propíše při dalším loginu — **identita stojí na `(iss, sub)`, e-mail je jen lidsky čitelný popisek**. Existuje-li řádek, aktualizují se `first_name`/`last_name` a případně `email`.
 5. `groups` se přes `job_roles.external_group` přeloží na pracovní role a `user_job_roles` se přepíše podle claims.
 6. Vydá se obvyklá cookie v2 `v2.ts.uid.nonce.sig`. Od tohoto bodu je zbytek aplikace na způsobu přihlášení nezávislý — `getSessionUser()`, `requireAppRole()` ani `match_chunks` rozdíl nepoznají. To je hlavní důvod, proč cookie nese jen `uid` a žádné role.
 
@@ -355,7 +358,7 @@ chatu — všech 7 dokumentů zůstalo `public`.
 shell poškodí a slug pak vyjde jako `pr-vn-odd-len`. Payload posílat souborem
 (`--data-binary @file`), jinak to vypadá jako chyba transliterace.
 
-### Etapa D — SSO / OIDC (odloženo)
+### Etapa D — SSO / OIDC ✅ hotovo (1. 9. 2026)
 
 Schéma z etap A a C ji uneslo beze změny — **etapa D nepřidala žádnou migraci**.
 

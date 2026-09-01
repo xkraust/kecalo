@@ -99,7 +99,7 @@ supabase init                    # jednorázová inicializace Supabase projektu
 supabase db push                 # aplikuje migrace na Supabase (vyžaduje DATABASE_URL)
 ```
 
-Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `004_enable_rls.sql` (zapnutí Row-Level Security na `documents`/`chunks`/`app_settings` — bez policy pro anon; app používá service-role klíč, který RLS obchází), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu), `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`), `009_chunk_batch.sql` (`chunks` += `batch_id` — reindexace bez ztráty dat, oprava C1), `010_leads.sql` (tabulka `leads` — poptávky/lead generation, včetně RLS), `011_auth_state.sql` (jednořádková tabulka `auth_state` — revokace admin session po logoutu, oprava SEC-4; vč. RLS), `012_lead_type.sql` (`leads` += `type` — `produkt`/`hodnoceni`, Fáze 16; stávající řádky `produkt` přes DEFAULT) `013_prompt_settings.sql` (`app_settings` += `system_prompt`/`lead_summary_prompt` — nullable, NULL = výchozí konstanta v kódu; Fáze 17) a `014_users_roles.sql` (tabulka `users` — identity a aplikační role, rozšíření `citext`; etapa A plánu rolí) a `015_must_change_password.sql` (`users` += `must_change_password` — vynucená změna iniciálního hesla; etapa B) a `016_job_roles_audiences.sql` (`audiences`, `job_roles`, vazební tabulky, view `user_effective_audiences`, `documents.visibility`, `app_settings.default_document_visibility`, `match_chunks` += `caller_audiences`; etapa C).
+Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `004_enable_rls.sql` (zapnutí Row-Level Security na `documents`/`chunks`/`app_settings` — bez policy pro anon; app používá service-role klíč, který RLS obchází), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu), `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`), `009_chunk_batch.sql` (`chunks` += `batch_id` — reindexace bez ztráty dat, oprava C1), `010_leads.sql` (tabulka `leads` — poptávky/lead generation, včetně RLS), `011_auth_state.sql` (jednořádková tabulka `auth_state` — revokace admin session po logoutu, oprava SEC-4; vč. RLS), `012_lead_type.sql` (`leads` += `type` — `produkt`/`hodnoceni`, Fáze 16; stávající řádky `produkt` přes DEFAULT) `013_prompt_settings.sql` (`app_settings` += `system_prompt`/`lead_summary_prompt` — nullable, NULL = výchozí konstanta v kódu; Fáze 17) a `014_users_roles.sql` (tabulka `users` — identity a aplikační role, rozšíření `citext`; etapa A plánu rolí) a `015_must_change_password.sql` (`users` += `must_change_password` — vynucená změna iniciálního hesla; etapa B) `016_job_roles_audiences.sql` (`audiences`, `job_roles`, vazební tabulky, view `user_effective_audiences`, `documents.visibility`, `app_settings.default_document_visibility`, `match_chunks` += `caller_audiences`; etapa C), `017_job_role_external_group_unique.sql` (`job_roles.external_group` + partial unique index — jedna skupina IdP mapuje nejvýš na jednu pracovní roli; etapa D) a `018_user_names.sql` (`users`: `username` → `email`, přibyly `first_name`/`last_name`, ubylo `display_name` — e-mail je nově přihlašovací údaj).
 
 ## Proměnné prostředí
 
@@ -147,13 +147,16 @@ Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabas
 /admin/parameters       → RAG parametry (slidery TOP_K, práh podobnosti, teplota; telemetrie, chunkování)
 /admin/parameters/prompts → Prompty (system prompt chatu + prompt shrnutí poptávek; Fáze 17)
 /admin/users            → Správa uživatelů (pouze admin): založení, role, deaktivace, reset hesla
-/admin/login            → Login (uživatelské jméno + heslo), nastaví session cookie
+/admin/users/job-roles  → Číselník pracovních rolí (admin): štítky role + pole „Skupina v IdP“
+/admin/users/audiences  → Číselník štítků dokumentů (admin)
+/admin/login            → Login (e-mail + heslo; při nastaveném OIDC_ISSUER i „Přihlásit přes firemní účet“), nastaví session cookie
 /admin/change-password  → Změna vlastního hesla; mimo route group (authenticated), aby nevznikl redirect cyklus
 
 POST   /api/chat                → RAG pipeline → streamovaná odpověď + metadata zdrojů (X-Sources) + X-Trace-Id; nepovinné sessionId v těle (jen telemetrie)
 POST   /api/documents           → upload → extrakce → chunking → embeddingy → uložení (409 při duplicitním názvu)
 GET    /api/documents           → seznam dokumentů se stavem
 DELETE /api/documents/[id]      → smazání dokumentu, chunků (CASCADE), souboru v Storage
+PATCH  /api/documents/[id]      → viditelnost (`public`/`restricted`) a štítky dokumentu (editor; `public` a cizí štítky jen admin)
 POST   /api/documents/[id]/reprocess → reindexace bez re-uploadu (aktuální parametry chunkování)
 POST   /api/retrieval-test      → vrátí top-k chunků se skóre (pouze admin)
 GET    /api/settings            → vrátí aktuální runtime parametry + přepínače telemetrie z DB
@@ -166,6 +169,14 @@ POST   /api/users               → založení uživatele (admin): povinné `fir
 PATCH  /api/users/[id]          → změna jména, e-mailu, role, aktivace, reset hesla, pracovní role (admin); 409 u posledního admina, vlastní role i u osobních údajů SSO účtu, 404 neexistující
 POST   /api/auth/login          → ověření e-mailu + hesla proti tabulce users, nastavení session cookie
 POST   /api/auth/logout         → smazání session cookie + per-user revokace
+GET    /api/job-roles           → seznam pracovních rolí (admin)
+POST   /api/job-roles           → založení pracovní role (admin): kód, název, štítky, volitelně `external_group`
+PATCH  /api/job-roles/[code]    → úprava pracovní role (admin); 409 při kolizi `external_group` (migrace 017)
+DELETE /api/job-roles/[code]    → smazání pracovní role (admin)
+GET    /api/audiences           → seznam štítků dokumentů (admin)
+POST   /api/audiences           → založení štítku (admin)
+PATCH  /api/audiences/[code]    → úprava štítku (admin)
+DELETE /api/audiences/[code]    → smazání štítku (admin)
 POST   /api/auth/change-password → změna vlastního hesla (přihlášený); projde i účtu s must_change_password
 GET    /api/auth/oidc/start     → zahájení SSO (redirect na IdP; state + nonce + PKCE ve stavové cookie)
 GET    /api/auth/oidc/callback  → návrat od IdP: ověření tokenu, JIT provisioning, vydání session cookie
@@ -192,6 +203,8 @@ src/
 │   │       ├── leads/client.tsx      # klientská část (tabulka + akce Převzít/Uzavřít)
 │   │       ├── users/page.tsx        # server část (seznam uživatelů)
 │   │       ├── users/client.tsx      # klientská část (založení, role, reset hesla)
+│   │       ├── users/job-roles/      # číselník pracovních rolí (page + client, etapa C/D)
+│   │       ├── users/audiences/      # číselník štítků dokumentů (page + client, etapa C)
 │   │       ├── retrieval-test/page.tsx
 │   │       ├── parameters/page.tsx    # server část (getSettings) — „RAG parametry"
 │   │       ├── parameters/client.tsx  # klientská část (slidery + uložení)
@@ -208,7 +221,12 @@ src/
 │       ├── feedback/route.ts
 │       ├── users/route.ts            # GET seznam + POST založení (admin)
 │       ├── users/[id]/route.ts       # PATCH role/aktivace/reset hesla (admin)
-│       └── auth/{login,logout,change-password}/route.ts
+│       ├── job-roles/route.ts        # GET seznam + POST založení pracovní role (admin)
+│       ├── job-roles/[code]/route.ts # PATCH/DELETE pracovní role (admin)
+│       ├── audiences/route.ts        # GET seznam + POST založení štítku (admin)
+│       ├── audiences/[code]/route.ts # PATCH/DELETE štítku (admin)
+│       ├── auth/{login,logout,change-password}/route.ts
+│       └── auth/oidc/{start,callback}/route.ts  # SSO tok (etapa D)
 ├── components/
 │   ├── MessageBubble.tsx              # vrací null pro prázdný content (vyhne se dvojité bublině s tečkami)
 │   ├── ChatMessages.tsx               # scrollovatelná oblast zpráv, sdílená mezi / a widgetem (prop compact)
@@ -240,6 +258,8 @@ src/
     ├── password.ts                   # scrypt hash/verify hesel + burnPasswordTime (timing)
     ├── validation.ts                 # sdílené validace (e-mail, jméno) + fullName()
     ├── session-user.ts               # getSessionUser(): identita + aplikační role z DB
+    ├── audience-access.ts            # odvození štítků volajícího ze session pro match_chunks
+    ├── slug.ts                       # normalizace kódů číselníků (pracovní role, štítky)
     ├── require-role.ts               # druhá obranná linie: requireAppRole(min) v handlerech (SEC-2)
     ├── session-revocation.ts         # revokace session: per-user + globální kill-switch (SEC-4)
     ├── rate-limit.ts                 # sdílený in-memory rate limit (sliding window per IP; x-real-ip, eviction bez clear)
@@ -268,6 +288,8 @@ supabase/
     ├── 009_chunk_batch.sql           # chunks += batch_id (reindexace bez ztráty dat)
     ├── 010_leads.sql                 # tabulka leads (poptávky/lead generation, vč. RLS)
     ├── 011_auth_state.sql            # auth_state (globální revokace session, SEC-4)
+    ├── 012_lead_type.sql             # leads += type (produkt/hodnoceni, Fáze 16)
+    ├── 013_prompt_settings.sql       # app_settings += system_prompt/lead_summary_prompt (Fáze 17)
     ├── 014_users_roles.sql           # tabulka users (identity + aplikační role, etapa A)
     ├── 015_must_change_password.sql  # users += must_change_password (etapa B)
     ├── 016_job_roles_audiences.sql   # pracovní role, štítky, viditelnost dokumentů (etapa C)
@@ -342,7 +364,11 @@ Widget nepřidává žádnou API routu ani útočnou plochu — používá výhr
 ```sql
 documents (id uuid PK, filename text, mime_type text, status text,
            error_message text NULL, chunk_count int, created_at timestamptz,
-           chunking_config jsonb NULL)
+           chunking_config jsonb NULL,
+           visibility text DEFAULT 'public' CHECK ('public'/'restricted'))
+-- visibility (migrace 016, etapa C): 'public' = vidí ji každý včetně anonyma v chatu,
+-- 'restricted' = jen ten, kdo drží aspoň jeden ze štítků v document_audiences.
+-- Výchozí hodnotu při uploadu určuje app_settings.default_document_visibility
 -- chunking_config = otisk parametrů chunkování z poslední indexace
 -- ({target_size, breadcrumb, strip_headers}); NULL = zastaralé (před fází 13)
 
@@ -360,12 +386,15 @@ app_settings (id smallint PK CHECK (id = 1), top_k int, similarity_threshold dou
               chunk_target_size int DEFAULT 3500, chunk_breadcrumb boolean DEFAULT true,
               chunk_strip_headers boolean DEFAULT true,
               system_prompt text NULL CHECK (≤ 8000), lead_summary_prompt text NULL CHECK (≤ 4000),
+              default_document_visibility text DEFAULT 'public' CHECK ('public'/'restricted'),
               updated_at timestamptz)
 -- jednořádková konfigurace (id = 1) s runtime parametry RAG + přepínači telemetrie (Fáze 11)
 -- + parametry chunkování (Fáze 13); CHECK rozsahy musí odpovídat min/max v src/lib/settings-meta.ts
 -- prompty (Fáze 17, migrace 013): ZÁMĚRNĚ nullable — NULL = „použij výchozí konstantu v kódu"
 -- (src/lib/rag/prompts.ts), aby se vylepšení defaultů propisovala s deployi; override vzniká
 -- jen editací v /admin/parameters/prompts, „Obnovit výchozí" vrací NULL
+-- default_document_visibility (migrace 016): provozní režim báze — výchozí viditelnost
+-- nově nahraného dokumentu; přepnutí NEMĚNÍ už nahrané dokumenty
 
 feedback (id uuid PK, session_id text, message_index int, rating text CHECK ('up'/'down'),
           query text NULL, created_at timestamptz)
@@ -403,6 +432,24 @@ users (id uuid PK, email citext UNIQUE, first_name text, last_name text,
 -- must_change_password (migrace 015, etapa B): iniciální heslo od admina;
 --   dokud je true, uživatel smí jen změnit heslo (403 na všech ostatních routách)
 -- uživatelé se nemažou, jen deaktivují (is_active = false)
+
+audiences (code text PK, label text, created_at timestamptz)
+-- číselník ŠTÍTKŮ DOKUMENTŮ (migrace 016) — „komu obsah patří"
+
+job_roles (code text PK, label text, external_group text NULL, created_at timestamptz)
+-- číselník PRACOVNÍCH ROLÍ (migrace 016) — „kdo jsi v organizaci"; sdružuje štítky
+-- external_group (migrace 017) = název skupiny v IdP; partial UNIQUE index hlídá,
+--   aby jedna skupina mapovala nejvýš na jednu roli (jinak by nositel dostal
+--   sjednocení obou sad štítků — tichá chyba admina, ne útok)
+
+document_audiences (document_id uuid FK, audience_code text FK)   -- dokument → štítky
+job_role_audiences (job_role_code text FK, audience_code text FK) -- pracovní role → štítky
+user_job_roles     (user_id uuid FK, job_role_code text FK)       -- uživatel → pracovní role
+-- štítky uživatel NIKDY nedostává přímo, vždy jen přes pracovní roli
+
+user_effective_audiences (view: user_id, audience_code)
+-- sjednocení štítků z pracovních rolí uživatele; jediný zdroj pro filtr v match_chunks
+-- (RPC dostává caller_audiences: NULL = bez filtru, '{}' = jen veřejné dokumenty)
 
 auth_state (id smallint PK CHECK (id = 1),
             sessions_invalid_before timestamptz DEFAULT '1970-01-01',

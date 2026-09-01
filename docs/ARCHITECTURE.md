@@ -61,7 +61,7 @@ Chyby se ukládají do `documents.error_message` a dokument končí ve stavu `er
 
 1. **Rate limit** 20 požadavků/min na IP (sdílený helper [`src/lib/rate-limit.ts`](../src/lib/rate-limit.ts)); překročení → 429.
 2. **Validace** (`parseMessages`): role jen `user`/`assistant`, content string ≤ 4 000 znaků, max 50 zpráv; jinak 400.
-3. **Retrieval** — `retrieve(query, topK, threshold)`: embedding dotazu (Voyage) → Postgres RPC `match_chunks` (migrace `002` + `007`). **Práh podobnosti se uplatňuje v SQL**, ne v JS; funkce vrací jen chunky z dokumentů ve stavu `ready`.
+3. **Retrieval** — `retrieve(query, topK, threshold, audiences)`: embedding dotazu (Voyage) → Postgres RPC `match_chunks` (migrace `002` + `007` + `016`). **Práh podobnosti i filtr štítků se uplatňují v SQL**, ne v JS; funkce vrací jen chunky z dokumentů ve stavu `ready`, které volající smí vidět. Štítky se odvozují serverově ze session ([`src/lib/audience-access.ts`](../src/lib/audience-access.ts)) — `NULL` = bez filtru, `'{}'` = jen veřejné dokumenty (anonymní návštěvník chatu). Viz §6.
 4. **Fallback** — 0 chunků → statická `text/plain` odpověď `FALLBACK_MESSAGE` s prázdným `X-Sources`; Claude se nevolá.
 5. **Generování** — `buildContextBlock` složí `<document>` bloky (zdroj, sekce, strana) do system promptu (runtime override `settings.systemPrompt ?? SYSTEM_PROMPT`); historie ořezaná na posledních 8 zpráv; `streamText` s `maxOutputTokens: 1500`, teplotou z nastavení a `abortSignal` (odpojení klienta zastaví generování).
 6. **Zdroje** — metadata (filename ≤ 80 zn., section ≤ 100 zn., strana, zaokrouhlená similarity) v hlavičce `X-Sources` (URL-encoded JSON); nad 8 000 znaků se sekce vynechají (limit velikosti hlaviček).
@@ -87,12 +87,17 @@ Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`01
 
 | Tabulka | Účel |
 |---|---|
-| `documents` | metadata dokumentu: `filename`, `status` (`uploaded/processing/ready/error`), `chunk_count`, `error_message`, `chunking_config` (otisk parametrů poslední indexace) |
+| `documents` | metadata dokumentu: `filename`, `status` (`uploaded/processing/ready/error`), `chunk_count`, `error_message`, `chunking_config` (otisk parametrů poslední indexace), `visibility` (`public`/`restricted`) |
 | `chunks` | `content`, `embedding vector(1024)` s HNSW indexem, `page`, `section_path` (cesta v hierarchii), `chunk_index`, `batch_id` (identifikátor indexačního běhu), FK na `documents` s CASCADE |
-| `app_settings` | jednořádková konfigurace (id = 1): RAG parametry, přepínače telemetrie, parametry chunkování, prompt overridy (`system_prompt`/`lead_summary_prompt`, NULL = výchozí z kódu) |
+| `app_settings` | jednořádková konfigurace (id = 1): RAG parametry, přepínače telemetrie, parametry chunkování, prompt overridy (`system_prompt`/`lead_summary_prompt`, NULL = výchozí z kódu), `default_document_visibility` |
 | `feedback` | palec nahoru/dolů; UNIQUE (session_id, message_index) — jeden hlas na zprávu |
 | `leads` | poptávky: kontakt (CHECK aspoň email nebo telefon), `summary` (Mistral shrnutí konverzace), `status` (`new/updated/in_progress/closed`), `type` (`produkt`/`hodnoceni`), `consent`; deduplikace podle kontaktu v rámci téhož typu; nemažou se |
-| `auth_state` | jednořádková: `sessions_invalid_before` — server-side revokace admin session po logoutu |
+| `users` | identity a **aplikační role** (migrace `014`, `015`, `018`): `email citext UNIQUE` (zároveň přihlašovací údaj), `first_name`/`last_name`, `app_role` (`admin`/`editor`/`viewer`), `auth_provider` (`local`/`oidc`), `password_hash` (NULL u SSO), `(external_issuer, external_subject)` UNIQUE, `is_active`, `must_change_password`, `sessions_invalid_before` (per-user revokace). Uživatelé se nemažou, jen deaktivují |
+| `audiences` | číselník **štítků dokumentů** (migrace `016`): `code`, `label` — komu obsah patří |
+| `job_roles` | číselník **pracovních rolí** (migrace `016`, `017`): `code`, `label`, `external_group` (název skupiny v IdP, partial UNIQUE — jedna skupina mapuje nejvýš na jednu roli) |
+| `document_audiences`, `job_role_audiences`, `user_job_roles` | vazební tabulky: dokument→štítek, pracovní role→štítky, uživatel→pracovní role |
+| `user_effective_audiences` | view: sjednocení štítků, které uživatel drží přes své pracovní role — jediný zdroj pro filtr v `match_chunks` |
+| `auth_state` | jednořádková: `sessions_invalid_before` — globální revokace všech session; od zavedení `users` jen ruční kill-switch pro incident |
 
 CHECK constrainty v migracích zrcadlí rozsahy definované v [`src/lib/settings-meta.ts`](../src/lib/settings-meta.ts) (jediný zdroj pravdy pro validaci; DB je druhá obranná linie).
 
@@ -105,22 +110,37 @@ CHECK constrainty v migracích zrcadlí rozsahy definované v [`src/lib/settings
 | `POST /api/chat` | RAG pipeline → streamovaná odpověď + `X-Sources` + `X-Trace-Id` | 20/min |
 | `POST /api/feedback` | uložení hlasu palec nahoru/dolů (+ skóre `user-thumbs` v Langfuse při dodaném `traceId`) | 10/min |
 | `POST /api/leads` | uložení poptávky + Mistral shrnutí + deduplikace | 5/min |
-| `POST /api/auth/login`, `/api/auth/logout` | přihlášení/odhlášení admina | login 5 pokusů / 15 min |
+| `POST /api/auth/login`, `/api/auth/logout` | přihlášení/odhlášení uživatele | login 5/15 min na IP i na e-mail |
+| `GET /api/auth/oidc/start`, `/api/auth/oidc/callback` | SSO tok přes firemní IdP (jen když je nastavený `OIDC_ISSUER`) | — |
 
-**Admin routy** (session cookie; bez ní 401): `GET/POST /api/documents`, `DELETE /api/documents/[id]`, `POST /api/documents/[id]/reprocess`, `PATCH /api/leads/[id]`, `GET/POST /api/settings`, `POST /api/retrieval-test`.
+**Chráněné routy** (session cookie; bez ní 401, s nedostatečnou rolí 403). Minimální aplikační role u každé z nich:
+
+| Routa | Role |
+|---|---|
+| `GET /api/documents`, `POST /api/retrieval-test`, `GET /api/settings` | `viewer` |
+| `POST /api/documents`, `DELETE /api/documents/[id]`, `POST /api/documents/[id]/reprocess`, `PATCH /api/leads/[id]` | `editor` |
+| `PATCH /api/documents/[id]` (viditelnost, štítky) | `editor`; nastavit `public` a cizí štítky smí jen `admin` |
+| `POST /api/settings` (vč. promptů) | `admin` |
+| `GET/POST /api/users`, `PATCH /api/users/[id]` | `admin` |
+| `GET/POST /api/job-roles`, `PATCH/DELETE /api/job-roles/[code]` | `admin` |
+| `GET/POST /api/audiences`, `PATCH/DELETE /api/audiences/[code]` | `admin` |
+
+`POST /api/auth/change-password` vyžaduje jen přihlášení — projde i účtu s `must_change_password`, který jinde dostává 403.
+
+Vodicí pravidlo dělby: **editor spravuje obsah a agendu, ne systém.** Prompty, RAG parametry a správa identit proto zůstávají adminovi.
 
 ## 6. Bezpečnost
 
-Autentizace je **na úrovni prototypu** (ne JWT, ne SSO) — vědomé rozhodnutí. Detailní nálezy a opravy: [reviews/security_issues.md](reviews/security_issues.md) + [reviews/security_correction_plan.md](reviews/security_correction_plan.md).
+Přístup stojí na **třívrstvém modelu oprávnění**: aplikační role (co smíš dělat), pracovní role sdružující štítky (kdo jsi v organizaci) a štítky dokumentů (komu obsah patří) — viz [plán rolí](plans/roles_and_document_access_plan.md). Session je vlastní podepsaná cookie, ne JWT — vědomé rozhodnutí; přihlásit se jde heslem i přes firemní IdP. Detailní nálezy a opravy: [reviews/security_issues.md](reviews/security_issues.md) + [reviews/security_correction_plan.md](reviews/security_correction_plan.md).
 
-- **Session:** cookie `ts.nonce.sig` podepsaná HMAC-SHA256 klíčem `SESSION_SECRET` (nikdy heslem), platnost 8 h, ověření constant-time (`crypto.subtle.verify`). Viz [`src/lib/auth.ts`](../src/lib/auth.ts).
+- **Session:** cookie v2 `v2.ts.uid.nonce.sig` podepsaná HMAC-SHA256 klíčem `SESSION_SECRET` (nikdy heslem), platnost 8 h, ověření constant-time (`crypto.subtle.verify`). Nese **id uživatele**, nikdy roli — ta se čte z DB při každém požadavku, aby odebrání oprávnění platilo okamžitě. Starý tříčlenný formát v1 je záměrně odmítnut. Viz [`src/lib/auth.ts`](../src/lib/auth.ts).
 - **Dvě obranné linie:** proxy vrstva [`src/proxy.ts`](../src/proxy.ts) (edge — podpis + expirace) chrání `/admin` stránky i admin API; každý admin handler navíc volá `requireAppRole(min)` ([`src/lib/require-role.ts`](../src/lib/require-role.ts)) — 401/403 i při obejití proxy (SEC-2). Roli a revokaci ověřuje až tato Node vrstva, protože edge runtime nemá přístup k DB.
 - **Identity a aplikační role:** uživatelé v tabulce `users` (migrace `014`, `018`) — jméno, příjmení a e-mail, který zároveň slouží jako přihlašovací údaj; role `admin`/`editor`/`viewer`, hesla scryptem ([`src/lib/password.ts`](../src/lib/password.ts)), session cookie v2 nese `uid` a role se čte z DB per request ([`src/lib/session-user.ts`](../src/lib/session-user.ts)). Viz [plán rolí](plans/roles_and_document_access_plan.md).
 - **Viditelnost dokumentů (etapa C):** `documents.visibility` (`public`/`restricted`) + štítky v `document_audiences`. Uživatel štítky získává výhradně přes pracovní role (`user_job_roles` → `job_role_audiences`, view `user_effective_audiences`). Filtr je **v SQL** (`match_chunks` s `caller_audiences`), ne v JS — chunk, který uživatel nesmí vidět, se nedostane ani do paměti procesu. `NULL` = bez filtru (admin), `'{}'` = jen veřejné (anonym). Štítky se odvozují serverově ze session ([`src/lib/audience-access.ts`](../src/lib/audience-access.ts)), nikdy z těla požadavku.
 - **SSO / OIDC (etapa D):** volitelné napojení na firemní IdP (`openid-client` v6). `GET /api/auth/oidc/start` → IdP → `GET /api/auth/oidc/callback`; state, nonce i PKCE verifier se drží v podepsané httpOnly cookie ([`src/lib/auth/oidc-flow.ts`](../src/lib/auth/oidc-flow.ts)), protože na serverless běží obě routy klidně na jiné instanci. Účet vzniká JIT ([`src/lib/auth/provision.ts`](../src/lib/auth/provision.ts)), páruje se přes `(iss, sub)` a skupiny se mapují na pracovní role přes `job_roles.external_group`. Od vydání cookie je zbytek aplikace na způsobu přihlášení nezávislý.
 - **Iniciální heslo:** nového uživatele zakládá admin v `/admin/users`, heslo generuje aplikace a zobrazí ho jednou. Účet má `must_change_password` (migrace `015`) a do změny hesla dostane 403 na všech routách kromě `/api/auth/change-password`. Poslední aktivní admin nejde degradovat ani deaktivovat; vlastní roli si admin měnit nesmí.
-- **Revokace session (SEC-4):** logout posune `auth_state.sessions_invalid_before` na `now()` — starší tokeny jsou odmítnuty i před expirací. Kontroluje se v Node runtimu (`requireAdmin()` + admin layout); fail-open při chybějící tabulce.
-- **Login:** constant-time porovnání údajů (`safeEqual`), rate limit 5 pokusů / 15 min na IP + globální strop 30 selhání / 15 min přes všechny IP (SEC-1 — nezávislé na spoofovatelné IP).
+- **Revokace session (SEC-4):** dvouúrovňová. Primární je **per-user** `users.sessions_invalid_before` — posouvá ji logout, reset hesla, deaktivace účtu i změna pracovních rolí ze SSO; odhlásí jen dotčeného uživatele ([`src/lib/session-revocation.ts`](../src/lib/session-revocation.ts)). Globální `auth_state` zůstala jako **ruční kill-switch pro incident**; volat ji z logoutu by znamenalo, že kterýkoli uživatel odhlásí celou organizaci. Kontroluje se v Node runtimu (`getSessionUser()` / `requireAppRole()` + admin layout); fail-open při chybějící tabulce.
+- **Login:** hesla se ověřují scryptem v konstantním čase; pro neznámý, neaktivní i SSO účet se volá `burnPasswordTime()`, aby latence neprozradila existenci účtu. Rate limit 5 pokusů / 15 min **na IP** a 5 / 15 min **na e-mail** (cílený útok na jeden účet nezablokuje ostatní), plus globální strop 300 selhání / 15 min přes všechny IP jako pojistka poslední instance (SEC-1 — nezávislé na spoofovatelné IP). Globální strop byl původně 30; s jedinou identitou dával smysl, s více účty by se stal DoS vektorem — útočník by jím uzamkl přihlášení všem.
 - **Identita klienta:** `x-real-ip` (na Vercelu dosazuje platforma), fallback pravá hodnota `x-forwarded-for`; levá (spoofovatelná) se nepoužívá.
 - **Prompt injection do admin UI (SEC-9):** přepis konverzace jde do promptu shrnutí izolovaný v bloku `<transcript>` jako nedůvěryhodná data; wrapping a sanitizace jsou v kódu, nezávisle na editovatelném promptu.
 - **Vědomý dluh:** SEC-7 (serverová historie chatu) a SEC-8 (CSRF token) odloženy jako produkční dluh.
@@ -132,6 +152,7 @@ Parametry se ladí za běhu v `/admin/parameters` (+ podsekce `/admin/parameters
 **Zásadní rozdíl v okamžiku účinku:**
 
 - **Při dotazu** (změna okamžitá): `top_k` (1–20), `similarity_threshold` (0–1), `llm_temperature` (0–1), prompt overridy, přepínače telemetrie.
+- **Při uploadu**: `default_document_visibility` (`public`/`restricted`) — výchozí viditelnost nově nahraného dokumentu, tedy provozní režim celé báze: `public` = veřejná znalostní báze (dnešní chování), `restricted` = interní báze, kde se obsah bez štítku nikomu nezobrazí. Existující dokumenty se přepnutím nemění.
 - **Při indexaci** (projeví se až reindexací): `chunk_target_size` (1500–6000 znaků), `chunk_breadcrumb`, `chunk_strip_headers`. Tabulka dokumentů porovnává `chunking_config` s aktuálním nastavením a u zastaralých nabízí Reindexovat.
 
 **Prompt overridy:** sloupce `system_prompt`/`lead_summary_prompt` jsou záměrně nullable — NULL znamená „použij výchozí konstantu z kódu" ([`src/lib/rag/prompts.ts`](../src/lib/rag/prompts.ts)), takže vylepšení defaultů se propisují s deployi. Override vzniká jen editací v adminu; „Obnovit výchozí" vrací NULL.
@@ -185,7 +206,8 @@ Widget nepřidává žádnou útočnou plochu ani API — používá výhradně 
 ## 10. Známá omezení
 
 - **Bez automatizovaných testů** — v repozitáři není žádná test suite; ověřuje se manuálně (`npm run build`, `npm run lint`, E2E průchody v prohlížeči, `npm run eval` nad Langfuse datasety). Regrese se tedy zachytí až při ručním průchodu — před ostrým provozem první věc k doplnění.
-- **Autentizace prototypu** — jedna admin identita, HMAC cookie; pro produkci nahradit plnohodnotnou auth (SSO/JWT).
+- **Autentizace** — identity, aplikační role i SSO existují, ale zbývá: napojení na **reálný IdP** (ověřeno jen proti `scripts/mock-idp.mjs`), obnova zapomenutého hesla bez zásahu admina a MFA u lokálních účtů.
+- **Koncoví tazatelé chatu se nepřihlašují** — štítky dokumentů proto chrání obsah hlavně před veřejností; uvnitř organizace se rozlišení projeví až tam, kde je uživatel přihlášený.
 - **In-memory rate limity** — per instance; na serverless škálování napříč instancemi nedrží globální stropy přesně (dokumentované zmírnění, ne eliminace).
 - **SEC-7 / SEC-8** — historie chatu jde z klienta (důvěra v klientský přepis), chybí CSRF token; vědomě odloženo.
 - **Deduplikace leadů** — podle přesné shody kontaktu v rámci typu; nepokrývá varianty zápisu.
