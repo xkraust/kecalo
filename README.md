@@ -28,6 +28,15 @@ Návštěvník klade otázky česky k pojistným produktům; bot odpovídá výh
 - Runtime parametry RAG (top-k, práh podobnosti, teplota, chunkování) — změny bez redeploye
 - Editace system promptu chatu a promptu shrnutí poptávek za běhu
 
+**Testování SSO bez firemního tenantu**
+
+```bash
+node scripts/mock-idp.mjs --groups=Obchod   # lokální OIDC provider na :9090
+```
+Do `.env.local` pak `OIDC_ISSUER=http://localhost:9090`, `OIDC_CLIENT_ID=kecalo-test`,
+`OIDC_CLIENT_SECRET=test-secret`. Mock provider přeskakuje přihlašovací obrazovku
+a vydá token komukoli — slouží **výhradně** k lokálnímu ověření toku.
+
 **Provoz**
 - Observabilita: OpenTelemetry tracing s exportem do Langfuse (volitelné; obsah dotazů se ve výchozím stavu neloguje)
 - Konverzace jsou v Langfuse seskupené přes session id; každá odpověď vrací `X-Trace-Id`, takže palec nahoru/dolů se ukládá jako skóre `user-thumbs` přímo na trace — kvalitu lze měřit i na reálném provozu, nejen na testovacích datasetech
@@ -103,7 +112,7 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · shadcn/u
 Aplikace zatím není určená pro ostrý provoz — několik vědomých kompromisů (detaily viz [ARCHITECTURE.md, sekce 10](docs/ARCHITECTURE.md#10-známá-omezení)):
 
 - **Bez automatizovaných testů** — ověřování je manuální (build, lint, E2E průchody, eval runner nad datasety). Před ostrým provozem je to první věc k doplnění.
-- **Autentizace na úrovni prototypu** — vlastní tabulka uživatelů s aplikačními rolemi (admin/editor/čtenář), správa v `/admin/users` a podepsaná HMAC cookie; chybí SSO a obnova zapomenutého hesla bez admina (etapa D [plánu rolí](docs/plans/roles_and_document_access_plan.md)). Dokumenty lze omezit štítky, ale koncoví tazatelé se zatím nepřihlašují — omezení tak chrání obsah před veřejným chatem.
+- **Autentizace** — vlastní tabulka uživatelů s aplikačními rolemi (admin/editor/čtenář), správa v `/admin/users`, podepsaná HMAC cookie a volitelné SSO přes OIDC. SSO je ověřené jen proti lokálnímu mock IdP — napojení na reálný tenant zbývá. Chybí obnova zapomenutého hesla bez admina. Dokumenty lze omezit štítky, ale koncoví tazatelé chatu se nepřihlašují, takže omezení chrání obsah hlavně před veřejností.
 - **In-memory rate limity** — per-instance; na serverless škálování napříč instancemi nedrží globální stropy přesně.
 - **Vědomě odloženo (SEC-7 / SEC-8)** — serverová rekonstrukce historie chatu a explicitní CSRF token.
 - **Deduplikace leadů** — podle přesné shody kontaktu v rámci typu; nepokrývá varianty zápisu.

@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME, verifySession } from "./lib/auth";
 
 // Chráněné jsou admin stránky a admin API routy. Veřejné zůstávají:
-// /api/chat, /api/feedback, /api/auth/* (login/logout) a POST /api/leads.
+// /api/chat, /api/feedback, /api/auth/* (login/logout/oidc) a POST /api/leads.
+// Pozn.: /api/auth/oidc/* v matcheru záměrně NENÍ — je to přihlašovací tok,
+// takže vyžadovat pro něj session by ho zacyklilo.
 export const config = {
   matcher: [
     "/admin",

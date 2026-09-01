@@ -262,7 +262,33 @@ export function UsersPageClient({
                   </select>
                 </td>
                 <td className="px-4 py-3">
-                  {jobRoles.length === 0 ? (
+                  {u.auth_provider === "oidc" ? (
+                    // IdP je zdroj pravdy: každé přihlášení přepíše role podle
+                    // skupin, takže ruční změna by se tiše ztratila.
+                    <div className="max-w-[280px]">
+                      <div className="flex flex-wrap gap-1">
+                        {(rolesByUser[u.id] ?? []).length === 0 ? (
+                          <span className="text-xs text-muted-foreground">
+                            žádné role ze skupin
+                          </span>
+                        ) : (
+                          jobRoles
+                            .filter((r) => (rolesByUser[u.id] ?? []).includes(r.code))
+                            .map((r) => (
+                              <span
+                                key={r.code}
+                                className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground"
+                              >
+                                {r.label}
+                              </span>
+                            ))
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        spravuje se přes skupiny v IdP
+                      </p>
+                    </div>
+                  ) : jobRoles.length === 0 ? (
                     <span className="text-xs text-muted-foreground">
                       žádné role
                     </span>

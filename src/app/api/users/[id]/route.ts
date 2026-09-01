@@ -141,6 +141,17 @@ export async function PATCH(
 
   // Pracovní role (etapa C): celou sadu přepíšeme — vazby nenesou další data.
   if (jobRoles !== undefined) {
+    // U SSO účtu je zdrojem pravdy IdP — ruční změnu by příští přihlášení
+    // tiše přepsalo, takže je lepší ji rovnou odmítnout (etapa D).
+    if (target.auth_provider === "oidc") {
+      return NextResponse.json(
+        {
+          error:
+            "Pracovní role SSO účtu se spravují přes skupiny v identity provideru.",
+        },
+        { status: 409 }
+      );
+    }
     if (!Array.isArray(jobRoles) || jobRoles.some((r) => typeof r !== "string")) {
       return NextResponse.json(
         { error: "Neplatný seznam pracovních rolí." },

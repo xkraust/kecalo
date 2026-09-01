@@ -1,6 +1,6 @@
 # Plán: role uživatelů a řízení přístupu k dokumentům
 
-**Stav:** etapy A, B a C hotové a E2E ověřené (31. 8. 2026), etapa D (SSO) neimplementovaná. Mimo číslované fáze; navazuje na produkční dluh „Autentizace a role" z `docs/IMPLEMENTATION_PLAN.md`.
+**Stav:** všechny etapy A–D hotové a E2E ověřené (A–C 31. 8. 2026, D 1. 9. 2026). SSO ověřeno proti lokálnímu mock IdP; napojení na reálný tenant zbývá. Mimo číslované fáze; navazuje na produkční dluh „Autentizace a role" z `docs/IMPLEMENTATION_PLAN.md`.
 
 ---
 
@@ -357,12 +357,41 @@ shell poškodí a slug pak vyjde jako `pr-vn-odd-len`. Payload posílat souborem
 
 ### Etapa D — SSO / OIDC (odloženo)
 
-Schéma z etap A a C ji už unese, žádná migrace dat.
+Schéma z etap A a C ji uneslo beze změny — **etapa D nepřidala žádnou migraci**.
 
-- [ ] Rozpad login routy na providery (`src/lib/auth/providers/local.ts` + `oidc.ts`)
-- [ ] JIT provisioning a synchronizace pracovních rolí z claims
-- [ ] Read-only zobrazení pracovních rolí u SSO uživatelů v admin UI
-- [ ] Volba knihovny (`openid-client`)
+- [x] Volba knihovny: `openid-client` v6
+- [x] OIDC vrstva `src/lib/auth/oidc.ts` (discovery s cache, extrakce claims) — konfigurace přes env je volitelná, bez `OIDC_ISSUER` se SSO nenabídne
+- [x] `GET /api/auth/oidc/start` + `GET /api/auth/oidc/callback`; stav toku (state, nonce, PKCE verifier) v podepsané httpOnly cookie (`src/lib/auth/oidc-flow.ts`)
+- [x] JIT provisioning a synchronizace pracovních rolí z claims (`src/lib/auth/provision.ts`)
+- [x] Read-only zobrazení pracovních rolí u SSO uživatelů v admin UI + 409 při pokusu o ruční změnu přes API
+- [x] Tlačítko „Přihlásit přes firemní účet" na loginu (login rozdělen na server `page.tsx` + klient `client.tsx`)
+- [x] `scripts/mock-idp.mjs` — minimální OIDC provider pro E2E test bez firemního tenantu
+
+**Rozhodnutí, která si vyžádala implementace:**
+
+- **Stav toku v podepsané cookie, ne v paměti serveru.** Na serverless běží
+  `start` a `callback` klidně na jiné instanci, takže in-memory mapa by tok
+  náhodně rozbíjela. Podpis je stejný HMAC jako u session — bez něj by si
+  útočník `state` i `nonce` nastavil sám a obě ochrany by zmizely.
+  Cookie je `sameSite: lax`, protože IdP se vrací top-level GET redirectem
+  z cizí domény; při `strict` by se neposlala a tok by vždy selhal.
+- **HTTP issuer povolen jen pro localhost.** `openid-client` v6 správně odmítá
+  HTTP; výjimka je vázaná na hostname (`localhost`/`127.0.0.1`), ne na env
+  přepínač — ten by se dřív nebo později zapnul v produkci a tiše vypnul
+  ochranu tokenů na cestě.
+
+**Ověřeno E2E (1. 9. 2026, proti `scripts/mock-idp.mjs`):** celý tok start → IdP
+→ callback → session; JIT provisioning založil účet s `auth_provider='oidc'`,
+`app_role='viewer'` a `password_hash = NULL`; skupina `Obchod` se přeložila přes
+`job_roles.external_group` na pracovní roli a z ní na štítek. **IdP je zdroj
+pravdy:** po odebrání skupiny a novém přihlášení uživatel roli ztratil a stará
+session dostala 401 (invariant 10). SSO účet se nepřihlásí heslem (invariant 8);
+ruční změna jeho pracovních rolí → 409; callback bez stavové cookie →
+přesměrování na login s chybou, ne vydání session.
+
+**Zbývá k produkčnímu nasazení:** registrace aplikace u reálného IdP (tenant ID,
+client ID/secret, redirect URI `<origin>/api/auth/oidc/callback`) a u Entra ID
+zapnutí skupin v claims (Token configuration). Kód se tím nemění, jen env.
 
 ## 11. Dopady
 

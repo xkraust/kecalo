@@ -20,7 +20,7 @@ Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživat
 
 **Headless Langfuse (mimo číslované fáze):** ovládání Langfuse z coding agenta (agent skill + CLI) místo z UI, plus doplnění dat, bez kterých je taková smyčka slepá. **Etapy 1–4 hotové a ověřené** (4. 8. 2026): skill nainstalován globálně (mimo repo), traces dostaly jméno `chat-rag` a `langfuse.session.id`, `/api/chat` vrací `X-Trace-Id`, palec nahoru/dolů se ukládá jako skóre `user-thumbs` (`BOOLEAN`, idempotentní, fail-open) a trace nese `prompt_hash`/`prompt_source`. Tím jsou poprvé v Langfuse **produkční skóre** — kvalita jde měřit i mimo eval datasety. Migrace promptů do Langfuse Prompt Managementu **vědomě zamítnuta** (třetí zdroj pravdy vedle `prompts.ts` a `app_settings`, runtime závislost, kolize s Fází 17) — nahrazena otiskem verze promptu. Zbývá **etapa 5** (dataset z reálných traces s palcem dolů) — čeká na nasbíraný provoz a na rozhodnutí, zda `record_content` v produkci zůstane zapnutý (GDPR). Detaily: `docs/IMPLEMENTATION_PLAN.md`, dluh v `docs/plans/LANGFUSE_PLAN.md`.
 
-**Role a přístup k dokumentům (mimo číslované fáze):** třívrstvý model oprávnění dle `docs/plans/roles_and_document_access_plan.md` — aplikační role (co smíš dělat), pracovní role sdružující štítky (kdo jsi v organizaci) a štítky dokumentů (komu obsah patří). **Etapy A, B a C hotové a E2E ověřené** (31. 8. 2026): tabulka `users` (migrace `014`), scrypt hesla, session cookie v2 s `uid`, `requireAppRole` v 8 handlerech, per-user revokace session, seed skript, per-username rate limit. Build/lint/typecheck procházejí, migrace `014` je aplikovaná a první uživatel seednutý. Ověřeno: cookie v1 odmítnuta, `viewer` dostane 403 na admin routách, **logout jednoho uživatele neodhlásí ostatní**, deaktivace účtu ukončí session, per-username rate limit drží napříč IP. Etapa B přidala správu uživatelů v `/admin/users` (zakládání s vygenerovaným heslem, reset, deaktivace, změna role), vynucenou změnu iniciálního hesla (`must_change_password`, migrace `015`) a samoobslužnou změnu hesla na `/admin/change-password`. Etapa C přidala **pracovní role a štítky dokumentů** (migrace `016`): číselníky v `/admin/users/job-roles` a `/admin/users/audiences`, viditelnost dokumentů (`public`/`restricted` + štítky), filtr v `match_chunks` a přepínač provozního režimu `default_document_visibility`. Etapa D (SSO/OIDC) zůstává neimplementovaná — do té doby se koncoví tazatelé nepřihlašují, takže viditelnost funguje hlavně jako ochrana obsahu před veřejným chatem.
+**Role a přístup k dokumentům (mimo číslované fáze):** třívrstvý model oprávnění dle `docs/plans/roles_and_document_access_plan.md` — aplikační role (co smíš dělat), pracovní role sdružující štítky (kdo jsi v organizaci) a štítky dokumentů (komu obsah patří). **Všechny etapy A–D hotové a E2E ověřené** (A–C 31. 8. 2026, D 1. 9. 2026): tabulka `users` (migrace `014`), scrypt hesla, session cookie v2 s `uid`, `requireAppRole` v 8 handlerech, per-user revokace session, seed skript, per-username rate limit. Build/lint/typecheck procházejí, migrace `014` je aplikovaná a první uživatel seednutý. Ověřeno: cookie v1 odmítnuta, `viewer` dostane 403 na admin routách, **logout jednoho uživatele neodhlásí ostatní**, deaktivace účtu ukončí session, per-username rate limit drží napříč IP. Etapa B přidala správu uživatelů v `/admin/users` (zakládání s vygenerovaným heslem, reset, deaktivace, změna role), vynucenou změnu iniciálního hesla (`must_change_password`, migrace `015`) a samoobslužnou změnu hesla na `/admin/change-password`. Etapa C přidala **pracovní role a štítky dokumentů** (migrace `016`): číselníky v `/admin/users/job-roles` a `/admin/users/audiences`, viditelnost dokumentů (`public`/`restricted` + štítky), filtr v `match_chunks` a přepínač provozního režimu `default_document_visibility`. Etapa D přidala **přihlášení přes firemní identity provider** (OIDC, `openid-client` v6, bez migrace): `/api/auth/oidc/start` a `/callback`, JIT provisioning účtu při prvním přihlášení, mapování skupin z claims na pracovní role přes `job_roles.external_group`. Ověřeno proti lokálnímu mock IdP (`scripts/mock-idp.mjs`) — **napojení na reálný tenant zbývá** (stačí doplnit env, kód se nemění).
 
 Podrobná historie fází, měření a průběžný stav: `docs/IMPLEMENTATION_PLAN.md`.
 
@@ -121,6 +121,11 @@ Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabas
 | `CHAT_MODEL` | Model pro chat (volitelný, default `claude-sonnet-4-6`) |
 | `MISTRAL_API_KEY` | Mistral API klíč pro shrnutí poptávek (prototypový test — Varianta B; chybějící → shrnutí degraduje na `null`, lead se uloží; čte ho `@ai-sdk/mistral` z env) |
 | `SUMMARY_MODEL` | Model pro shrnutí poptávek (volitelný, default `mistral-small-latest`, přes `@ai-sdk/mistral`) |
+| `OIDC_ISSUER` | URL firemního IdP (volitelné — bez něj se SSO nenabídne, heslo funguje dál) |
+| `OIDC_CLIENT_ID` | Client ID registrované aplikace u IdP |
+| `OIDC_CLIENT_SECRET` | Client secret (pouze server) |
+| `OIDC_GROUPS_CLAIM` | Název claimu se skupinami (default `groups`) |
+| `OIDC_REDIRECT_BASE_URL` | Základ redirect URI, když se origin liší od veřejné adresy (volitelné) |
 | `LANGFUSE_SECRET_KEY` | Langfuse server klíč (volitelný — bez něj app funguje, jen se neloguje) |
 | `LANGFUSE_PUBLIC_KEY` | Langfuse veřejný klíč (volitelný) |
 | `LANGFUSE_BASE_URL` | URL Langfuse instance (default `https://cloud.langfuse.com`) |
@@ -161,6 +166,8 @@ PATCH  /api/users/[id]          → změna role / aktivace / reset hesla (admin)
 POST   /api/auth/login          → ověření username + password proti tabulce users, nastavení session cookie
 POST   /api/auth/logout         → smazání session cookie + per-user revokace
 POST   /api/auth/change-password → změna vlastního hesla (přihlášený); projde i účtu s must_change_password
+GET    /api/auth/oidc/start     → zahájení SSO (redirect na IdP; state + nonce + PKCE ve stavové cookie)
+GET    /api/auth/oidc/callback  → návrat od IdP: ověření tokenu, JIT provisioning, vydání session cookie
 ```
 
 ### Cílová adresářová struktura
@@ -225,6 +232,9 @@ src/
     ├── langfuse-score.ts             # zápis skóre user-thumbs do Langfuse (REST klient, líný singleton, fail-open)
     ├── supabase.ts                   # Supabase client (service role)
     ├── auth.ts                       # podpis/ověření session cookie v2 (HMAC, nese uid)
+    ├── auth/oidc.ts                  # OIDC: konfigurace z env, discovery s cache, extrakce claims
+    ├── auth/oidc-flow.ts             # stav OIDC toku (state/nonce/PKCE) v podepsané cookie
+    ├── auth/provision.ts             # JIT provisioning SSO účtu + sync rolí ze skupin
     ├── password.ts                   # scrypt hash/verify hesel + burnPasswordTime (timing)
     ├── session-user.ts               # getSessionUser(): identita + aplikační role z DB
     ├── require-role.ts               # druhá obranná linie: requireAppRole(min) v handlerech (SEC-2)
@@ -262,6 +272,7 @@ scripts/
 ├── langfuse-eval.mjs                 # eval runner (Fáze 15) — experiment.run nad Langfuse datasety
 ├── langfuse-sync-metadata.mjs        # sync metadat items (expects_offer) do Langfuse — upsert podle id
 ├── seed-admin-user.mjs               # založení prvního admin uživatele (etapa A plánu rolí)
+├── mock-idp.mjs                      # minimální OIDC provider pro test SSO bez tenantu (etapa D)
 └── verify-rate-limit.mjs             # ověření SEC-1 rate-limitu na Vercelu
 docs/
 ├── ARCHITECTURE.md                   # technický popis architektury pro vývojáře (aktuální stav)
@@ -422,7 +433,7 @@ Vodicí pravidlo: **editor spravuje obsah a agendu, ne systém.** Prompty a RAG 
 
 **Založení prvního uživatele:** `node scripts/seed-admin-user.mjs` (idempotentní, `--force` přepíše heslo a odhlásí session). `ADMIN_USERNAME`/`ADMIN_PASSWORD` slouží už jen jemu — v `src/lib/config.ts` záměrně nejsou, aplikace je za běhu nepoužívá. Lazy bootstrap při loginu je vědomě neimplementovaný (byla by to trvalá zadní vrátka).
 
-Jde stále o autentizaci na úrovni prototypu — ne SSO (etapa D plánu), bez samoobslužné změny hesla a bez správy uživatelů v UI (etapa B).
+**SSO (etapa D):** je-li nastavený `OIDC_ISSUER`, login nabídne „Přihlásit přes firemní účet". Tok chrání `state` (CSRF), `nonce` (replay) i PKCE; všechny tři se drží v podepsané httpOnly cookie (`oidc-flow.ts`), ne v paměti serveru — na serverless běží start a callback klidně na jiné instanci. Účet vzniká JIT při prvním přihlášení jako **stín identity** (`password_hash` NULL), páruje se přes `(external_issuer, external_subject)` — **nikdy přes e-mail**. Skupiny z claims se mapují na pracovní role přes `job_roles.external_group` a **IdP je jejich zdrojem pravdy**: každé přihlášení sadu přepíše a při změně revokuje ostatní session. Aplikační role se z IdP záměrně nemapuje — nový SSO uživatel je vždy `viewer`. HTTP issuer je povolen jen pro `localhost` (mock IdP), jinak knihovna vyžaduje HTTPS.
 
 ## Runtime parametry RAG (`/admin/parameters`)
 
