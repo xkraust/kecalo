@@ -77,7 +77,19 @@ export function LoginForm({
               type="email"
               placeholder="E-mail"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                // Vyčistit vlastní hlášku, jinak by pole zůstalo neplatné
+                // i po opravě hodnoty.
+                e.currentTarget.setCustomValidity("");
+                setEmail(e.target.value);
+              }}
+              onInvalid={(e) =>
+                // Nativní hláška prohlížeče („Do e-mailové adresy zahrňte
+                // znak @…") je ukecaná a míchá se do ní jazyk prohlížeče.
+                e.currentTarget.setCustomValidity(
+                  "Neplatný formát e-mailové adresy"
+                )
+              }
               autoFocus
               autoComplete="email"
             />
