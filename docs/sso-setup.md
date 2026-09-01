@@ -113,6 +113,11 @@ OIDC_GROUPS_CLAIM=groups                        # default „groups"
 OIDC_REDIRECT_BASE_URL=https://vase-domena.cz   # jen když se origin liší od veřejné adresy (proxy)
 ```
 
+**Kontrola:** v administraci ukazuje stav konfigurace indikátor — v patičce
+levého menu („SSO aktivní" / „SSO neaktivní") a podrobněji na stránce
+**Uživatelé**. Při neúplné konfiguraci vypíše, **která proměnná chybí**, což
+odhalí překlep nebo zapomenutý secret; vidí ho jen role *Admin*.
+
 Jakmile jsou všechny tři povinné proměnné nastavené, objeví se na přihlašovací
 stránce tlačítko **„Přihlásit přes firemní účet"**. Chybí-li kterákoli, je SSO
 celé vypnuté a nikde se nenabízí — **žádný přepínač v administraci neexistuje**,
