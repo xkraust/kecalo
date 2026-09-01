@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import { getSessionUser } from "@/lib/session-user";
 import { UsersPageClient } from "./client";
+import { SsoStatus } from "@/components/SsoStatus";
+import { oidcStatus } from "@/lib/auth/oidc";
 import type { AdminUser, JobRoleWithUsage } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +59,7 @@ export default async function UsersPage() {
           Správa uživatelů
         </p>
       </div>
+      <SsoStatus {...oidcStatus()} />
       <UsersPageClient
         users={(users.data ?? []) as AdminUser[]}
         currentUserId={me?.id ?? ""}

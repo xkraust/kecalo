@@ -34,6 +34,28 @@ export function isOidcEnabled(): boolean {
   return oidcConfig() !== null;
 }
 
+/** Stav konfigurace SSO pro indikátor v administraci. */
+export interface OidcStatus {
+  enabled: boolean;
+  /** Názvy nenastavených proměnných — nikdy hodnoty. */
+  missing: string[];
+}
+
+/**
+ * Diagnostika pro admin UI. `oidcConfig()` vrací `null` už při jedné chybějící
+ * proměnné, takže zapomenutý secret vypadá stejně jako úplně vypnuté SSO —
+ * a hledá se to špatně. Proto vracíme i seznam toho, co chybí.
+ *
+ * Vypisují se jen NÁZVY proměnných (jsou v .env.example i v docs/sso-setup.md),
+ * nikdy jejich hodnoty.
+ */
+export function oidcStatus(): OidcStatus {
+  const missing = (
+    ["OIDC_ISSUER", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"] as const
+  ).filter((key) => !process.env[key]);
+  return { enabled: missing.length === 0, missing };
+}
+
 /**
  * Discovery konfigurace IdP. Cachuje se v modulu — metadata se mění zřídka
  * a stahovat je při každém přihlášení by přidávalo latenci i bod selhání.

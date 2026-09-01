@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AppRole } from "@/lib/session-user";
+import { SsoStatus } from "@/components/SsoStatus";
 
 interface NavItem {
   label: string;
@@ -62,9 +63,12 @@ const ROLE_RANK: Record<AppRole, number> = { viewer: 1, editor: 2, admin: 3 };
 export function AdminSidebar({
   appRole,
   displayName,
+  sso,
 }: {
   appRole: AppRole;
   displayName: string;
+  /** Stav SSO konfigurace; `null` = uživatel není admin, neukazovat. */
+  sso?: { enabled: boolean; missing: string[] } | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -179,6 +183,9 @@ export function AdminSidebar({
       </nav>
 
       <div className="px-3 pb-4">
+        {sso && (
+          <SsoStatus enabled={sso.enabled} missing={sso.missing} compact />
+        )}
         <div className="truncate px-3 pb-2 text-xs text-sidebar-foreground/70">
           {displayName}
         </div>

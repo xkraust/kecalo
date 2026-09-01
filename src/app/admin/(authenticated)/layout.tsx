@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session-user";
 import { fullName } from "@/lib/validation";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import { oidcStatus } from "@/lib/auth/oidc";
 
 export default async function AdminLayout({
   children,
@@ -23,6 +24,8 @@ export default async function AdminLayout({
       <AdminSidebar
         appRole={user.appRole}
         displayName={fullName(user.firstName, user.lastName, user.email)}
+        // Stav konfigurace zajímá jen správce; ostatní s ním nic neudělají.
+        sso={user.appRole === "admin" ? oidcStatus() : null}
       />
       <main className="flex-1 min-w-0 p-8">{children}</main>
     </div>
