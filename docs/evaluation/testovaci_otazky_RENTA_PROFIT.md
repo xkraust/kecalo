@@ -1,4 +1,4 @@
-# Testovací otázky – Životní pojištění RENTA PROFIT (O-959/25, Kooperativa)
+# Testovací otázky – Životní pojištění RENTA PROFIT (O-959/25)
 
 Sada k ověření RAG chatbota nad dokumentem `A4_PP_zivotni_pojisteni_RENTA_PROFIT`
 (pojistné podmínky O-959/25, platné od 25. 4. 2025). U každé otázky je očekávaná
@@ -78,7 +78,7 @@ produkt úrazové plnění neřeší (a nemá plést krytí z jiného produktu).
 
 ## C. Otázky na ZÁMĚNU s FLEXI (jen pokud jsou v bázi oba životní produkty)
 
-Obě jsou životní pojištění Kooperativy, ale zásadně jiného typu — RENTA PROFIT je
+Obě jsou životní pojištění téhož pojistitele, ale zásadně jiného typu — RENTA PROFIT je
 spořicí (smrt/dožití), FLEXI je rizikové s řadou zdravotních připojištění a investiční
 složkou. Otázky testují, zda chatbot nepřenese krytí z FLEXI na RENTA PROFIT.
 
@@ -103,7 +103,7 @@ krytí z jiného produktu vymýšlet.
 ## Poznámka pro kurz
 
 RENTA PROFIT vs. FLEXI je životní analogie k dvojici M-100/M-200: oba jsou „životní
-pojištění Kooperativy", ale pokrývají úplně jiná rizika. Sekce C ukazuje klasický RAG
+pojištění", ale pokrývají úplně jiná rizika. Sekce C ukazuje klasický RAG
 problém — embeddingy najdou relevantní chunk o „životním pojištění", ale z nesprávného
 produktu. Zobrazený zdroj u odpovědi a název produktu v metadatech chunku pomáhají
 uživateli i modelu rozlišit, o který produkt jde.

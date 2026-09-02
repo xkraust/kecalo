@@ -1,4 +1,4 @@
-# Testovací otázky – VPP M-200/23 (pojištění bytových domů, Kooperativa)
+# Testovací otázky – VPP M-200/23 (pojištění bytových domů)
 
 Sada k ověření RAG chatbota nad dokumentem `VPP M-200_23`. U každé otázky je
 očekávaná odpověď a článek, ze kterého má chatbot čerpat. Dokument je rozsáhlý

@@ -6,7 +6,7 @@ Každý krok má: **co zadat**, **co se má stát** a **co tím ukazuji**.
 
 Odhadovaná délka: **12–15 minut** čistého času na demo.
 
-Materiály (vše už připravené) – reálné dokumenty Kooperativy:
+Materiály (vše už připravené) – reálné pojistné podmínky:
 - `VPP M-200_23` – pojištění bytových domů (19 stran)
 - `VPP M-100_23` – pojištění majetku a odpovědnosti občanů (18 stran)
 - `IPID` – informační dokument o pojistném produktu (2 strany, rychlá indexace)
@@ -16,7 +16,7 @@ Materiály (vše už připravené) – reálné dokumenty Kooperativy:
 
 > Tip: před demem mít bázi **prázdnou**, ať je vidět celý tok od nahrání.
 > Mít dokumenty po ruce v jedné složce. Bot vystupuje jako fiktivní „Pojišťovna
-> Jistota", obsah ale čerpá z reálných podmínek Kooperativy.
+> Jistota", obsah ale čerpá z reálných pojistných podmínek.
 
 ---
 
@@ -84,7 +84,7 @@ Materiály (vše už připravené) – reálné dokumenty Kooperativy:
 
 **Krok 4.1 – Nahrát druhý, podobný dokument**
 - V adminu nahrát `VPP M-100_23` (majetek a odpovědnost). Teď jsou v bázi
-  oba dokumenty Kooperativy, které sdílejí velkou část textu (společná
+  oba dokumenty téhož pojistitele, které sdílejí velkou část textu (společná
   ustanovení, výklad pojmů).
 - Co ukazuji: realistická situace – víc podobných produktů v jedné bázi.
 

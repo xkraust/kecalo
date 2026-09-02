@@ -26,7 +26,7 @@ Podrobná historie fází, měření a průběžný stav: `docs/IMPLEMENTATION_P
 
 ## Projekt
 
-**Kecalo** je RAG chatbot pro pojišťovnu. Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je v **předprodukční fázi**: funkční aplikace s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí, které do ostrého provozu chybí především dokončení autentizace (etapy A a B plánu rolí zavedly víc identit s aplikačními rolemi a správu uživatelů; zbývá SSO a řízení viditelnosti dokumentů), automatizované testy (žádné — ověřuje se manuálně) a GDPR procesy (retence, mazání). V UI vystupuje jako „Pojišťovna Jistota", znalostní báze ale čerpá z reálných dokumentů Kooperativy ze složky `docs/seed-docs/`. Uživatelé kladou otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
+**Kecalo** je RAG chatbot pro pojišťovnu. Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je v **předprodukční fázi**: funkční aplikace s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí, které do ostrého provozu chybí především dokončení autentizace (etapy A a B plánu rolí zavedly víc identit s aplikačními rolemi a správu uživatelů; zbývá SSO a řízení viditelnosti dokumentů), automatizované testy (žádné — ověřuje se manuálně) a GDPR procesy (retence, mazání). V UI vystupuje jako „Pojišťovna Jistota", znalostní bázi tvoří reálné pojistné podmínky ze složky `docs/seed-docs/`. Uživatelé kladou otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
 
 ## Technologický stack
 
@@ -306,7 +306,7 @@ docs/
 ├── sso-setup.md                      # návod na zapnutí SSO (registrace u IdP, env, mapování skupin)
 ├── IMPLEMENTATION_PLAN.md            # hlavní prováděcí checklist projektu (fáze + průběžný stav)
 ├── PRD_pojistovaci_RAG_chatbot.md    # zadání/PRD
-├── seed-docs/                        # reálné PDF dokumenty Kooperativy (obsah znalostní báze)
+├── seed-docs/                        # reálné PDF pojistné podmínky (obsah znalostní báze)
 ├── plans/                            # feature/experimentální plány (Langfuse, lead-gen, Mistral, widget, demo, role a přístup k dokumentům)
 ├── reviews/                          # nálezy a opravné plány z code/security revizí
 └── evaluation/
@@ -541,7 +541,7 @@ RAG pipeline je trasována přes OpenTelemetry s exportem do Langfuse Cloud. Pod
 
 ## Seed dokumenty
 
-Reálné dokumenty Kooperativy jsou ve složce `docs/seed-docs/` a slouží jako obsah demo znalostní báze:
+Reálné pojistné podmínky ve složce `docs/seed-docs/` slouží jako obsah demo znalostní báze:
 - `VPP M-100_23` — pojištění majetku a odpovědnosti občanů (18 s.)
 - `VPP M-200_23` — pojištění bytových domů (19 s.)
 - `IPID` — informační dokument o pojistném produktu (2 s., rychlá indexace)

@@ -1,4 +1,4 @@
-# Testovací otázky – Cestovní pojištění M-750/23 (Kooperativa)
+# Testovací otázky – Cestovní pojištění M-750/23
 
 Sada k ověření RAG chatbota nad dokumentem `PP-M-750-18…_cestovni_pojisteni`
 (předsmluvní informace a pojistné podmínky M-750/23, 63 stran). U každé otázky je

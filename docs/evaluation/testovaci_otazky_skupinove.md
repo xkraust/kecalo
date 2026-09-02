@@ -1,4 +1,4 @@
-# Testovací otázky – Skupinové pojištění (O-985/26, Kooperativa)
+# Testovací otázky – Skupinové pojištění (O-985/26)
 
 Sada k ověření RAG chatbota nad dokumentem `PP_skupinove_pojisteni` (pojistné podmínky
 O-985/26, platné od 30. 1. 2026, 62 stran). U každé otázky je očekávaná odpověď a místo

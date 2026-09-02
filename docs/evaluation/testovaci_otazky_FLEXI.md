@@ -1,4 +1,4 @@
-# Testovací otázky – Životní pojištění FLEXI (O-974/25, Kooperativa)
+# Testovací otázky – Životní pojištění FLEXI (O-974/25)
 
 Sada k ověření RAG chatbota nad dokumentem `PP_ZP_Flexi` (pojistné podmínky O-974/25,
 platné od 24. 10. 2025, 97 stran). U každé otázky je očekávaná odpověď a místo
@@ -127,7 +127,7 @@ Očekáváno: Fallback / opatrná odpověď — FLEXI je pojištění osob (živ
 
 ## C. Otázky na ZÁMĚNU produktu (RENTA PROFIT, skupinové, majetek)
 
-FLEXI, RENTA PROFIT i skupinové pojištění jsou „životní/úrazová" pojištění Kooperativy,
+FLEXI, RENTA PROFIT i skupinové pojištění jsou „životní/úrazová" pojištění téhož pojistitele,
 ale liší se konstrukcí. Otázky testují, zda chatbot nezamění produkt.
 
 **19. Je FLEXI totéž co skupinové pojištění?**

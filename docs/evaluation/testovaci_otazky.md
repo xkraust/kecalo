@@ -1,12 +1,12 @@
 # Testovací otázky pro RAG chatbota – Pojišťovna Jistota
 
 Sada slouží k ověření funkčnosti chatbota po naindexování reálných seed dokumentů
-Kooperativy (pojištění majetku a odpovědnosti občanů, pojištění bytových domů).
+(pojištění majetku a odpovědnosti občanů, pojištění bytových domů).
 U každé otázky je uvedena očekávaná odpověď a zdroj, ze kterého má chatbot čerpat —
 díky tomu poznáte, zda retrieval našel správný dokument a zda odpověď nehalucinuje.
 
 > **Pozn. k brandingu:** Bot vystupuje jako fiktivní „Pojišťovna Jistota" (dle systémového
-> promptu), znalostní bázi ale tvoří reálné dokumenty Kooperativy. Konkrétní kontakty
+> promptu), znalostní bázi ale tvoří reálné pojistné podmínky. Konkrétní kontakty
 > uvedené v odpovědích (např. infolinka 957 105 105) jsou citovány z dokumentů; ve fallbacku
 > bot odkazuje na vlastní infolinku dle systémového promptu.
 

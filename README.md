@@ -2,7 +2,7 @@
 
 RAG chatbot pro pojišťovnu. Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je to **funkční aplikace v předprodukční fázi**: s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí. Do ostrého provozu jí chybí především automatizované testy a GDPR procesy; autentizace má identity, role i volitelné SSO, ale zatím jen proti mock IdP (viz [Známá omezení](#známá-omezení)).
 
-V UI vystupuje jako „Pojišťovna Jistota", znalostní báze čerpá z reálných dokumentů Kooperativy ([docs/seed-docs/](docs/seed-docs/)).
+V UI vystupuje jako „Pojišťovna Jistota", znalostní bázi tvoří dokumenty nahrané v administraci; ukázková sada je v [docs/seed-docs/](docs/seed-docs/).
 
 Návštěvník klade otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a u každé odpovědi cituje zdroj (dokument, článek, strana). Na dotazy mimo znalostní bázi odpovídá řízeným fallbackem s odkazem na infolinku. U produktových dotazů nabídne kartu poptávky — kontakty se sbírají do admin sekce. Správa znalostní báze, poptávek, RAG parametrů i promptů probíhá za běhu v administraci, bez redeploye.
 

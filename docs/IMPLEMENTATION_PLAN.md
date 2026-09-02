@@ -35,15 +35,15 @@ Tento dokument je prováděcí checklist pro stavbu Kecala podle PRD v1.0. Sledu
 - [x] Voyage API odpovídá — embedding 1024 dimenzí ✓
 - [x] Supabase DB dostupná přes `DATABASE_URL`
 
-### Seed data (reálné dokumenty Kooperativy, již ve složce `docs/seed-docs/`)
+### Seed data (reálné pojistné podmínky, již ve složce `docs/seed-docs/`)
 
-Znalostní bázi tvoří reálná sada dokumentů Kooperativy k pojištění majetku, odpovědnosti a bytových domů:
+Znalostní bázi tvoří reálná sada pojistných podmínek k pojištění majetku, odpovědnosti a bytových domů:
 
 - [x] `docs/seed-docs/VPP M-100_23 pro pojištění majetku a odpovědnosti občanů.pdf` — Všeobecné pojistné podmínky (hlavní zdroj pravidel, výluk a limitů)
 - [x] `docs/seed-docs/VPP M-200_23 pro pojištění bytových domů.pdf` — Všeobecné pojistné podmínky pro bytové domy
 - [x] `docs/seed-docs/Informační dokument o pojistném produktu (IPID).pdf` — strukturovaný přehled produktu „Pojištění bytového domu" (2 strany)
 - [x] `docs/seed-docs/Informace pro klienta.pdf` — předsmluvní informace + zpracování osobních údajů (11 stran)
-- [x] `docs/evaluation/testovaci_otazky.md` — 12 otázek (10 v bázi s citacemi konkrétních článků, 2 záměrně mimo → test fallbacku), vychází z reálných podmínek Kooperativy
+- [x] `docs/evaluation/testovaci_otazky.md` — 12 otázek (10 v bázi s citacemi konkrétních článků, 2 záměrně mimo → test fallbacku), vychází z reálných pojistných podmínek
 
 ---
 
