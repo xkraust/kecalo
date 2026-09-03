@@ -4,6 +4,7 @@ import { Send, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatMessages } from "@/components/ChatMessages";
 import { useKecaloChat } from "@/lib/use-kecalo-chat";
+import { DemoCredit } from "@/components/DemoCredit";
 
 export default function ChatPage() {
   const {
@@ -76,10 +77,11 @@ export default function ChatPage() {
             <Send size={16} />
           </Button>
         </div>
-        <p className="text-center text-[11px] text-muted-foreground pb-2 px-4">
+        <p className="text-center text-[11px] text-muted-foreground px-4">
           Odpovědi jsou generovány na základě dostupných dokumentů. Pro závazné
           informace kontaktujte pojišťovnu.
         </p>
+        <DemoCredit className="text-center pb-2 px-4 pt-1" />
       </div>
     </div>
   );

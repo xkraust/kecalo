@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ShieldCheck, Building2, Umbrella, Phone } from "lucide-react";
 import { ChatWidget } from "@/components/ChatWidget";
+import { DemoCredit } from "@/components/DemoCredit";
 
 export const metadata: Metadata = {
   title: "Pojišťovna Jistota — pojištění bez starostí",
@@ -90,6 +91,7 @@ export default function DemoPage() {
             Infolinka 800 123 456
           </span>
         </div>
+        <DemoCredit className="mx-auto max-w-5xl px-6 pb-6 text-center sm:text-left" />
       </footer>
 
       {/* Chat widget — client ostrov */}

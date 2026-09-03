@@ -244,6 +244,7 @@ src/
 │   ├── StatCard.tsx                  # metrická karta dashboardu
 │   ├── FeedbackCard.tsx              # karta spokojenosti (% + poměrový pruh)
 │   ├── ChunksByDocChart.tsx          # graf chunků (CSS bary)
+│   ├── DemoCredit.tsx                # nenápadný kredit autora dema (patička / i /demo)
 │   └── ui/                           # shadcn/ui primitiva
 └── lib/
     ├── use-kecalo-chat.ts             # hook useKecaloChat() — sdílená chat logika (/ i ChatWidget)
