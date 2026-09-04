@@ -4,7 +4,7 @@ Dokument popisuje **aktuální stav** systému pro vývojáře, který má proje
 
 ## 1. Přehled systému
 
-Kecalo je RAG (Retrieval-Augmented Generation) chatbot pro pojišťovnu. Znalostní bázi tvoří PDF dokumenty pojistných podmínek nahrané adminem; návštěvník klade otázky česky a bot odpovídá výhradně z indexovaných dokumentů, vždy s citací zdroje. Systém má dvě oddělené pipeline:
+Kecalo je RAG (Retrieval-Augmented Generation) chatbot nad vlastní znalostní bází; obor není součástí architektury — bázi tvoří PDF/TXT/MD dokumenty nahrané adminem (ukázková instalace běží nad pojistnými podmínkami). Návštěvník klade otázky česky a bot odpovídá výhradně z indexovaných dokumentů, vždy s citací zdroje. Systém má dvě oddělené pipeline:
 
 ```
 INDEXACE (při uploadu / reindexaci)
