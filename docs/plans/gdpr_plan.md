@@ -1,6 +1,6 @@
 # Plán: Příprava Kecala na GDPR
 
-**Stav:** návrh, neimplementováno. Mimo číslované fáze; uzavírá položku „GDPR: retence konverzací, mazání dat" z produkčního dluhu ([`docs/IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md)) a navazuje na dluh evidovaný v [PRD kap. 15](../PRD_pojistovaci_RAG_chatbot.md) a [`LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
+**Stav:** etapy A–C hotové a ověřené (4. 9. 2026), D–G zbývají. Mimo číslované fáze; uzavírá položku „GDPR: retence konverzací, mazání dat" z produkčního dluhu ([`docs/IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md)) a navazuje na dluh evidovaný v [PRD kap. 15](../PRD_pojistovaci_RAG_chatbot.md) a [`LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
 
 ## Kontext a cíl
 
@@ -44,9 +44,10 @@ Cílem je uvést aplikaci do stavu, kdy zpracování osobních údajů odpovíd�
   `id uuid PK, kind text CHECK ('retention'|'erasure'), subject_hash text NULL, leads_deleted int, feedback_deleted int, performed_by uuid NULL FK→users, created_at timestamptz`.
   **Neobsahuje osobní údaje v čitelné podobě** — místo kontaktu jen otisk normalizovaného kontaktu. Otisk je **HMAC-SHA256 se serverovým tajemstvím** (nová env `PRIVACY_HASH_SECRET`, nebo odvození z `SESSION_SECRET`), ne prostý SHA-256: prostor telefonních čísel i běžných e-mailů je slovníkově prolomitelný, takže čistý hash by byl pořád pseudonymizovaný osobní údaj. Auditní účel („tento výmaz proběhl") plní keyed hash stejně. RLS zapnutá bez policy pro anon, jako všude jinde.
 
-- [ ] **A.1** Migrace `019_gdpr_retention.sql`, `supabase db push`.
-- [ ] **A.2** [`src/lib/settings-meta.ts`](../../src/lib/settings-meta.ts): nová skupina `RETENTION_FIELDS` (dvě číselná pole) + přepínač `retentionEnabled`; zařadit do `ALL_NUMERIC_FIELDS` / `ALL_TOGGLE_FIELDS`, aby validace i ukládání fungovaly beze změny `saveSettings`. Rozsahy CHECK v migraci musí odpovídat min/max zde (konvence projektu). **Pozor na „Obnovit výchozí" na `/admin/parameters`:** retenční pole spravuje `/admin/privacy` (C.4), takže reset RAG parametrů se jich **nesmí dotknout** — jinak by tiše vypnul retenci nebo přepsal lhůty (stejný vzor jako u prompt overridů, které reset také zachovává). Klient `/admin/parameters` retenční pole nevykresluje a do `POST /api/settings` je neposílá; ukládání musí být partial-safe (neposlaná pole se nemění).
-- [ ] **A.3** [`src/lib/settings.ts`](../../src/lib/settings.ts): doplnit sloupce do `SELECT_COLUMNS`, `SettingsRow`, `fromRow`.
+- [x] **A.1** Migrace `019_gdpr_retention.sql`, `supabase db push`.
+- [x] **A.2** [`src/lib/settings-meta.ts`](../../src/lib/settings-meta.ts): skupiny `RETENTION_SLIDER_FIELDS` (dvě lhůty) a `RETENTION_TOGGLE_FIELDS` (`retentionEnabled`). Rozsahy CHECK v migraci odpovídají min/max zde (konvence projektu).
+  **Odchylka od původního návrhu:** retenční pole se do `ALL_NUMERIC_FIELDS` / `ALL_TOGGLE_FIELDS` ZÁMĚRNĚ nezařadila. Ty množiny vymezují přesně to, co zapisuje `POST /api/settings`, takže „Obnovit výchozí" na `/admin/parameters` by retenci tiše vyplo kliknutím, které s ní zdánlivě nesouvisí. Oddělené množiny to vylučují konstrukcí, ne dohodou; typovou hranici drží generika `SettingField<K>` / `ToggleField<K>` nad klíči `RagNumericKey` vs. `RetentionNumericKey` — pole jedné skupiny nejde vložit do množiny druhé. Ukládání jde vlastní cestou `saveRetentionSettings()` + `POST /api/privacy/settings`; chybějící pole ve vstupu se berou z aktuálních hodnot, ne z továrních defaultů.
+- [x] **A.3** [`src/lib/settings.ts`](../../src/lib/settings.ts): doplnit sloupce do `SELECT_COLUMNS`, `SettingsRow`, `fromRow`.
 
 ---
 
@@ -59,11 +60,11 @@ Cílem je uvést aplikaci do stavu, kdy zpracování osobních údajů odpovíd�
 - Když `retention_enabled = false`, funkce **nic nemaže** a vrátí `{ skipped: true }`.
 - Každý běh zapíše řádek do `privacy_actions` (`kind='retention'`, počty).
 
-- [ ] **B.1** `src/lib/privacy/retention.ts` — `runRetention()` nad `getSettings()` a service-role klientem.
-- [ ] **B.2** `src/app/api/cron/retention/route.ts` (GET) — autorizace **výhradně** hlavičkou `Authorization: Bearer $CRON_SECRET`, porovnání `timingSafeEqual`; chybějící `CRON_SECRET` = 503, ne otevřená routa. Nová env proměnná `CRON_SECRET` do `.env.example`.
-- [ ] **B.3** `vercel.json` (nový soubor) — cron `0 3 * * *` na `/api/cron/retention`.
-- [ ] **B.4** `src/app/api/privacy/retention/route.ts` (POST) — ruční spuštění, `requireAppRole("admin")` z [`src/lib/require-role.ts`](../../src/lib/require-role.ts), `performed_by` = id přihlášeného.
-- [ ] **B.5** [`src/proxy.ts`](../../src/proxy.ts): přidat `/api/privacy/:path*` do matcheru. `/api/cron/*` do matcheru **nepatří** — cron nemá session cookie, chrání se vlastním secretem.
+- [x] **B.1** `src/lib/privacy/retention.ts` — `runRetention()` nad `getSettings()` a service-role klientem.
+- [x] **B.2** `src/app/api/cron/retention/route.ts` (GET) — autorizace **výhradně** hlavičkou `Authorization: Bearer $CRON_SECRET`, porovnání `timingSafeEqual`; chybějící `CRON_SECRET` = 503, ne otevřená routa. Nová env proměnná `CRON_SECRET` do `.env.example`.
+- [x] **B.3** `vercel.json` (nový soubor) — cron `0 3 * * *` na `/api/cron/retention`.
+- [x] **B.4** `src/app/api/privacy/retention/route.ts` (POST) — ruční spuštění, `requireAppRole("admin")` z [`src/lib/require-role.ts`](../../src/lib/require-role.ts), `performed_by` = id přihlášeného.
+- [x] **B.5** [`src/proxy.ts`](../../src/proxy.ts): přidat `/api/privacy/:path*` do matcheru. `/api/cron/*` do matcheru **nepatří** — cron nemá session cookie, chrání se vlastním secretem.
 
 ---
 
@@ -73,11 +74,12 @@ Nová stránka **`/admin/privacy`** (položka „Soukromí" v [`AdminSidebar.tsx
 
 Vyhledání pracuje s kontaktem (e-mail nebo telefon) normalizovaným **stejnými funkcemi jako zápis poptávky** ([`src/app/api/leads/route.ts`](../../src/app/api/leads/route.ts) ř. 50–59 — vytáhnout je do `src/lib/privacy/contact.ts` a importovat na obou místech, ať se normalizace nerozejde). Postup: kontakt → poptávky → jejich `session_id` → navázané řádky `feedback`. `session_id` je jediný most mezi kontaktem a zpětnou vazbou; bez něj by výmaz nechal text dotazu v DB.
 
-- [ ] **C.1** `src/lib/privacy/contact.ts` — `normalizeEmail`/`normalizePhone` (přesun z leads route, ta je začne importovat), `hashContact()` (HMAC, viz etapa A).
-- [ ] **C.2** `src/lib/privacy/subject.ts` — `findSubjectData(contact)` → poptávky + navázaná zpětná vazba; `eraseSubject(contact, performedBy)` → smaže obojí v pořadí feedback → leads a zapíše `privacy_actions`.
-- [ ] **C.3** `src/app/api/privacy/subject/route.ts` — vyhledání i výmaz jako **`POST` s kontaktem v těle** (akce rozlišená polem `action: 'find' | 'erase'`, obojí admin). Záměrně ne `GET ?contact=`: e-mail/telefon v query stringu by skončil ve Vercel logách, které jsou mimo naši kontrolu (viz Rizika). Rate limit není potřeba — routa je za session.
-- [ ] **C.4** `/admin/privacy` (`page.tsx` server + `client.tsx`) — formulář kontaktu, tabulka nálezů, tlačítko **Stáhnout JSON** (export podle čl. 15/20 se skládá na klientu z odpovědi vyhledání, žádná další routa), tlačítko **Trvale smazat** s potvrzovacím dialogem, karty retenčních parametrů a tlačítko **Spustit úklid teď**. Historii akcí z `privacy_actions` načítá přímo server komponenta `page.tsx` (service-role klient) — žádná API routa pro ni nevzniká.
-- [ ] **C.5** Export a výmaz **nezahrnují `users`** — zaměstnanecké účty se řeší přes `/admin/users` a jejich mazání je jiný právní titul (plnění smlouvy, ne souhlas). Uvést to jako poznámku v UI, ať obsluha neplete agendy.
+- [x] **C.1** `src/lib/privacy/contact.ts` — `normalizeEmail`/`normalizePhone` (přesunuty z leads route, ta je importuje), `normalizeContact()`, `hashContact()` (HMAC, viz etapa A).
+  **Doplněno oproti návrhu:** `contactSearchValues()` — telefon se HLEDÁ i ve variantě s předvolbou a bez ní (`777123456` ↔ `+420777123456`). Zápis dál ukládá jedinou normalizovanou podobu, rozšíření je pouze pro čtení. Bez něj by ověřovací bod 7 neprošel a hlavně: subjekt, jehož číslo bylo uloženo v jiném tvaru, než v jakém o výmaz požádá, by v bázi zůstal.
+- [x] **C.2** `src/lib/privacy/subject.ts` — `findSubjectData(contact)` → poptávky + navázaná zpětná vazba; `eraseSubject(contact, performedBy)` → smaže obojí v pořadí feedback → leads a zapíše `privacy_actions`.
+- [x] **C.3** `src/app/api/privacy/subject/route.ts` — vyhledání i výmaz jako **`POST` s kontaktem v těle** (akce rozlišená polem `action: 'find' | 'erase'`, obojí admin). Záměrně ne `GET ?contact=`: e-mail/telefon v query stringu by skončil ve Vercel logách, které jsou mimo naši kontrolu (viz Rizika). Rate limit není potřeba — routa je za session.
+- [x] **C.4** `/admin/privacy` (`page.tsx` server + `client.tsx`) — formulář kontaktu, tabulka nálezů, tlačítko **Stáhnout JSON** (export podle čl. 15/20 se skládá na klientu z odpovědi vyhledání, žádná další routa), tlačítko **Trvale smazat** s potvrzovacím dialogem, karty retenčních parametrů a tlačítko **Spustit úklid teď**. Historii akcí z `privacy_actions` načítá přímo server komponenta `page.tsx` (service-role klient) — žádná API routa pro ni nevzniká.
+- [x] **C.5** Export a výmaz **nezahrnují `users`** — zaměstnanecké účty se řeší přes `/admin/users` a jejich mazání je jiný právní titul (plnění smlouvy, ne souhlas). Uvést to jako poznámku v UI, ať obsluha neplete agendy.
 - [ ] **C.6** Do `docs/gdpr.md` (F.1) zapsat **známé omezení dohledatelnosti**: cesta kontakt → `leads.session_id` → `feedback` najde jen hlasy ze session, ve které subjekt zanechal kontakt. Hlasy z jiného prohlížeče/zařízení (jiné `session_id`) nebo od subjektu, který poptávku nikdy neposlal, dohledat nejdou — inherentní limit pseudonymního designu (bez účtů a serverové historie víc nejde). Obsluha to musí vědět při vyřizování žádosti podle čl. 15.
 
 ---

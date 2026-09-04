@@ -83,13 +83,13 @@ Chyby se ukládají do `documents.error_message` a dokument končí ve stavu `er
 
 ## 4. Datový model
 
-Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`018`), nikdy ručně v SQL editoru. Aplikace přistupuje service-role klíčem (obchází RLS); RLS je na tabulkách zapnuté bez policy pro anon — přímý anonymní přístup je tak zablokovaný.
+Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`019`), nikdy ručně v SQL editoru. Aplikace přistupuje service-role klíčem (obchází RLS); RLS je na tabulkách zapnuté bez policy pro anon — přímý anonymní přístup je tak zablokovaný.
 
 | Tabulka | Účel |
 |---|---|
 | `documents` | metadata dokumentu: `filename`, `status` (`uploaded/processing/ready/error`), `chunk_count`, `error_message`, `chunking_config` (otisk parametrů poslední indexace), `visibility` (`public`/`restricted`) |
 | `chunks` | `content`, `embedding vector(1024)` s HNSW indexem, `page`, `section_path` (cesta v hierarchii), `chunk_index`, `batch_id` (identifikátor indexačního běhu), FK na `documents` s CASCADE |
-| `app_settings` | jednořádková konfigurace (id = 1): RAG parametry, přepínače telemetrie, parametry chunkování, prompt overridy (`system_prompt`/`lead_summary_prompt`, NULL = výchozí z kódu), `default_document_visibility` |
+| `app_settings` | jednořádková konfigurace (id = 1): RAG parametry, přepínače telemetrie, parametry chunkování, prompt overridy (`system_prompt`/`lead_summary_prompt`, NULL = výchozí z kódu), `default_document_visibility`, retence (`retention_enabled` — default **false**, `retention_leads_months` 24, `retention_feedback_months` 6) |
 | `feedback` | palec nahoru/dolů; UNIQUE (session_id, message_index) — jeden hlas na zprávu |
 | `leads` | poptávky: kontakt (CHECK aspoň email nebo telefon), `summary` (Mistral shrnutí konverzace), `status` (`new/updated/in_progress/closed`), `type` (`produkt`/`hodnoceni`), `consent`; deduplikace podle kontaktu v rámci téhož typu; nemažou se |
 | `users` | identity a **aplikační role** (migrace `014`, `015`, `018`): `email citext UNIQUE` (zároveň přihlašovací údaj), `first_name`/`last_name`, `app_role` (`admin`/`editor`/`viewer`), `auth_provider` (`local`/`oidc`), `password_hash` (NULL u SSO), `(external_issuer, external_subject)` UNIQUE, `is_active`, `must_change_password`, `sessions_invalid_before` (per-user revokace). Uživatelé se nemažou, jen deaktivují |
@@ -98,6 +98,7 @@ Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`01
 | `document_audiences`, `job_role_audiences`, `user_job_roles` | vazební tabulky: dokument→štítek, pracovní role→štítky, uživatel→pracovní role |
 | `user_effective_audiences` | view: sjednocení štítků, které uživatel drží přes své pracovní role — jediný zdroj pro filtr v `match_chunks` |
 | `auth_state` | jednořádková: `sessions_invalid_before` — globální revokace všech session; od zavedení `users` jen ruční kill-switch pro incident |
+| `privacy_actions` | auditní stopa výmazů (migrace `019`, čl. 5 odst. 2): `kind` (`retention`/`erasure`), `subject_hash` (HMAC otisk kontaktu, nikdy kontakt sám), počty smazaných řádků, `performed_by` (NULL = cron) |
 
 CHECK constrainty v migracích zrcadlí rozsahy definované v [`src/lib/settings-meta.ts`](../src/lib/settings-meta.ts) (jediný zdroj pravdy pro validaci; DB je druhá obranná linie).
 
@@ -121,6 +122,7 @@ CHECK constrainty v migracích zrcadlí rozsahy definované v [`src/lib/settings
 | `POST /api/documents`, `DELETE /api/documents/[id]`, `POST /api/documents/[id]/reprocess`, `PATCH /api/leads/[id]` | `editor` |
 | `PATCH /api/documents/[id]` (viditelnost, štítky) | `editor`; nastavit `public` a cizí štítky smí jen `admin` |
 | `POST /api/settings` (vč. promptů) | `admin` |
+| `POST /api/privacy/settings` (retenční lhůty), `POST /api/privacy/retention` (ruční úklid), `POST /api/privacy/subject` (vyhledání/výmaz dat subjektu) | `admin` |
 | `GET/POST /api/users`, `PATCH /api/users/[id]` | `admin` |
 | `GET/POST /api/job-roles`, `PATCH/DELETE /api/job-roles/[code]` | `admin` |
 | `GET/POST /api/audiences`, `PATCH/DELETE /api/audiences/[code]` | `admin` |
@@ -128,6 +130,10 @@ CHECK constrainty v migracích zrcadlí rozsahy definované v [`src/lib/settings
 `POST /api/auth/change-password` vyžaduje jen přihlášení — projde i účtu s `must_change_password`, který jinde dostává 403.
 
 Vodicí pravidlo dělby: **editor spravuje obsah a agendu, ne systém.** Prompty, RAG parametry a správa identit proto zůstávají adminovi.
+
+### 5.1 Retenční cron
+
+`GET /api/cron/retention` stojí **mimo** session i proxy matcher — cron žádnou cookie nemá. Autorizuje se výhradně hlavičkou `Authorization: Bearer $CRON_SECRET` (porovnání `timingSafeEqual` nad SHA-256 otisky, aby neunikla délka secretu). Chybějící `CRON_SECRET` routu **vypíná** (503); otevřená mazací routa nad service-role klientem by byla horší než nefungující úklid. Rozvrh `0 3 * * *` je ve `vercel.json`.
 
 ## 6. Bezpečnost
 
@@ -144,6 +150,17 @@ Přístup stojí na **třívrstvém modelu oprávnění**: aplikační role (co 
 - **Identita klienta:** `x-real-ip` (na Vercelu dosazuje platforma), fallback pravá hodnota `x-forwarded-for`; levá (spoofovatelná) se nepoužívá.
 - **Prompt injection do admin UI (SEC-9):** přepis konverzace jde do promptu shrnutí izolovaný v bloku `<transcript>` jako nedůvěryhodná data; wrapping a sanitizace jsou v kódu, nezávisle na editovatelném promptu.
 - **Vědomý dluh:** SEC-7 (serverová historie chatu) a SEC-8 (CSRF token) odloženy jako produkční dluh.
+
+### 6.1 Osobní údaje a retence
+
+Zpracování osobních údajů řeší [plán GDPR](plans/gdpr_plan.md) (etapy A–C hotové, D–G zbývají). Kde osobní údaje vznikají: `leads` (jméno, kontakt, poznámka, LLM shrnutí konverzace), `feedback` (**doslovný text hodnoceného dotazu**) a `users` (zaměstnanecké účty).
+
+- **Retence** ([`src/lib/privacy/retention.ts`](../src/lib/privacy/retention.ts)) — jedna implementace pro cron i ruční spuštění z `/admin/privacy`. Poptávky se mažou podle `updated_at` (ne `created_at`: deduplikace řádek aktualizuje, takže lhůta má běžet od poslední interakce), zpětná vazba podle `created_at`. Při `retention_enabled = false` funkce nemaže nic a vrací `{ skipped: true }` — výchozí stav po migraci, aby nasazení nikdy nesmazalo data dřív, než správce lhůty potvrdí.
+- **Práva subjektu** ([`src/lib/privacy/subject.ts`](../src/lib/privacy/subject.ts)) — vyhledání podle kontaktu, JSON export (čl. 15/20) a trvalý výmaz (čl. 17) v `/admin/privacy`. Výmaz jde v pořadí `feedback` → `leads`, protože `session_id` z poptávky je jediná cesta ke zpětné vazbě; opačné pořadí by osiřelé řádky s textem dotazu nechalo v DB navždy. Totožnost žadatele ověřuje obsluha, ne aplikace.
+- **Známé omezení dohledatelnosti:** hlas bez navazující poptávky (jiné zařízení, jiná session) nelze s osobou spárovat — pseudonymní data bez účtu prostě nejdou dohledat.
+- **Normalizace kontaktu** ([`src/lib/privacy/contact.ts`](../src/lib/privacy/contact.ts)) je sdílená se zápisem poptávky; kdyby se rozešly, žádost o výmaz by skončila jako „nic nenalezeno". Telefon se navíc **hledá** i ve variantě s předvolbou a bez ní — zápis dál ukládá jedinou podobu.
+- **Auditní stopa** `privacy_actions` nese jen **HMAC otisk** kontaktu, nikdy kontakt sám: prostý SHA-256 by byl u telefonních čísel slovníkově prolomitelný, takže by evidence sama byla dalším zpracováním osobních údajů.
+- **Oddělené ukládání retence:** retenční pole nejsou v `ALL_NUMERIC_FIELDS`/`ALL_TOGGLE_FIELDS`, takže `POST /api/settings` je nezapisuje a „Obnovit výchozí" na stránce RAG parametrů nemůže vypnout retenci. Hranici drží typy (`RagNumericKey` vs. `RetentionNumericKey`), ne konvence.
 
 ## 7. Runtime konfigurace
 

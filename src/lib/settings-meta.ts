@@ -16,6 +16,12 @@ export interface SettingsValues {
   leadSummaryPrompt: string | null;
   /** Provozní režim: výchozí viditelnost nově nahraného dokumentu (etapa C). */
   defaultDocumentVisibility: DocumentVisibility;
+  /** Retence zapnutá; false = úklid nic nemaže (GDPR etapa A). */
+  retentionEnabled: boolean;
+  /** Lhůta pro poptávky v měsících (běží od poslední interakce). */
+  retentionLeadsMonths: number;
+  /** Lhůta pro zpětnou vazbu v měsících. */
+  retentionFeedbackMonths: number;
 }
 
 /** Viditelnost dokumentu vůči anonymnímu chatu (documents.visibility). */
@@ -56,25 +62,40 @@ export const VISIBILITY_CHOICES: readonly {
 ];
 
 /** Klíče číselných parametrů (slidery). */
-export type NumericSettingKey =
+export type RagNumericKey =
   | "topK"
   | "similarityThreshold"
   | "llmTemperature"
   | "chunkTargetSize";
+/** Retenční lhůty (GDPR etapa A) — jiná množina než RAG parametry. */
+export type RetentionNumericKey =
+  | "retentionLeadsMonths"
+  | "retentionFeedbackMonths";
+export type NumericSettingKey = RagNumericKey | RetentionNumericKey;
 /** Klíče booleovských přepínačů (telemetrie — Fáze 11, chunkování — Fáze 13). */
-export type ToggleSettingKey =
+export type RagToggleKey =
   | "telemetryEnabled"
   | "recordContent"
   | "chunkBreadcrumb"
   | "chunkStripHeaders";
+export type ToggleSettingKey = RagToggleKey | "retentionEnabled";
 /** Klíče textových polí — prompty (Fáze 17). */
 export type TextSettingKey = "systemPrompt" | "leadSummaryPrompt";
 
-export interface SettingField {
+// Parametr `K` drží typovou hranici mezi RAG parametry a retencí: pole jedné
+// skupiny nejde omylem vložit do množiny té druhé (a tím ho vystavit cizímu
+// ukládání). Výchozí `NumericSettingKey` nechává staré použití beze změny.
+export interface SettingField<K extends NumericSettingKey = NumericSettingKey> {
   /** Klíč v SettingsValues i v JSON payloadu API. */
-  key: NumericSettingKey;
+  key: K;
   /** Název sloupce v tabulce app_settings. */
-  column: "top_k" | "similarity_threshold" | "llm_temperature" | "chunk_target_size";
+  column:
+    | "top_k"
+    | "similarity_threshold"
+    | "llm_temperature"
+    | "chunk_target_size"
+    | "retention_leads_months"
+    | "retention_feedback_months";
   label: string;
   description: string;
   min: number;
@@ -85,15 +106,16 @@ export interface SettingField {
   format: (value: number) => string;
 }
 
-export interface ToggleField {
+export interface ToggleField<K extends ToggleSettingKey = ToggleSettingKey> {
   /** Klíč v SettingsValues i v JSON payloadu API. */
-  key: ToggleSettingKey;
+  key: K;
   /** Název sloupce v tabulce app_settings. */
   column:
     | "telemetry_enabled"
     | "record_content"
     | "chunk_breadcrumb"
-    | "chunk_strip_headers";
+    | "chunk_strip_headers"
+    | "retention_enabled";
   label: string;
   description: string;
   default: boolean;
@@ -145,7 +167,7 @@ export const PROMPT_FIELDS: readonly TextField[] = [
 ];
 
 // Rozsahy musí odpovídat CHECK v supabase/migrations/003_app_settings.sql.
-export const SETTINGS_FIELDS: readonly SettingField[] = [
+export const SETTINGS_FIELDS: readonly SettingField<RagNumericKey>[] = [
   {
     key: "topK",
     column: "top_k",
@@ -185,7 +207,7 @@ export const SETTINGS_FIELDS: readonly SettingField[] = [
 ];
 
 // Přepínače telemetrie (Fáze 11). Defaulty musí odpovídat 006_telemetry_settings.sql.
-export const TELEMETRY_FIELDS: readonly ToggleField[] = [
+export const TELEMETRY_FIELDS: readonly ToggleField<RagToggleKey>[] = [
   {
     key: "telemetryEnabled",
     column: "telemetry_enabled",
@@ -210,7 +232,7 @@ export const TELEMETRY_FIELDS: readonly ToggleField[] = [
 // Parametry chunkování (Fáze 13). Působí při INDEXACI — změna se projeví až
 // reindexací dokumentů (na rozdíl od parametrů výše, které působí při dotazu).
 // Rozsahy a defaulty musí odpovídat CHECK v 008_chunking_settings.sql.
-export const CHUNKING_SLIDER_FIELDS: readonly SettingField[] = [
+export const CHUNKING_SLIDER_FIELDS: readonly SettingField<RagNumericKey>[] = [
   {
     key: "chunkTargetSize",
     column: "chunk_target_size",
@@ -225,7 +247,7 @@ export const CHUNKING_SLIDER_FIELDS: readonly SettingField[] = [
   },
 ];
 
-export const CHUNKING_TOGGLE_FIELDS: readonly ToggleField[] = [
+export const CHUNKING_TOGGLE_FIELDS: readonly ToggleField<RagToggleKey>[] = [
   {
     key: "chunkBreadcrumb",
     column: "chunk_breadcrumb",
@@ -244,19 +266,83 @@ export const CHUNKING_TOGGLE_FIELDS: readonly ToggleField[] = [
   },
 ];
 
-/** Všechna číselná pole napříč skupinami (validace, ukládání). */
-export const ALL_NUMERIC_FIELDS: readonly SettingField[] = [
+/** Skloňování měsíců pro popisek lhůty (1 měsíc / 2–4 měsíce / 5+ měsíců). */
+function monthsLabel(n: number): string {
+  const v = Math.round(n);
+  if (v === 1) return "1 měsíc";
+  if (v >= 2 && v <= 4) return `${v} měsíce`;
+  return `${v} měsíců`;
+}
+
+// Retenční lhůty (GDPR etapa A). Rozsahy musí odpovídat CHECK v 019_gdpr_retention.sql.
+export const RETENTION_SLIDER_FIELDS: readonly SettingField<RetentionNumericKey>[] = [
+  {
+    key: "retentionLeadsMonths",
+    column: "retention_leads_months",
+    label: "Doba uchování poptávek",
+    description:
+      "Po uplynutí lhůty se poptávka trvale smaže. Lhůta běží od POSLEDNÍ interakce (updated_at) — opakovaná poptávka téhož kontaktu ji posouvá.",
+    min: 1,
+    max: 120,
+    step: 1,
+    default: 24,
+    format: monthsLabel,
+  },
+  {
+    key: "retentionFeedbackMonths",
+    column: "retention_feedback_months",
+    label: "Doba uchování zpětné vazby",
+    description:
+      "Po uplynutí lhůty se hlas včetně uloženého textu dotazu trvale smaže. Lhůta běží od vzniku záznamu.",
+    min: 1,
+    max: 120,
+    step: 1,
+    default: 6,
+    format: monthsLabel,
+  },
+];
+
+export const RETENTION_TOGGLE_FIELDS: readonly ToggleField<"retentionEnabled">[] = [
+  {
+    key: "retentionEnabled",
+    column: "retention_enabled",
+    label: "Automatický úklid zapnutý",
+    description:
+      "Denní úklid maže poptávky a zpětnou vazbu starší než nastavené lhůty. Vypnutý úklid nic nemaže — data zůstávají do odvolání.",
+    default: false,
+    warning:
+      "Mazání je nevratné a týká se i záznamů, které jste ještě nezpracovali. Před zapnutím ověřte lhůty.",
+  },
+];
+
+/**
+ * Pole spravovaná stránkou „RAG parametry" — tedy PŘESNĚ to, co zapisuje
+ * `POST /api/settings`.
+ *
+ * Retenční pole zde ZÁMĚRNĚ nejsou: spravuje je /admin/privacy a tlačítko
+ * „Obnovit výchozí" na stránce parametrů by je jinak tiše přepsalo zpět na
+ * `retentionEnabled = false` — tedy vyplo retenci kliknutím, které s ní zdánlivě
+ * nesouvisí. Oddělené množiny to vylučují konstrukcí, ne dohodou.
+ */
+export const ALL_NUMERIC_FIELDS: readonly SettingField<RagNumericKey>[] = [
   ...SETTINGS_FIELDS,
   ...CHUNKING_SLIDER_FIELDS,
 ];
-/** Všechny přepínače napříč skupinami (validace, ukládání). */
-export const ALL_TOGGLE_FIELDS: readonly ToggleField[] = [
+/** Všechny přepínače stránky „RAG parametry" (validace, ukládání). */
+export const ALL_TOGGLE_FIELDS: readonly ToggleField<RagToggleKey>[] = [
   ...TELEMETRY_FIELDS,
   ...CHUNKING_TOGGLE_FIELDS,
 ];
 
+/** Registr VŠECH známých polí — pro vyhledání definice (clamp, defaulty).
+ * Na rozdíl od ALL_* množin nevymezuje, co se kam ukládá. */
+const KNOWN_NUMERIC_FIELDS: readonly SettingField[] = [
+  ...ALL_NUMERIC_FIELDS,
+  ...RETENTION_SLIDER_FIELDS,
+];
+
 function fieldFor(key: NumericSettingKey): SettingField {
-  const field = ALL_NUMERIC_FIELDS.find((f) => f.key === key);
+  const field = KNOWN_NUMERIC_FIELDS.find((f) => f.key === key);
   if (!field) throw new Error(`Neznámý parametr: ${key}`);
   return field;
 }
@@ -294,13 +380,51 @@ export function parseTextField(field: TextField, raw: unknown): string | null {
   return trimmed.slice(0, field.maxLength);
 }
 
-/** Z libovolného vstupu (JSON body) sestaví validní, clampnuté hodnoty všech parametrů. */
-export function parseSettingsInput(input: unknown): SettingsValues {
+/** Podmnožina parametrů spravovaná stránkou „RAG parametry" (bez retence — tu
+ * spravuje /admin/privacy vlastní cestou, viz komentář u ALL_NUMERIC_FIELDS). */
+export type RagSettingsValues = Omit<SettingsValues, keyof RetentionValues>;
+
+/** Retenční parametry (GDPR etapa A) — ukládané odděleně od RAG parametrů. */
+export interface RetentionValues {
+  retentionEnabled: boolean;
+  retentionLeadsMonths: number;
+  retentionFeedbackMonths: number;
+}
+
+/**
+ * Retenční vstup z /admin/privacy. Chybějící pole se bere z `current`, ne
+ * z továrního defaultu: neúplný payload nesmí tiše vypnout retenci ani zkrátit
+ * lhůtu (obojí by mazalo data, která měla zůstat).
+ */
+export function parseRetentionInput(
+  input: unknown,
+  current: RetentionValues
+): RetentionValues {
   const obj = (
     input && typeof input === "object" ? input : {}
   ) as Record<string, unknown>;
 
-  const result = {} as SettingsValues;
+  const months = (key: "retentionLeadsMonths" | "retentionFeedbackMonths") => {
+    const raw = obj[key];
+    if (raw === undefined || raw === null) return current[key];
+    const num = typeof raw === "number" ? raw : Number(raw);
+    return clampField(key, num);
+  };
+
+  return {
+    retentionEnabled: parseBool(obj.retentionEnabled, current.retentionEnabled),
+    retentionLeadsMonths: months("retentionLeadsMonths"),
+    retentionFeedbackMonths: months("retentionFeedbackMonths"),
+  };
+}
+
+/** Z libovolného vstupu (JSON body) sestaví validní, clampnuté hodnoty RAG parametrů. */
+export function parseSettingsInput(input: unknown): RagSettingsValues {
+  const obj = (
+    input && typeof input === "object" ? input : {}
+  ) as Record<string, unknown>;
+
+  const result = {} as RagSettingsValues;
   for (const field of ALL_NUMERIC_FIELDS) {
     const raw = obj[field.key];
     const num = typeof raw === "number" ? raw : Number(raw);
@@ -334,6 +458,10 @@ export const DEFAULT_SETTINGS: SettingsValues = {
   leadSummaryPrompt: null,
   // 'public' = dnešní chování veřejné báze; nasazení migrace nic nemění.
   defaultDocumentVisibility: "public",
+  // false = úklid nemaže, dokud správce lhůty vědomě nepotvrdí (GDPR etapa A).
+  retentionEnabled: false,
+  retentionLeadsMonths: fieldFor("retentionLeadsMonths").default,
+  retentionFeedbackMonths: fieldFor("retentionFeedbackMonths").default,
 };
 
 /** Otisk konfigurace chunkování ukládaný k dokumentu (documents.chunking_config). */

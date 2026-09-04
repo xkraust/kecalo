@@ -362,7 +362,7 @@ Podrobný plán viz [`docs/plans/LANGFUSE_PLAN.md`](plans/LANGFUSE_PLAN.md).
 
 **Milník:** Pod každou odpovědí bota v chatu se zobrazí tlačítka 👍/👎; kliknutí uloží hodnocení do DB; admin dashboard zobrazuje souhrnné statistiky zpětné vazby.
 
-> **Pozn.:** Jde o jednoduchou agregovanou zpětnou vazbu — neukládáme obsah zpráv ani konverzační historii (GDPR). Session ID z localStorage slouží pouze k deduplikaci hlasů.
+> **Pozn.:** Konverzační historii neukládáme — ta zůstává jen v paměti klienta. Text hodnoceného dotazu se ale do `feedback.query` (2000 zn.) ukládá; původní znění této poznámky tvrdilo opak a bylo opraveno při GDPR etapě F. Session ID z localStorage slouží k deduplikaci hlasů a je zároveň jediný most mezi hlasem a poptávkou při vyřizování žádosti o výmaz.
 
 ### DB — migrace `supabase/migrations/005_feedback.sql`
 
@@ -928,7 +928,7 @@ celými etapami A–D plánu rolí. Aktuální strukturu drží **`CLAUDE.md`** 
 - ~~Samostatný `SESSION_SECRET` pro podpis session cookie~~ — **hotovo** (revize `code_check.md`, balíček A2): session se podepisuje odděleným `SESSION_SECRET`, ne heslem
 - ~~Rate limiting~~ — **hotovo** (SEC-1 + `code_check.md` B1): in-memory limitery na `/api/chat`, `/api/leads`, `/api/feedback` a loginu, identita klienta z `x-real-ip`; sdílené úložiště (Upstash/Vercel KV) místo per-instance in-memory zůstává dluh
 - Zbylé bezpečnostní nálezy odložené jako produkční dluh (viz balíček G výše): SEC-7 (serverová historie chatu), SEC-8 (CSRF token). Dále ochrana proti prompt injection z obsahu dokumentů. ~~SEC-4 (server-side invalidace session)~~ — **hotovo**: per-user revokace přes `users.sessions_invalid_before` + globální kill-switch `auth_state`
-- GDPR: retence konverzací, mazání dat
+- ~~GDPR: retence konverzací, mazání dat~~ — **etapy A–C hotové** (4. 9. 2026, `docs/plans/gdpr_plan.md`): migrace `019`, retenční lhůty v `/admin/privacy`, denní cron `/api/cron/retention` + ruční spuštění, vyhledání/export/výmaz dat subjektu, auditní tabulka `privacy_actions`. Zbývají etapy D–G: veřejná stránka `/privacy` a text souhlasu, minimalizace toku dat ven, dokumentace `docs/gdpr.md` a provozní režim (veřejný vs. interní)
 - ~~RAG evaluace — golden dataset, evals pipeline~~ — **hotovo** (Fáze 15): Langfuse datasety, `npm run eval`, deterministická skóre + LLM-as-judge „Correctness in Czech". Zbývá Faithfulness judge (viz Fáze 15, krok 5) a dataset stavěný z reálných traces
 - ~~Zpětná vazba měřitelná na produkci~~ — **hotovo** (headless Langfuse, etapy 2–3): skóre `user-thumbs` na trace + seskupení konverzací přes session id
 - Verzování dokumentů a platnost podmínek v čase

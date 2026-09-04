@@ -11,6 +11,7 @@ import {
   SlidersHorizontal,
   MessageSquare,
   Users,
+  ShieldCheck,
   LogOut,
   ChevronRight,
   type LucideIcon,
@@ -55,6 +56,7 @@ const navItems: NavItem[] = [
       { label: "Štítky dokumentů", href: "/admin/users/audiences" },
     ],
   },
+  { label: "Soukromí", href: "/admin/privacy", icon: ShieldCheck, minRole: "admin" },
   { label: "Chat", href: "/", icon: MessageSquare, external: true },
 ];
 

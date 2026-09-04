@@ -7,6 +7,9 @@ import { getSettings } from "@/lib/settings";
 import { createRateLimiter, clientIp } from "@/lib/rate-limit";
 import { withSpan, flushTelemetry } from "@/lib/telemetry";
 import { LEAD_SUMMARY_PROMPT } from "@/lib/rag/prompts";
+// Sdíleno s vyhledáním subjektu v /admin/privacy — jedna implementace, jinak
+// by se normalizace zápisu a hledání rozešly (GDPR etapa C).
+import { normalizeEmail, normalizePhone } from "@/lib/privacy/contact";
 import type { Lead, LeadType } from "@/lib/types";
 
 export const maxDuration = 30;
@@ -43,19 +46,6 @@ interface LeadInput {
   type: LeadType;
   sessionId: string | null;
   messages: ConversationMessage[];
-}
-
-/** E-mail se normalizuje (lowercase, trim) — normalizovaně se i ukládá,
- * aby deduplikace porovnávala konzistentní hodnoty. */
-function normalizeEmail(raw: string): string {
-  return raw.trim().toLowerCase();
-}
-
-/** Telefon na číslice s případným úvodním `+` (bez mezer/pomlček/závorek). */
-function normalizePhone(raw: string): string {
-  const trimmed = raw.trim();
-  const plus = trimmed.startsWith("+") ? "+" : "";
-  return plus + trimmed.replace(/\D/g, "");
 }
 
 /** Konverzace pro serverovou komprimaci — do DB se neukládá. */

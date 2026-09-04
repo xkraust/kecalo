@@ -21,6 +21,10 @@ export const config = {
     "/api/job-roles/:path*",
     "/api/audiences",
     "/api/audiences/:path*",
+    // GDPR etapa B/C. /api/cron/* zde ZÁMĚRNĚ není: cron nemá session cookie,
+    // chrání se vlastním secretem (viz api/cron/retention/route.ts).
+    "/api/privacy",
+    "/api/privacy/:path*",
   ],
 };
 

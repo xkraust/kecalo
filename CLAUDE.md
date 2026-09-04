@@ -10,7 +10,7 @@ Po dokončení každého kroku v rámci libovolné fáze implementace (viz `docs
 
 ## Stav projektu
 
-Fáze 0–17 jsou **hotové a ověřené end-to-end** (poslední: Fáze 17 — správa promptů v adminu: system prompt chatu a prompt shrnutí poptávek editovatelné za běhu v `/admin/parameters/prompts`, NULL = výchozí z kódu; migrace `013_prompt_settings.sql` aplikovaná. Fáze 16 — zpětná vazba u odpovědi: palec nahoru poděkování, palec dolů karta kontaktu → lead typu `hodnoceni`; migrace `012_lead_type.sql` aplikovaná. Fáze 15 — evaluace přes Langfuse datasety, eval runner `scripts/langfuse-eval.mjs` a LLM-as-judge „Correctness in Czech" nakonfigurovaný v Langfuse UI; šablona Faithfulness zatím nejde — trace nenese obsah chunků, `record_content` default off). Hotové a ověřené jsou i všechny opravy z revize kódu (`docs/reviews/code_check.md`, 15 nálezů, balíčky A–E dle `docs/reviews/issues_correction_plan.md`) a z bezpečnostní revize (`docs/reviews/security_issues.md`, SEC-1 až SEC-6 + SEC-9 + SEC-10, balíčky A–F dle `docs/reviews/security_correction_plan.md`; následně i SEC-4 — server-side revokace session). SEC-7 a SEC-8 (serverová historie chatu, CSRF token) zůstávají vědomě odložené jako produkční dluh. Migrace `001`–`018` jsou aplikované na Supabase. Pozn.: `004`–`013` byly kdysi aplikované ručně mimo CLI, takže je bylo nutné doevidovat přes `supabase migration repair --status applied` — od `014` je historie srovnaná a `supabase db push` funguje normálně.
+Fáze 0–17 jsou **hotové a ověřené end-to-end** (poslední: Fáze 17 — správa promptů v adminu: system prompt chatu a prompt shrnutí poptávek editovatelné za běhu v `/admin/parameters/prompts`, NULL = výchozí z kódu; migrace `013_prompt_settings.sql` aplikovaná. Fáze 16 — zpětná vazba u odpovědi: palec nahoru poděkování, palec dolů karta kontaktu → lead typu `hodnoceni`; migrace `012_lead_type.sql` aplikovaná. Fáze 15 — evaluace přes Langfuse datasety, eval runner `scripts/langfuse-eval.mjs` a LLM-as-judge „Correctness in Czech" nakonfigurovaný v Langfuse UI; šablona Faithfulness zatím nejde — trace nenese obsah chunků, `record_content` default off). Hotové a ověřené jsou i všechny opravy z revize kódu (`docs/reviews/code_check.md`, 15 nálezů, balíčky A–E dle `docs/reviews/issues_correction_plan.md`) a z bezpečnostní revize (`docs/reviews/security_issues.md`, SEC-1 až SEC-6 + SEC-9 + SEC-10, balíčky A–F dle `docs/reviews/security_correction_plan.md`; následně i SEC-4 — server-side revokace session). SEC-7 a SEC-8 (serverová historie chatu, CSRF token) zůstávají vědomě odložené jako produkční dluh. Migrace `001`–`019` jsou aplikované na Supabase. Pozn.: `004`–`013` byly kdysi aplikované ručně mimo CLI, takže je bylo nutné doevidovat přes `supabase migration repair --status applied` — od `014` je historie srovnaná a `supabase db push` funguje normálně.
 
 Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživatel nahraje přes admin UI) a fallback otázky mimo bázi dál vracejí chunky nad prahem 0,35 (čisté odmítnutí zajišťuje systémový prompt; případně zvýšit práh v `/admin/parameters`).
 
@@ -22,11 +22,13 @@ Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživat
 
 **Role a přístup k dokumentům (mimo číslované fáze):** třívrstvý model oprávnění dle `docs/plans/roles_and_document_access_plan.md` — aplikační role (co smíš dělat), pracovní role sdružující štítky (kdo jsi v organizaci) a štítky dokumentů (komu obsah patří). **Všechny etapy A–D hotové a E2E ověřené** (A–C 31. 8. 2026, D 1. 9. 2026): tabulka `users` (migrace `014`), scrypt hesla, session cookie v2 s `uid`, `requireAppRole` v 8 handlerech, per-user revokace session, seed skript, per-username rate limit. Build/lint/typecheck procházejí, migrace `014` je aplikovaná a první uživatel seednutý. Ověřeno: cookie v1 odmítnuta, `viewer` dostane 403 na admin routách, **logout jednoho uživatele neodhlásí ostatní**, deaktivace účtu ukončí session, per-username rate limit drží napříč IP. Etapa B přidala správu uživatelů v `/admin/users` (zakládání s vygenerovaným heslem, reset, deaktivace, změna role), vynucenou změnu iniciálního hesla (`must_change_password`, migrace `015`) a samoobslužnou změnu hesla na `/admin/change-password`. Etapa C přidala **pracovní role a štítky dokumentů** (migrace `016`): číselníky v `/admin/users/job-roles` a `/admin/users/audiences`, viditelnost dokumentů (`public`/`restricted` + štítky), filtr v `match_chunks` a přepínač provozního režimu `default_document_visibility`. Etapa D přidala **přihlášení přes firemní identity provider** (OIDC, `openid-client` v6, bez migrace): `/api/auth/oidc/start` a `/callback`, JIT provisioning účtu při prvním přihlášení, mapování skupin z claims na pracovní role přes `job_roles.external_group`. Postup nasazení (registrace aplikace u IdP, env, mapování skupin, řešení problémů) je v `docs/sso-setup.md`. Stav konfigurace ukazuje adminovi indikátor `SsoStatus` — v patičce sidebaru kompaktně, na `/admin/users` s vysvětlením; při neúplné konfiguraci vypíše **názvy** chybějících proměnných (nikdy hodnoty), protože `oidcConfig()` vrací null už při jedné chybějící a zapomenutý secret by jinak vypadal jako úplně vypnuté SSO. Mapování skupiny na roli se nastavuje polem **Skupina v IdP** v `/admin/users/job-roles` (migrace `017` hlídá, aby jedna skupina mapovala nejvýš na jednu roli). Ověřeno proti lokálnímu mock IdP (`scripts/mock-idp.mjs`) — **napojení na reálný tenant zbývá** (stačí doplnit env, kód se nemění).
 
+**GDPR (mimo číslované fáze):** uvedení zpracování osobních údajů do souladu dle `docs/plans/gdpr_plan.md`. **Etapy A–C hotové a E2E ověřené** (4. 9. 2026): migrace `019` (retenční parametry v `app_settings` + auditní tabulka `privacy_actions`), retenční runner `src/lib/privacy/retention.ts` se dvěma vstupními brankami (denní cron `GET /api/cron/retention` chráněný `CRON_SECRET` a ruční `POST /api/privacy/retention` pro admina), nástroj práv subjektu v `/admin/privacy` (vyhledání podle kontaktu, JSON export, trvalý výmaz) a historie úkonů. Ověřeno: bez cookie 401, cron bez/se špatným secretem 401 a bez `CRON_SECRET` 503; úklid při vypnuté retenci vrací `skipped`, při zapnuté smazal přesně předdatované testovací řádky a nové nechal; výmaz na žádost odstranil poptávku i navázaný hlas a hledání pak vrací prázdno; e-mail se najde nezávisle na velikosti písmen, telefon i s předvolbou navíc. **`retention_enabled` je po migraci vypnutá** — zapnutí je vědomé rozhodnutí správce a v produkci zatím neproběhlo. Zbývají etapy D–G: veřejná stránka `/privacy` a text souhlasu, minimalizace toku dat ven (`record_content`), dokumentace `docs/gdpr.md` a provozní režim veřejný vs. interní.
+
 Podrobná historie fází, měření a průběžný stav: `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Projekt
 
-**Kecalo** je RAG chatbot pro pojišťovnu. Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je v **předprodukční fázi**: funkční aplikace s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí, které do ostrého provozu chybí především dokončení autentizace (etapy A a B plánu rolí zavedly víc identit s aplikačními rolemi a správu uživatelů; zbývá SSO a řízení viditelnosti dokumentů), automatizované testy (žádné — ověřuje se manuálně) a GDPR procesy (retence, mazání). V UI vystupuje jako „Pojišťovna Jistota", znalostní bázi tvoří reálné pojistné podmínky ze složky `docs/seed-docs/`. Uživatelé kladou otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
+**Kecalo** je RAG chatbot pro pojišťovnu. Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je v **předprodukční fázi**: funkční aplikace s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí, které do ostrého provozu chybí především dokončení autentizace (etapy A a B plánu rolí zavedly víc identit s aplikačními rolemi a správu uživatelů; zbývá SSO a řízení viditelnosti dokumentů), automatizované testy (žádné — ověřuje se manuálně) a dokončení GDPR (retence a mazání hotové, chybí transparence a provozní režim — etapy D–G plánu). V UI vystupuje jako „Pojišťovna Jistota", znalostní bázi tvoří reálné pojistné podmínky ze složky `docs/seed-docs/`. Uživatelé kladou otázky česky k pojistným produktům; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
 
 ## Technologický stack
 
@@ -99,7 +101,7 @@ supabase init                    # jednorázová inicializace Supabase projektu
 supabase db push                 # aplikuje migrace na Supabase (vyžaduje DATABASE_URL)
 ```
 
-Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `004_enable_rls.sql` (zapnutí Row-Level Security na `documents`/`chunks`/`app_settings` — bez policy pro anon; app používá service-role klíč, který RLS obchází), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu), `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`), `009_chunk_batch.sql` (`chunks` += `batch_id` — reindexace bez ztráty dat, oprava C1), `010_leads.sql` (tabulka `leads` — poptávky/lead generation, včetně RLS), `011_auth_state.sql` (jednořádková tabulka `auth_state` — revokace admin session po logoutu, oprava SEC-4; vč. RLS), `012_lead_type.sql` (`leads` += `type` — `produkt`/`hodnoceni`, Fáze 16; stávající řádky `produkt` přes DEFAULT) `013_prompt_settings.sql` (`app_settings` += `system_prompt`/`lead_summary_prompt` — nullable, NULL = výchozí konstanta v kódu; Fáze 17) a `014_users_roles.sql` (tabulka `users` — identity a aplikační role, rozšíření `citext`; etapa A plánu rolí) a `015_must_change_password.sql` (`users` += `must_change_password` — vynucená změna iniciálního hesla; etapa B) `016_job_roles_audiences.sql` (`audiences`, `job_roles`, vazební tabulky, view `user_effective_audiences`, `documents.visibility`, `app_settings.default_document_visibility`, `match_chunks` += `caller_audiences`; etapa C), `017_job_role_external_group_unique.sql` (`job_roles.external_group` + partial unique index — jedna skupina IdP mapuje nejvýš na jednu pracovní roli; etapa D) a `018_user_names.sql` (`users`: `username` → `email`, přibyly `first_name`/`last_name`, ubylo `display_name` — e-mail je nově přihlašovací údaj).
+Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabase/migrations/` — nikdy neprovádět ruční úpravy v SQL editoru Supabase. Aktuální migrace: `001_init.sql` (tabulky `documents`/`chunks` + HNSW index), `002_match_chunks.sql` (RPC `match_chunks` použité při retrievalu), `003_app_settings.sql` (jednořádková tabulka `app_settings` s runtime parametry RAG), `004_enable_rls.sql` (zapnutí Row-Level Security na `documents`/`chunks`/`app_settings` — bez policy pro anon; app používá service-role klíč, který RLS obchází), `005_feedback.sql` (tabulka `feedback`), `006_telemetry_settings.sql` (`app_settings` += `telemetry_enabled`, `record_content`) `007_chunk_sections.sql` (`chunks` += `section_path`; `match_chunks` ji nově vrací — funkce se kvůli změně návratového typu dropuje a vytváří znovu), `008_chunking_settings.sql` (`app_settings` += `chunk_target_size`/`chunk_breadcrumb`/`chunk_strip_headers`, `documents` += `chunking_config`), `009_chunk_batch.sql` (`chunks` += `batch_id` — reindexace bez ztráty dat, oprava C1), `010_leads.sql` (tabulka `leads` — poptávky/lead generation, včetně RLS), `011_auth_state.sql` (jednořádková tabulka `auth_state` — revokace admin session po logoutu, oprava SEC-4; vč. RLS), `012_lead_type.sql` (`leads` += `type` — `produkt`/`hodnoceni`, Fáze 16; stávající řádky `produkt` přes DEFAULT) `013_prompt_settings.sql` (`app_settings` += `system_prompt`/`lead_summary_prompt` — nullable, NULL = výchozí konstanta v kódu; Fáze 17) a `014_users_roles.sql` (tabulka `users` — identity a aplikační role, rozšíření `citext`; etapa A plánu rolí) a `015_must_change_password.sql` (`users` += `must_change_password` — vynucená změna iniciálního hesla; etapa B) `016_job_roles_audiences.sql` (`audiences`, `job_roles`, vazební tabulky, view `user_effective_audiences`, `documents.visibility`, `app_settings.default_document_visibility`, `match_chunks` += `caller_audiences`; etapa C), `017_job_role_external_group_unique.sql` (`job_roles.external_group` + partial unique index — jedna skupina IdP mapuje nejvýš na jednu pracovní roli; etapa D) `018_user_names.sql` (`users`: `username` → `email`, přibyly `first_name`/`last_name`, ubylo `display_name` — e-mail je nově přihlašovací údaj) a `019_gdpr_retention.sql` (`app_settings` += `retention_enabled`/`retention_leads_months`/`retention_feedback_months`; tabulka `privacy_actions` — auditní stopa výmazů, vč. RLS; GDPR etapa A).
 
 ## Proměnné prostředí
 
@@ -127,6 +129,8 @@ Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabas
 | `OIDC_CLIENT_SECRET` | Client secret (pouze server) |
 | `OIDC_GROUPS_CLAIM` | Název claimu se skupinami (default `groups`) |
 | `OIDC_REDIRECT_BASE_URL` | Základ redirect URI, když se origin liší od veřejné adresy (volitelné) |
+| `CRON_SECRET` | Secret retenčního cronu (`/api/cron/retention`); bez něj routa vrací 503 — raději vypnutý úklid než veřejná mazací routa |
+| `PRIVACY_HASH_SECRET` | Klíč HMAC otisku kontaktu v `privacy_actions` (volitelný — bez něj se odvodí ze `SESSION_SECRET`) |
 | `LANGFUSE_SECRET_KEY` | Langfuse server klíč (volitelný — bez něj app funguje, jen se neloguje) |
 | `LANGFUSE_PUBLIC_KEY` | Langfuse veřejný klíč (volitelný) |
 | `LANGFUSE_BASE_URL` | URL Langfuse instance (default `https://cloud.langfuse.com`) |
@@ -146,6 +150,7 @@ Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabas
 /admin/retrieval-test   → Panel test retrievalu
 /admin/parameters       → RAG parametry (slidery TOP_K, práh podobnosti, teplota; telemetrie, chunkování)
 /admin/parameters/prompts → Prompty (system prompt chatu + prompt shrnutí poptávek; Fáze 17)
+/admin/privacy          → Soukromí a osobní údaje (pouze admin): retenční lhůty, žádosti subjektů, historie úkonů
 /admin/users            → Správa uživatelů (pouze admin): založení, role, deaktivace, reset hesla
 /admin/users/job-roles  → Číselník pracovních rolí (admin): štítky role + pole „Skupina v IdP“
 /admin/users/audiences  → Číselník štítků dokumentů (admin)
@@ -177,6 +182,10 @@ GET    /api/audiences           → seznam štítků dokumentů (admin)
 POST   /api/audiences           → založení štítku (admin)
 PATCH  /api/audiences/[code]    → úprava štítku (admin)
 DELETE /api/audiences/[code]    → smazání štítku (admin)
+POST   /api/privacy/settings    → retenční lhůty a přepínač úklidu (admin); ZÁMĚRNĚ mimo /api/settings — reset RAG parametrů tak nemůže vypnout retenci
+POST   /api/privacy/retention   → ruční spuštění úklidu (admin); vypnutá retence → { skipped: true }
+POST   /api/privacy/subject     → { action: 'find' | 'erase', contact } (admin) — vyhledání a trvalý výmaz dat subjektu; kontakt v TĚLE, ne v query stringu (nesmí skončit v provozních logách)
+GET    /api/cron/retention      → denní úklid (vercel.json, 0 3 * * *); autorizace jen Authorization: Bearer CRON_SECRET, bez secretu 503
 POST   /api/auth/change-password → změna vlastního hesla (přihlášený); projde i účtu s must_change_password
 GET    /api/auth/oidc/start     → zahájení SSO (redirect na IdP; state + nonce + PKCE ve stavové cookie)
 GET    /api/auth/oidc/callback  → návrat od IdP: ověření tokenu, JIT provisioning, vydání session cookie
@@ -201,6 +210,8 @@ src/
 │   │       ├── documents/client.tsx  # klientská část (upload + tabulka)
 │   │       ├── leads/page.tsx        # server část (načtení poptávek)
 │   │       ├── leads/client.tsx      # klientská část (tabulka + akce Převzít/Uzavřít)
+│   │       ├── privacy/page.tsx      # server část (nastavení + historie privacy_actions)
+│   │       ├── privacy/client.tsx    # klientská část (lhůty, žádosti subjektů, výmaz)
 │   │       ├── users/page.tsx        # server část (seznam uživatelů)
 │   │       ├── users/client.tsx      # klientská část (založení, role, reset hesla)
 │   │       ├── users/job-roles/      # číselník pracovních rolí (page + client, etapa C/D)
@@ -225,6 +236,10 @@ src/
 │       ├── job-roles/[code]/route.ts # PATCH/DELETE pracovní role (admin)
 │       ├── audiences/route.ts        # GET seznam + POST založení štítku (admin)
 │       ├── audiences/[code]/route.ts # PATCH/DELETE štítku (admin)
+│       ├── privacy/settings/route.ts  # POST retenční lhůty (admin)
+│       ├── privacy/retention/route.ts # POST ruční úklid (admin)
+│       ├── privacy/subject/route.ts   # POST find/erase dat subjektu (admin)
+│       ├── cron/retention/route.ts    # GET denní úklid (jen Bearer CRON_SECRET)
 │       ├── auth/{login,logout,change-password}/route.ts
 │       └── auth/oidc/{start,callback}/route.ts  # SSO tok (etapa D)
 ├── components/
@@ -260,6 +275,9 @@ src/
     ├── validation.ts                 # sdílené validace (e-mail, jméno) + fullName()
     ├── session-user.ts               # getSessionUser(): identita + aplikační role z DB
     ├── audience-access.ts            # odvození štítků volajícího ze session pro match_chunks
+    ├── privacy/contact.ts            # normalizace kontaktu (sdílená s leads) + HMAC otisk
+    ├── privacy/retention.ts          # runRetention() — úklid podle lhůt, jedna implementace pro cron i admin
+    ├── privacy/subject.ts            # findSubjectData/eraseSubject — práva subjektu (čl. 15/17/20)
     ├── slug.ts                       # normalizace kódů číselníků (pracovní role, štítky)
     ├── require-role.ts               # druhá obranná linie: requireAppRole(min) v handlerech (SEC-2)
     ├── session-revocation.ts         # revokace session: per-user + globální kill-switch (SEC-4)
@@ -295,7 +313,8 @@ supabase/
     ├── 015_must_change_password.sql  # users += must_change_password (etapa B)
     ├── 016_job_roles_audiences.sql   # pracovní role, štítky, viditelnost dokumentů (etapa C)
     ├── 017_job_role_external_group_unique.sql  # jedna skupina IdP = nejvýš jedna role (etapa D)
-    └── 018_user_names.sql            # users: username → email, + first_name/last_name, −display_name
+    ├── 018_user_names.sql            # users: username → email, + first_name/last_name, −display_name
+    └── 019_gdpr_retention.sql        # app_settings += retenční parametry; tabulka privacy_actions (GDPR etapa A)
 scripts/
 ├── langfuse-eval.mjs                 # eval runner (Fáze 15) — experiment.run nad Langfuse datasety
 ├── langfuse-sync-metadata.mjs        # sync metadat items (expects_offer) do Langfuse — upsert podle id
@@ -308,7 +327,7 @@ docs/
 ├── IMPLEMENTATION_PLAN.md            # hlavní prováděcí checklist projektu (fáze + průběžný stav)
 ├── PRD_pojistovaci_RAG_chatbot.md    # zadání/PRD
 ├── seed-docs/                        # reálné PDF pojistné podmínky (obsah znalostní báze)
-├── plans/                            # feature/experimentální plány (Langfuse, lead-gen, Mistral, widget, demo, role a přístup k dokumentům)
+├── plans/                            # feature/experimentální plány (Langfuse, lead-gen, Mistral, widget, demo, role a přístup k dokumentům, hlasové ovládání)
 ├── reviews/                          # nálezy a opravné plány z code/security revizí
 └── evaluation/
     ├── testovaci_otazky*.md          # sady testovacích otázek (markdown)
@@ -388,6 +407,9 @@ app_settings (id smallint PK CHECK (id = 1), top_k int, similarity_threshold dou
               chunk_strip_headers boolean DEFAULT true,
               system_prompt text NULL CHECK (≤ 8000), lead_summary_prompt text NULL CHECK (≤ 4000),
               default_document_visibility text DEFAULT 'public' CHECK ('public'/'restricted'),
+              retention_enabled boolean DEFAULT false,
+              retention_leads_months int DEFAULT 24 CHECK (1..120),
+              retention_feedback_months int DEFAULT 6 CHECK (1..120),
               updated_at timestamptz)
 -- jednořádková konfigurace (id = 1) s runtime parametry RAG + přepínači telemetrie (Fáze 11)
 -- + parametry chunkování (Fáze 13); CHECK rozsahy musí odpovídat min/max v src/lib/settings-meta.ts
@@ -396,6 +418,10 @@ app_settings (id smallint PK CHECK (id = 1), top_k int, similarity_threshold dou
 -- jen editací v /admin/parameters/prompts, „Obnovit výchozí" vrací NULL
 -- default_document_visibility (migrace 016): provozní režim báze — výchozí viditelnost
 -- nově nahraného dokumentu; přepnutí NEMĚNÍ už nahrané dokumenty
+-- retenční sloupce (migrace 019, GDPR etapa A): retention_enabled je ZÁMĚRNĚ false —
+--   nasazení migrace nesmí nic smazat dřív, než správce lhůty vědomě potvrdí.
+--   Spravují se v /admin/privacy vlastní routou, NE přes POST /api/settings:
+--   „Obnovit výchozí" na stránce RAG parametrů by jinak retenci tiše vyplo
 
 feedback (id uuid PK, session_id text, message_index int, rating text CHECK ('up'/'down'),
           query text NULL, created_at timestamptz)
@@ -452,6 +478,15 @@ user_effective_audiences (view: user_id, audience_code)
 -- sjednocení štítků z pracovních rolí uživatele; jediný zdroj pro filtr v match_chunks
 -- (RPC dostává caller_audiences: NULL = bez filtru, '{}' = jen veřejné dokumenty)
 
+privacy_actions (id uuid PK, kind text CHECK ('retention'/'erasure'), subject_hash text NULL,
+                 leads_deleted int, feedback_deleted int,
+                 performed_by uuid NULL FK→users ON DELETE SET NULL, created_at timestamptz)
+-- auditní stopa výmazů (migrace 019, čl. 5 odst. 2 — zásada odpovědnosti)
+-- subject_hash = HMAC-SHA256 otisk normalizovaného kontaktu, NIKDY kontakt sám:
+--   prostý SHA-256 je u telefonních čísel slovníkově prolomitelný, takže by
+--   evidence sama byla dalším zpracováním osobních údajů
+-- performed_by NULL = úkon provedl cron; RLS zapnutá bez policy pro anon
+
 auth_state (id smallint PK CHECK (id = 1),
             sessions_invalid_before timestamptz DEFAULT '1970-01-01',
             updated_at timestamptz)
@@ -473,7 +508,7 @@ Hodnoty `status` poptávky: `new`/`updated` → `in_progress` → `closed` (`clo
 |---|---|
 | `GET /api/documents`, `POST /api/retrieval-test`, `GET /api/settings` | `viewer` |
 | `POST /api/documents`, `DELETE /api/documents/[id]`, `.../reprocess`, `PATCH /api/leads/[id]` | `editor` |
-| `POST /api/settings` (vč. promptů), `/api/users*`, `/api/job-roles*`, `/api/audiences*` | `admin` |
+| `POST /api/settings` (vč. promptů), `/api/users*`, `/api/job-roles*`, `/api/audiences*`, `/api/privacy*` | `admin` |
 | `PATCH /api/documents/[id]` (viditelnost, štítky) | `editor`; `public` a cizí štítky jen `admin` |
 
 Vodicí pravidlo: **editor spravuje obsah a agendu, ne systém.** Prompty a RAG parametry jsou konfigurace chování bota, proto zůstávají adminovi.
@@ -509,6 +544,8 @@ Parametry laditelné za běhu bez redeploye. **Pozor na zásadní rozdíl:** par
 | `system_prompt` | text ≤ 8000, NULL = výchozí | system prompt chatu (při dotazu; Fáze 17) |
 | `lead_summary_prompt` | text ≤ 4000, NULL = výchozí | prompt shrnutí poptávek (Mistral model; při založení leadu) |
 | `default_document_visibility` | `public`/`restricted` | výchozí viditelnost nově nahraného dokumentu (při uploadu); `public` = veřejná báze (dnešní chování), `restricted` = interní báze |
+
+**Retenční parametry** (`retention_enabled`, `retention_leads_months`, `retention_feedback_months`) sice bydlí ve stejné tabulce, ale **do této stránky nepatří** — spravují se v `/admin/privacy` a zapisuje je `POST /api/privacy/settings`. Důvod je konkrétní: „Obnovit výchozí" tady posílá celou sadu polí, takže kdyby mezi nimi retence byla, jedno kliknutí v RAG parametrech by tiše vyplo mazání osobních údajů. Oddělení drží typy (`RagNumericKey` vs. `RetentionNumericKey` v `settings-meta.ts`), ne domluva.
 
 - **Úložiště:** jednořádková tabulka `app_settings` (id = 1), migrace `003_app_settings.sql` (+ `006`, `008`, `013`).
 - **Server:** `lib/settings.ts` — `getSettings()` (čte přes service-role klienta; fallback na env `config` / tovární defaulty při chybějící tabulce / chybě DB) a `saveSettings()` (validace + clamp + uložení).
