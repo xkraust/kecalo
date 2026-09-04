@@ -43,6 +43,19 @@ Bez nastaveného `CRON_SECRET` vrací cron routa **503** a neběží. Je to bezp
 
 Každý běh zapíše řádek do `privacy_actions`, i když nic nesmazal. Doložitelné musí být, že úklid proběhl, ne jen že něco smazal.
 
+### Stav na demo instanci (kecalo.vercel.app)
+
+Retence je **vědomě vypnutá** a `CRON_SECRET` na Vercelu nastavený není (cron proto vrací 503). Zatím to nic neporušuje: první záznam se dostane za lhůtu až v okamžiku, kdy nejstarší řádek překročí svou dobu uchování.
+
+Hranici spočítáte takto — a je dobré si ji ověřit, ne přepsat z tohoto odstavce:
+
+- **zpětná vazba:** nejstarší `created_at` + `retention_feedback_months`
+- **poptávky:** nejstarší `updated_at` + `retention_leads_months`
+
+Ke 4. 9. 2026 vycházel dřívější z obou termínů na **24. 12. 2026** (zpětná vazba, 17 řádků, nejstarší z 24. 6. 2026); poptávky až na červenec 2028. **Od té dřívější hranice dál zásady na `/privacy` veřejně slibují smazání, ke kterému nedochází** — to je ten okamžik, kdy vypnutá retence přestává být nezávadná. Administrace na nesoulad upozorňuje sama, ale nehlídá datum.
+
+Před ostrým provozem s reálnými klienty je potřeba retenci zapnout bez ohledu na tyhle termíny.
+
 ---
 
 ## 3. Žádost o přístup a přenositelnost (čl. 15 a 20)
