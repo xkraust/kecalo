@@ -19,6 +19,10 @@ import {
 import { cn } from "@/lib/utils";
 import type { AppRole } from "@/lib/session-user";
 import { SsoStatus } from "@/components/SsoStatus";
+import {
+  DeploymentMode,
+  type DeploymentModeInput,
+} from "@/components/DeploymentMode";
 
 interface NavItem {
   label: string;
@@ -66,11 +70,14 @@ export function AdminSidebar({
   appRole,
   displayName,
   sso,
+  deployment,
 }: {
   appRole: AppRole;
   displayName: string;
   /** Stav SSO konfigurace; `null` = uživatel není admin, neukazovat. */
   sso?: { enabled: boolean; missing: string[] } | null;
+  /** Odvozený provozní režim; `null` = uživatel není admin, neukazovat. */
+  deployment?: DeploymentModeInput | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -185,6 +192,7 @@ export function AdminSidebar({
       </nav>
 
       <div className="px-3 pb-4">
+        {deployment && <DeploymentMode input={deployment} compact />}
         {sso && (
           <SsoStatus enabled={sso.enabled} missing={sso.missing} compact />
         )}

@@ -38,6 +38,8 @@ export interface Lead {
   /** Jméno zpracovatele (zatím jen "admin"; příprava na CRM). */
   assignee: string | null;
   consent: boolean;
+  /** Právní titul zpracování (migrace 020) — u poptávky vždy `souhlas`. */
+  processing_basis: string;
   created_at: string;
   updated_at: string;
 }

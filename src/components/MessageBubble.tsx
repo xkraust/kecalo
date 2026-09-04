@@ -14,6 +14,9 @@ interface MessageBubbleProps {
   onFeedback?: (messageIndex: number, rating: "up" | "down") => void;
   /** Nabídka kontaktu — model odpověď označil tokenem [[NABIDKA]]. */
   showLeadForm?: boolean;
+  /** Sbírá instance kontakty? Vypnuto = žádná karta poptávky, ani po palci
+   * dolů (ta se jinak řídí čistě klientem, ne tokenem). GDPR etapa G. */
+  leadCaptureEnabled?: boolean;
   sessionId?: string;
   /** Posledních max 8 zpráv konverzace pro serverovou komprimaci poptávky. */
   conversation?: ConversationMessage[];
@@ -27,6 +30,7 @@ export function MessageBubble({
   feedbackRating,
   onFeedback,
   showLeadForm,
+  leadCaptureEnabled = true,
   sessionId,
   conversation,
 }: MessageBubbleProps) {
@@ -61,7 +65,7 @@ export function MessageBubble({
             <SourcesBlock sources={sources} />
           </div>
         )}
-        {showLeadForm && sessionId && (
+        {showLeadForm && leadCaptureEnabled && sessionId && (
           <LeadForm sessionId={sessionId} conversation={conversation ?? []} />
         )}
         {showFeedback && (
@@ -105,7 +109,10 @@ export function MessageBubble({
         {/* Palec dolů → nabídka kontaktu (lead typu hodnoceni). Když je nad
             tlačítky už produktový formulář, druhý se nevykresluje — kontakt
             sbírá ten produktový, hlas se do /api/feedback uloží tak jako tak. */}
-        {feedbackRating === "down" && sessionId && !showLeadForm && (
+        {feedbackRating === "down" &&
+          leadCaptureEnabled &&
+          sessionId &&
+          !showLeadForm && (
           <LeadForm
             variant="hodnoceni"
             sessionId={sessionId}

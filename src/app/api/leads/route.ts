@@ -4,6 +4,7 @@ import { NextResponse, after } from "next/server";
 import { config } from "@/lib/config";
 import { supabase } from "@/lib/supabase";
 import { getSettings } from "@/lib/settings";
+import type { SettingsValues } from "@/lib/settings-meta";
 import { createRateLimiter, clientIp } from "@/lib/rate-limit";
 import { withSpan, flushTelemetry } from "@/lib/telemetry";
 import { LEAD_SUMMARY_PROMPT } from "@/lib/rag/prompts";
@@ -156,11 +157,11 @@ function sanitizeForTranscript(content: string): string {
  * Best-effort: při selhání vrací null, poptávka se nesmí ztratit kvůli
  * sumarizaci. */
 async function summarizeConversation(
-  messages: ConversationMessage[]
+  messages: ConversationMessage[],
+  settings: SettingsValues
 ): Promise<string | null> {
   if (messages.length === 0) return null;
   try {
-    const settings = await getSettings();
     const transcript = messages
       .map(
         (m) =>
@@ -249,13 +250,24 @@ export async function POST(request: Request) {
     );
   }
 
+  // Tvrdý gate sběru kontaktů (GDPR etapa G). Vypuštění tokenu [[NABIDKA]]
+  // z promptu a skrytí karty na klientu nestačí — routa je veřejná, takže bez
+  // téhle kontroly by šlo poptávku odeslat přímým voláním.
+  const settings = await getSettings();
+  if (!settings.leadCaptureEnabled) {
+    return NextResponse.json(
+      { error: "Sběr kontaktů je vypnutý." },
+      { status: 403 }
+    );
+  }
+
   const body = await request.json().catch(() => null);
   const input = parseLeadInput(body);
   if (typeof input === "string") {
     return NextResponse.json({ error: input }, { status: 400 });
   }
 
-  const summary = await summarizeConversation(input.messages);
+  const summary = await summarizeConversation(input.messages, settings);
   after(() => flushTelemetry());
 
   try {
@@ -291,6 +303,11 @@ export async function POST(request: Request) {
       type: input.type,
       session_id: input.sessionId,
       consent: true,
+      // Právní titul se ukládá K ŘÁDKU, ne do nastavení: váže se k okamžiku
+      // sběru, takže po pozdější změně konfigurace musí u starých řádků zůstat
+      // doložitelný (čl. 5 odst. 2). U poptávky je to vždy souhlas — je to
+      // jediné místo, kde se souhlas checkboxem skutečně sbírá.
+      processing_basis: "souhlas",
     });
     if (error) throw new Error(error.message);
     return NextResponse.json({ ok: true }, { status: 201 });

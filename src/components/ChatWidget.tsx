@@ -23,6 +23,7 @@ export function ChatWidget() {
     isLoading,
     feedbackMap,
     sessionId,
+    leadCaptureEnabled,
     scrollRef,
     sendMessage,
     handleInputKeyDown,
@@ -109,6 +110,7 @@ export function ChatWidget() {
           onFeedback={handleFeedback}
           sendMessage={sendMessage}
           sessionId={sessionId}
+          leadCaptureEnabled={leadCaptureEnabled}
           scrollRef={scrollRef}
         />
 

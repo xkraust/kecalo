@@ -68,6 +68,10 @@ export function useKecaloChat() {
   const [feedbackMap, setFeedbackMap] = useState<
     Record<number, "up" | "down">
   >({});
+  // Sbírá instance kontakty? Přichází z hlavičky X-Lead-Capture při každé
+  // odpovědi (GDPR etapa G). Výchozí `true` = dnešní chování; kdyby hlavička
+  // chyběla, karta se chová jako dřív — tvrdou obranou je 403 na /api/leads.
+  const [leadCaptureEnabled, setLeadCaptureEnabled] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Běžící stream se dá zrušit (nová konverzace, unmount) — oprava E3.
   const abortRef = useRef<AbortController | null>(null);
@@ -130,6 +134,11 @@ export function useKecaloChat() {
         });
 
         const traceId = res.headers.get("X-Trace-Id") ?? undefined;
+
+        const leadCaptureHeader = res.headers.get("X-Lead-Capture");
+        if (leadCaptureHeader !== null) {
+          setLeadCaptureEnabled(leadCaptureHeader === "1");
+        }
 
         let sources: Source[] = [];
         const sourcesHeader = res.headers.get("X-Sources");
@@ -274,6 +283,7 @@ export function useKecaloChat() {
     isLoading,
     feedbackMap,
     sessionId,
+    leadCaptureEnabled,
     scrollRef,
     sendMessage,
     handleInputKeyDown,

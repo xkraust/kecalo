@@ -18,6 +18,14 @@ export const config = {
   // viz docs/plans/mistral_summary_experiment_plan.md). Levnější kompresní úloha; volá se
   // přes @ai-sdk/mistral, klíč MISTRAL_API_KEY čte provider z env automaticky.
   summaryModel: process.env.SUMMARY_MODEL ?? "mistral-small-latest",
+  // Smí se chatu ptát kdokoli bez přihlášení? Hranice mezi veřejným botem
+  // a interním nástrojem je BEZPEČNOSTNÍ rozhodnutí, ne preference — špatné
+  // přepnutí zpřístupní interní znalostní bázi internetu. Proto env, ne admin UI.
+  //
+  // Chybějící hodnota = zamítnout (stejný vzor jako u SESSION_SECRET v proxy):
+  // zapomenutá proměnná při interním nasazení nesmí bázi otevřít. Pozor, plyne
+  // z toho i opak — veřejná instance BEZ této proměnné přestane fungovat.
+  publicChat: process.env.PUBLIC_CHAT === "true",
   topK: parseInt(process.env.TOP_K ?? "5", 10),
   similarityThreshold: parseFloat(process.env.SIMILARITY_THRESHOLD ?? "0.35"),
   llmTemperature: parseFloat(process.env.LLM_TEMPERATURE ?? "0.2"),

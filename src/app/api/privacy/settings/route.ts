@@ -1,11 +1,11 @@
-// Uložení retenčních parametrů z /admin/privacy (GDPR etapa A/B).
+// Uložení parametrů soukromí z /admin/privacy (retence + sběr kontaktů).
 //
 // ZÁMĚRNĚ samostatná routa vedle /api/settings: stránka „RAG parametry"
 // retenční sloupce vůbec nezapisuje, takže její „Obnovit výchozí" nemůže
 // vypnout retenci ani zkrátit lhůty (viz komentář u ALL_NUMERIC_FIELDS).
 import { NextResponse } from "next/server";
 import { requireAppRole } from "@/lib/require-role";
-import { saveRetentionSettings } from "@/lib/settings";
+import { savePrivacySettings } from "@/lib/settings";
 
 export async function POST(request: Request) {
   const auth = await requireAppRole("admin");
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const saved = await saveRetentionSettings(body);
+    const saved = await savePrivacySettings(body);
     return NextResponse.json(saved);
   } catch (err) {
     console.error("Uložení retenčních parametrů selhalo:", err);

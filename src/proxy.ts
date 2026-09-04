@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME, verifySession } from "./lib/auth";
 
-// Chráněné jsou admin stránky a admin API routy. Veřejné zůstávají:
-// /api/chat, /api/feedback, /api/auth/* (login/logout/oidc) a POST /api/leads.
+// Chráněné jsou admin stránky a admin API routy. Chat, hodnocení, odeslání
+// poptávky a obě chatové stránky jsou veřejné JEN při PUBLIC_CHAT=true;
+// bez něj se chovají jako admin routy (etapa G plánu GDPR).
+//
 // Pozn.: /api/auth/oidc/* v matcheru záměrně NENÍ — je to přihlašovací tok,
 // takže vyžadovat pro něj session by ho zacyklilo.
+//
+// POZOR: `config.matcher` je build-time konstanta — nejde ji podmínit env
+// proměnnou. Chatové cesty jsou proto v matcheru VŽDY a o propuštění rozhoduje
+// až runtime kód v `proxy()` níže.
 export const config = {
   matcher: [
+    "/",
+    "/demo",
+    "/api/chat",
+    "/api/feedback",
     "/admin",
     "/admin/:path*",
     "/api/documents",
@@ -28,6 +38,9 @@ export const config = {
   ],
 };
 
+/** Cesty, které jsou veřejné jen ve veřejném režimu (PUBLIC_CHAT=true). */
+const PUBLIC_CHAT_PATHS = new Set(["/", "/demo", "/api/chat", "/api/feedback"]);
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -35,10 +48,21 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Odeslání poptávky z chatu je veřejné; zbytek /api/leads* (PATCH) je admin.
-  if (pathname === "/api/leads" && request.method === "POST") {
-    return NextResponse.next();
+  // Proxy neimportuje lib/config — běží v edge runtime a config vyžaduje
+  // všechny env proměnné najednou. Proto se čte přímo z process.env.
+  const publicChat = process.env.PUBLIC_CHAT === "true";
+
+  if (publicChat) {
+    // Veřejný režim: chat, hodnocení i odeslání poptávky jsou bez přihlášení.
+    if (PUBLIC_CHAT_PATHS.has(pathname)) {
+      return NextResponse.next();
+    }
+    if (pathname === "/api/leads" && request.method === "POST") {
+      return NextResponse.next();
+    }
   }
+  // Interní režim: nic z toho výjimku nemá a propadne ke kontrole session
+  // níže. Zbytek /api/leads* (zejména PATCH) je admin v obou režimech.
 
   // Pro API routy nemá redirect na login smysl — vracíme 401 JSON.
   const deny = () =>

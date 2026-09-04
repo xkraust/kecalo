@@ -9,9 +9,10 @@ import {
   PROMPT_FIELDS,
   RETENTION_SLIDER_FIELDS,
   RETENTION_TOGGLE_FIELDS,
+  LEAD_CAPTURE_FIELDS,
   DEFAULT_SETTINGS,
   parseSettingsInput,
-  parseRetentionInput,
+  parsePrivacyInput,
   type SettingsValues,
   type DocumentVisibility,
 } from "@/lib/settings-meta";
@@ -20,7 +21,7 @@ const SELECT_COLUMNS =
   "top_k, similarity_threshold, llm_temperature, telemetry_enabled, record_content, " +
   "chunk_target_size, chunk_breadcrumb, chunk_strip_headers, " +
   "system_prompt, lead_summary_prompt, default_document_visibility, " +
-  "retention_enabled, retention_leads_months, retention_feedback_months";
+  "retention_enabled, retention_leads_months, retention_feedback_months, lead_capture_enabled";
 
 type SettingsRow = {
   top_k: number;
@@ -37,6 +38,7 @@ type SettingsRow = {
   retention_enabled: boolean;
   retention_leads_months: number;
   retention_feedback_months: number;
+  lead_capture_enabled: boolean;
 };
 
 function fromRow(data: SettingsRow): SettingsValues {
@@ -55,6 +57,7 @@ function fromRow(data: SettingsRow): SettingsValues {
     retentionEnabled: data.retention_enabled,
     retentionLeadsMonths: data.retention_leads_months,
     retentionFeedbackMonths: data.retention_feedback_months,
+    leadCaptureEnabled: data.lead_capture_enabled,
   };
 }
 
@@ -87,22 +90,23 @@ export async function getSettings(): Promise<SettingsValues> {
 }
 
 /**
- * Uložení retenčních parametrů (/admin/privacy).
+ * Uložení parametrů soukromí (/admin/privacy): retence a sběr kontaktů.
  *
  * ZÁMĚRNĚ samostatná funkce, ne rozšíření `saveSettings`: stránka „RAG
- * parametry" tak retenční sloupce vůbec nezapisuje a její „Obnovit výchozí"
- * nemůže vypnout retenci. Chybějící pole ve vstupu se berou z aktuálně
- * uložených hodnot, ne z továrních defaultů.
+ * parametry" tak tyhle sloupce vůbec nezapisuje a její „Obnovit výchozí"
+ * nemůže vypnout retenci ani znovu zapnout sběr kontaktů. Chybějící pole ve
+ * vstupu se berou z aktuálně uložených hodnot, ne z továrních defaultů.
  */
-export async function saveRetentionSettings(
+export async function savePrivacySettings(
   input: unknown
 ): Promise<SettingsValues> {
   const current = await getSettings();
-  const values = parseRetentionInput(input, current);
+  const values = parsePrivacyInput(input, current);
 
   const row = Object.fromEntries([
     ...RETENTION_SLIDER_FIELDS.map((f) => [f.column, values[f.key]]),
     ...RETENTION_TOGGLE_FIELDS.map((f) => [f.column, values[f.key]]),
+    ...LEAD_CAPTURE_FIELDS.map((f) => [f.column, values[f.key]]),
   ]);
 
   const { data, error } = await supabase
@@ -113,7 +117,7 @@ export async function saveRetentionSettings(
     .single<SettingsRow>();
 
   if (error || !data) {
-    throw new Error(error?.message ?? "Uložení retenčních parametrů selhalo");
+    throw new Error(error?.message ?? "Uložení parametrů soukromí selhalo");
   }
   return fromRow(data);
 }

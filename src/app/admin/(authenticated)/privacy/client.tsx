@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import {
   RETENTION_SLIDER_FIELDS,
   RETENTION_TOGGLE_FIELDS,
+  LEAD_CAPTURE_FIELDS,
   clampField,
   type SettingsValues,
   type RetentionNumericKey,
@@ -30,6 +31,7 @@ interface SubjectFeedback {
   message_index: number;
   rating: "up" | "down";
   query: string | null;
+  processing_basis: string;
   created_at: string;
 }
 
@@ -52,6 +54,15 @@ const dateFmt = new Intl.DateTimeFormat("cs-CZ", {
 
 function formatDate(iso: string): string {
   return dateFmt.format(new Date(iso));
+}
+
+/** Právní titul lidsky. Obsluha musí vidět, pod jakým titulem záznam vznikl,
+ * ještě než ho vydá nebo smaže — po pozdější změně konfigurace už by to
+ * z nastavení nešlo odvodit. */
+function basisLabel(basis: string): string {
+  if (basis === "souhlas") return "Souhlas";
+  if (basis === "opravneny_zajem") return "Oprávněný zájem";
+  return basis;
 }
 
 function Section({
@@ -82,6 +93,7 @@ export function PrivacyClient({ initial, actions }: Props) {
     retentionEnabled: initial.retentionEnabled,
     retentionLeadsMonths: initial.retentionLeadsMonths,
     retentionFeedbackMonths: initial.retentionFeedbackMonths,
+    leadCaptureEnabled: initial.leadCaptureEnabled,
   });
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsStatus, setSettingsStatus] = useState("");
@@ -329,6 +341,42 @@ export function PrivacyClient({ initial, actions }: Props) {
         </div>
       </Section>
 
+      {/* Sběr kontaktů */}
+      <Section
+        title="Sběr kontaktů v chatu"
+        description="Řídí, zda bot nabízí kartu poptávky. Nezávislý parametr, ne součást „režimu“ — chování spolu koreluje, ale není to táž věc."
+      >
+        {LEAD_CAPTURE_FIELDS.map((field) => (
+          <div
+            key={field.key}
+            className="rounded-lg border border-border bg-card p-5"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-medium">{field.label}</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {field.description}
+                </p>
+              </div>
+              <Switch
+                checked={values.leadCaptureEnabled}
+                onCheckedChange={(checked) =>
+                  setValues((v) => ({ ...v, leadCaptureEnabled: checked }))
+                }
+              />
+            </div>
+            {field.warning && (
+              <div className="mt-3 rounded-md bg-[#FAEEDA] px-2.5 py-1.5 text-xs text-[#854F0B]">
+                {field.warning}
+              </div>
+            )}
+            <p className="mt-3 text-xs text-muted-foreground">
+              Uloží se tlačítkem <strong>Uložit</strong> v sekci Doba uchování.
+            </p>
+          </div>
+        ))}
+      </Section>
+
       {/* Subjekt údajů */}
       <Section
         title="Žádost subjektu údajů"
@@ -384,7 +432,8 @@ export function PrivacyClient({ initial, actions }: Props) {
                         <th className="py-1.5 pr-3 font-medium">Jméno</th>
                         <th className="py-1.5 pr-3 font-medium">Kontakt</th>
                         <th className="py-1.5 pr-3 font-medium">Typ</th>
-                        <th className="py-1.5 font-medium">Stav</th>
+                        <th className="py-1.5 pr-3 font-medium">Stav</th>
+                        <th className="py-1.5 font-medium">Právní titul</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -398,7 +447,8 @@ export function PrivacyClient({ initial, actions }: Props) {
                             {l.email ?? l.phone ?? "—"}
                           </td>
                           <td className="py-1.5 pr-3">{l.type}</td>
-                          <td className="py-1.5">{l.status}</td>
+                          <td className="py-1.5 pr-3">{l.status}</td>
+                          <td className="py-1.5">{basisLabel(l.processing_basis)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -413,6 +463,7 @@ export function PrivacyClient({ initial, actions }: Props) {
                       <tr>
                         <th className="py-1.5 pr-3 font-medium">Vytvořeno</th>
                         <th className="py-1.5 pr-3 font-medium">Hodnocení</th>
+                        <th className="py-1.5 pr-3 font-medium">Právní titul</th>
                         <th className="py-1.5 font-medium">Uložený dotaz</th>
                       </tr>
                     </thead>
@@ -424,6 +475,9 @@ export function PrivacyClient({ initial, actions }: Props) {
                           </td>
                           <td className="py-1.5 pr-3">
                             {f.rating === "up" ? "Nahoru" : "Dolů"}
+                          </td>
+                          <td className="py-1.5 pr-3">
+                            {basisLabel(f.processing_basis)}
                           </td>
                           <td className="py-1.5 text-muted-foreground">
                             {f.query ?? "—"}

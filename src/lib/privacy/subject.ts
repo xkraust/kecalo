@@ -17,6 +17,8 @@ export interface SubjectFeedback {
   session_id: string;
   message_index: number;
   rating: "up" | "down";
+  /** Právní titul, pod kterým záznam vznikl (GDPR etapa G). */
+  processing_basis: string;
   /** Doslovný text dotazu, pokud byl uložen (viz E.3 plánu). */
   query: string | null;
   created_at: string;
@@ -66,7 +68,7 @@ export async function findSubjectData(
 
   const { data: feedback, error: fbError } = await supabase
     .from("feedback")
-    .select("id, session_id, message_index, rating, query, created_at")
+    .select("id, session_id, message_index, rating, query, created_at, processing_basis")
     .in("session_id", sessionIds)
     .order("created_at", { ascending: false });
 

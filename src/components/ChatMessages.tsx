@@ -15,6 +15,8 @@ interface ChatMessagesProps {
   onFeedback: (messageIndex: number, rating: "up" | "down") => void;
   sendMessage: (text: string) => void;
   sessionId: string;
+  /** Sbírá instance kontakty? Propisuje se do karet poptávky (GDPR etapa G). */
+  leadCaptureEnabled?: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   /** Kompaktní režim pro widget — menší paddingy, prázdný stav pod sebou. */
   compact?: boolean;
@@ -29,6 +31,7 @@ export function ChatMessages({
   onFeedback,
   sendMessage,
   sessionId,
+  leadCaptureEnabled = true,
   scrollRef,
   compact = false,
   emptyStateDescription = DEFAULT_EMPTY_DESCRIPTION,
@@ -106,6 +109,7 @@ export function ChatMessages({
               feedbackRating={feedbackMap[i] ?? null}
               onFeedback={onFeedback}
               showLeadForm={m.offerLead}
+              leadCaptureEnabled={leadCaptureEnabled}
               sessionId={sessionId}
               conversation={messages
                 .slice(0, i + 1)

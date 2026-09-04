@@ -13,6 +13,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getSettings } from "@/lib/settings";
+import { config } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +96,12 @@ function months(n: number): string {
 export default async function PrivacyPage() {
   const settings = await getSettings();
 
+  // Varianta textu se ODVOZUJE ze skutečné konfigurace, nemá vlastní nastavení
+  // (GDPR etapa G.5). Kdyby se přepínala zvlášť, rozešlo by se, co aplikace
+  // dělá, a co o sobě tvrdí — a to je přesně ten druh rozporu, který zásady
+  // zpracování diskvalifikuje.
+  const internal = !config.publicChat;
+
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <header className="border-b border-border">
@@ -122,9 +129,9 @@ export default async function PrivacyPage() {
             Zásady zpracování osobních údajů
           </h1>
           <p className="text-sm text-muted-foreground">
-            Tyto zásady popisují, jaké údaje zpracováváme v souvislosti
-            s chatbotem na tomto webu, z jakého důvodu, jak dlouho je uchováváme
-            a jaká máte práva.
+            {internal
+              ? "Tyto zásady popisují, jaké údaje zaznamenává interní chatbot znalostní báze, z jakého důvodu, jak dlouho je uchováváme a jaká máte práva."
+              : "Tyto zásady popisují, jaké údaje zpracováváme v souvislosti s chatbotem na tomto webu, z jakého důvodu, jak dlouho je uchováváme a jaká máte práva."}
           </p>
         </div>
 
@@ -141,21 +148,26 @@ export default async function PrivacyPage() {
           <p>
             <strong>Dotazy položené chatbotu.</strong> Text dotazu odesíláme
             poskytovatelům jazykového modelu, abychom mohli sestavit odpověď
-            z pojistných podmínek. Konverzaci neukládáme na server — zůstává
+            z dokumentů znalostní báze. Konverzaci neukládáme na server — zůstává
             jen ve vašem prohlížeči, dokud ji nezavřete nebo nezaložíte novou.
           </p>
+          {settings.leadCaptureEnabled && (
+            <p>
+              <strong>Poptávka (jméno, e-mail, telefon, poznámka).</strong>{" "}
+              Zpracováváme ji, abychom vás mohli kontaktovat k vašemu dotazu.
+              K poptávce ukládáme také automatické shrnutí konverzace, ze které
+              vznikla, aby kolega věděl, čeho se dotaz týkal. Právním základem
+              je{" "}
+              <strong>váš souhlas</strong>, který udělujete zaškrtnutím
+              políčka u formuláře.
+            </p>
+          )}
           <p>
-            <strong>Poptávka (jméno, e-mail, telefon, poznámka).</strong>{" "}
-            Zpracováváme ji, abychom vás mohli kontaktovat k vašemu dotazu.
-            K poptávce ukládáme také automatické shrnutí konverzace, ze které
-            vznikla, aby kolega věděl, čeho se dotaz týkal. Právním základem je{" "}
-            <strong>váš souhlas</strong>, který udělujete zaškrtnutím políčka
-            u formuláře.
-          </p>
-          <p>
-            <strong>Hodnocení odpovědi (palec nahoru/dolů).</strong> Spolu
-            s hlasem ukládáme i text hodnoceného dotazu, abychom poznali, které
-            odpovědi selhávají, a mohli je zlepšit. Právním základem je náš{" "}
+            <strong>Hodnocení odpovědi (palec nahoru/dolů).</strong> U{" "}
+            <strong>záporného</strong> hodnocení ukládáme spolu s hlasem i text
+            hodnoceného dotazu, abychom poznali, které odpovědi selhávají,
+            a mohli je zlepšit. U kladného hodnocení text neukládáme — odpověď
+            fungovala a není co dohledávat. Právním základem je náš{" "}
             <strong>oprávněný zájem</strong> na funkčnosti a kvalitě služby.
             Hodnocení je anonymní — samo o sobě vás neidentifikuje.
           </p>
@@ -170,11 +182,13 @@ export default async function PrivacyPage() {
 
         <Section title="Jak dlouho údaje uchováváme">
           <ul className="list-disc space-y-1.5 pl-5">
-            <li>
-              Poptávky: nejdéle{" "}
-              <strong>{months(settings.retentionLeadsMonths)}</strong> od
-              poslední komunikace s vámi.
-            </li>
+            {settings.leadCaptureEnabled && (
+              <li>
+                Poptávky: nejdéle{" "}
+                <strong>{months(settings.retentionLeadsMonths)}</strong> od
+                poslední komunikace s vámi.
+              </li>
+            )}
             <li>
               Hodnocení odpovědí: nejdéle{" "}
               <strong>{months(settings.retentionFeedbackMonths)}</strong> od
@@ -246,6 +260,29 @@ export default async function PrivacyPage() {
             o anonymní údaj, který k vám nelze přiřadit.
           </p>
         </Section>
+
+        {internal && (
+          <Section title="Informace pro zaměstnance">
+            <p>
+              Tento nástroj je interní: odpovídá jen přihlášeným uživatelům
+              a rozsah dokumentů, které vidíte, se řídí vaší pracovní rolí.
+            </p>
+            <p>
+              Zaznamenává se, <strong>že</strong> jste položili dotaz (technická
+              metadata provozu), a pokud odpověď ohodnotíte palcem dolů, uloží se
+              i <strong>text hodnoceného dotazu</strong> — slouží ke zlepšování
+              odpovědí. U kladného hodnocení se text neukládá. Záznamy nejsou
+              nástrojem kontroly výkonu ani chování a nepoužívají se k hodnocení
+              zaměstnanců; plníme jimi informační povinnost podle § 316
+              zákoníku práce.
+            </p>
+            <p>
+              Znalostní báze může obsahovat osobní údaje klientů. Přístup k nim
+              je řízen štítky dokumentů podle pracovní role — obsah, na který
+              nemáte oprávnění, se vám v odpovědích neobjeví.
+            </p>
+          </Section>
+        )}
 
         <Section title="Cookies a údaje v prohlížeči">
           <p>

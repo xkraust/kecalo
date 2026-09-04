@@ -14,6 +14,7 @@ export default function ChatPage() {
     isLoading,
     feedbackMap,
     sessionId,
+    leadCaptureEnabled,
     scrollRef,
     sendMessage,
     handleInputKeyDown,
@@ -54,6 +55,7 @@ export default function ChatPage() {
         onFeedback={handleFeedback}
         sendMessage={sendMessage}
         sessionId={sessionId}
+        leadCaptureEnabled={leadCaptureEnabled}
         scrollRef={scrollRef}
       />
 

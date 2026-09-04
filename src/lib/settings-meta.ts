@@ -22,6 +22,8 @@ export interface SettingsValues {
   retentionLeadsMonths: number;
   /** Lhůta pro zpětnou vazbu v měsících. */
   retentionFeedbackMonths: number;
+  /** Sbírá se v chatu kontakt na zájemce? (GDPR etapa G) */
+  leadCaptureEnabled: boolean;
 }
 
 /** Viditelnost dokumentu vůči anonymnímu chatu (documents.visibility). */
@@ -78,7 +80,9 @@ export type RagToggleKey =
   | "recordContent"
   | "chunkBreadcrumb"
   | "chunkStripHeaders";
-export type ToggleSettingKey = RagToggleKey | "retentionEnabled";
+/** Přepínače spravované stránkou /admin/privacy — nikdy ne RAG parametry. */
+export type PrivacyToggleKey = "retentionEnabled" | "leadCaptureEnabled";
+export type ToggleSettingKey = RagToggleKey | PrivacyToggleKey;
 /** Klíče textových polí — prompty (Fáze 17). */
 export type TextSettingKey = "systemPrompt" | "leadSummaryPrompt";
 
@@ -115,7 +119,8 @@ export interface ToggleField<K extends ToggleSettingKey = ToggleSettingKey> {
     | "record_content"
     | "chunk_breadcrumb"
     | "chunk_strip_headers"
-    | "retention_enabled";
+    | "retention_enabled"
+    | "lead_capture_enabled";
   label: string;
   description: string;
   default: boolean;
@@ -315,6 +320,22 @@ export const RETENTION_TOGGLE_FIELDS: readonly ToggleField<"retentionEnabled">[]
   },
 ];
 
+// Sběr poptávek (GDPR etapa G). ZÁMĚRNĚ samostatný parametr, ne součást
+// nějakého „režimu": chování spolu koreluje, ale není to táž věc, a jeden
+// přepínač režimu by sebral mezistavy.
+export const LEAD_CAPTURE_FIELDS: readonly ToggleField<"leadCaptureEnabled">[] = [
+  {
+    key: "leadCaptureEnabled",
+    column: "lead_capture_enabled",
+    label: "Sbírat kontakty v chatu",
+    description:
+      "Bot u dotazů se zájmem o produkt nabídne kartu poptávky a po záporném hodnocení kontakt na specialistu. Vypnuto = karta se nezobrazí a odeslání poptávky se odmítne.",
+    default: true,
+    warning:
+      "Vypnutí je namístě u interního nasazení, kde poptávky nedávají smysl — sbírat kontakty zaměstnanců pod hlavičkou souhlasu by byl zbytečný sběr osobních údajů.",
+  },
+];
+
 /**
  * Pole spravovaná stránkou „RAG parametry" — tedy PŘESNĚ to, co zapisuje
  * `POST /api/settings`.
@@ -382,24 +403,28 @@ export function parseTextField(field: TextField, raw: unknown): string | null {
 
 /** Podmnožina parametrů spravovaná stránkou „RAG parametry" (bez retence — tu
  * spravuje /admin/privacy vlastní cestou, viz komentář u ALL_NUMERIC_FIELDS). */
-export type RagSettingsValues = Omit<SettingsValues, keyof RetentionValues>;
+export type RagSettingsValues = Omit<SettingsValues, keyof PrivacyValues>;
 
-/** Retenční parametry (GDPR etapa A) — ukládané odděleně od RAG parametrů. */
-export interface RetentionValues {
+/** Parametry soukromí (GDPR etapy A a G) — ukládané odděleně od RAG parametrů
+ * vlastní cestou (`/api/privacy/settings`), aby je „Obnovit výchozí" na stránce
+ * RAG parametrů nemohlo přepsat. */
+export interface PrivacyValues {
   retentionEnabled: boolean;
   retentionLeadsMonths: number;
   retentionFeedbackMonths: number;
+  leadCaptureEnabled: boolean;
 }
 
 /**
- * Retenční vstup z /admin/privacy. Chybějící pole se bere z `current`, ne
- * z továrního defaultu: neúplný payload nesmí tiše vypnout retenci ani zkrátit
- * lhůtu (obojí by mazalo data, která měla zůstat).
+ * Vstup ze stránky /admin/privacy. Chybějící pole se bere z `current`, ne
+ * z továrního defaultu: neúplný payload nesmí tiše vypnout retenci, zkrátit
+ * lhůtu (obojí by mazalo data, která měla zůstat) ani znovu zapnout sběr
+ * kontaktů tam, kde ho správce vědomě vypnul.
  */
-export function parseRetentionInput(
+export function parsePrivacyInput(
   input: unknown,
-  current: RetentionValues
-): RetentionValues {
+  current: PrivacyValues
+): PrivacyValues {
   const obj = (
     input && typeof input === "object" ? input : {}
   ) as Record<string, unknown>;
@@ -415,6 +440,10 @@ export function parseRetentionInput(
     retentionEnabled: parseBool(obj.retentionEnabled, current.retentionEnabled),
     retentionLeadsMonths: months("retentionLeadsMonths"),
     retentionFeedbackMonths: months("retentionFeedbackMonths"),
+    leadCaptureEnabled: parseBool(
+      obj.leadCaptureEnabled,
+      current.leadCaptureEnabled
+    ),
   };
 }
 
@@ -462,6 +491,8 @@ export const DEFAULT_SETTINGS: SettingsValues = {
   retentionEnabled: false,
   retentionLeadsMonths: fieldFor("retentionLeadsMonths").default,
   retentionFeedbackMonths: fieldFor("retentionFeedbackMonths").default,
+  // true = dnešní chování veřejné instance; interní nasazení si sběr vypne.
+  leadCaptureEnabled: true,
 };
 
 /** Otisk konfigurace chunkování ukládaný k dokumentu (documents.chunking_config). */

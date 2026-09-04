@@ -150,7 +150,21 @@ export async function POST(request: Request) {
   const audiences = await audiencesForUser(sessionUser);
 
   // Runtime override z /admin/parameters/prompts; null = výchozí z kódu (Fáze 17).
-  const systemPrompt = settings.systemPrompt ?? SYSTEM_PROMPT;
+  const basePrompt = settings.systemPrompt ?? SYSTEM_PROMPT;
+
+  // Vypnutý sběr kontaktů (GDPR etapa G): instrukci o tokenu [[NABIDKA]]
+  // POTLAČÍME připojenou direktivou, místo abychom ji z promptu vystřihávali.
+  // Prompt je od Fáze 17 editovatelný adminem, takže spolehlivě najít a odebrat
+  // „tu větu o tokenu" nejde — v override může znít jakkoli. Připojený zákaz
+  // funguje pro výchozí i vlastní prompt.
+  //
+  // Je to jen první ze tří vrstev: klient token z textu stripuje, kartu
+  // nevykreslí a `POST /api/leads` vrací 403. Na LLM samotný se nespoléháme.
+  const systemPrompt = settings.leadCaptureEnabled
+    ? basePrompt
+    : `${basePrompt}
+
+Sběr kontaktů je vypnutý: nikdy nepřidávej token [[NABIDKA]] ani nenabízej předání kontaktu.`;
 
   // Rodičovský span držíme otevřený přes celý request. Kvůli streamování ho NEukončíme
   // při návratu Response, ale až v onFinish/onError streamu — jinak by latence nezahrnula
@@ -234,6 +248,7 @@ export async function POST(request: Request) {
           "Content-Type": "text/plain; charset=utf-8",
           "X-Sources": encodeURIComponent(JSON.stringify([])),
           "X-Trace-Id": traceId,
+          "X-Lead-Capture": settings.leadCaptureEnabled ? "1" : "0",
         },
       });
     }
@@ -289,7 +304,13 @@ export async function POST(request: Request) {
     after(() => flushTelemetry());
 
     return result.toTextStreamResponse({
-      headers: { "X-Sources": sourcesHeader, "X-Trace-Id": traceId },
+      headers: {
+        "X-Sources": sourcesHeader,
+        "X-Trace-Id": traceId,
+        // Klient podle toho vypne i kartu po palci dolů (ta se jinak vykresluje
+        // čistě na klientu a token [[NABIDKA]] ji neřídí).
+        "X-Lead-Capture": settings.leadCaptureEnabled ? "1" : "0",
+      },
     });
   });
 }

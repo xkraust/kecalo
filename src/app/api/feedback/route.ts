@@ -56,6 +56,11 @@ export async function POST(request: Request) {
       message_index: messageIndex,
       rating,
       query: storedQuery,
+      // Právní titul k řádku (GDPR etapa G). U hodnocení je to VŽDY oprávněný
+      // zájem — u palce se žádný souhlas nesbírá, takže anonymnímu hlasu nesmí
+      // spadnout titul, který nikdy nebyl udělen. Nezávisí to na tom, zda je
+      // volající přihlášený; přihlášenost mění jen text na /privacy.
+      processing_basis: "opravneny_zajem",
     },
     { onConflict: "session_id,message_index" }
   );

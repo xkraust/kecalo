@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { getSettings } from "@/lib/settings";
 import { getSessionUser } from "@/lib/session-user";
 import { supabase } from "@/lib/supabase";
+import { config } from "@/lib/config";
+import { DeploymentMode } from "@/components/DeploymentMode";
 import { PrivacyClient, type PrivacyAction } from "./client";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +35,13 @@ export default async function PrivacyPage() {
 
   const [settings, actions] = await Promise.all([getSettings(), loadActions()]);
 
+  // Odvozený provozní režim — z env a reálných hodnot, bez vlastního nastavení.
+  const deployment = {
+    publicChat: config.publicChat,
+    defaultDocumentVisibility: settings.defaultDocumentVisibility,
+    leadCaptureEnabled: settings.leadCaptureEnabled,
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -42,6 +51,7 @@ export default async function PrivacyPage() {
           provedených výmazů.
         </p>
       </div>
+      <DeploymentMode input={deployment} />
       <PrivacyClient initial={settings} actions={actions} />
     </div>
   );

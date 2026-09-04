@@ -83,7 +83,7 @@ Chyby se ukládají do `documents.error_message` a dokument končí ve stavu `er
 
 ## 4. Datový model
 
-Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`019`), nikdy ručně v SQL editoru. Aplikace přistupuje service-role klíčem (obchází RLS); RLS je na tabulkách zapnuté bez policy pro anon — přímý anonymní přístup je tak zablokovaný.
+Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`020`), nikdy ručně v SQL editoru. Aplikace přistupuje service-role klíčem (obchází RLS); RLS je na tabulkách zapnuté bez policy pro anon — přímý anonymní přístup je tak zablokovaný.
 
 | Tabulka | Účel |
 |---|---|
@@ -153,7 +153,9 @@ Přístup stojí na **třívrstvém modelu oprávnění**: aplikační role (co 
 
 ### 6.1 Osobní údaje a retence
 
-Zpracování osobních údajů řeší [plán GDPR](plans/gdpr_plan.md) (etapy A–F hotové, zbývá G); provozní postupy jsou v [gdpr.md](gdpr.md). Kde osobní údaje vznikají: `leads` (jméno, kontakt, poznámka, LLM shrnutí konverzace), `feedback` (**doslovný text hodnoceného dotazu**) a `users` (zaměstnanecké účty).
+Zpracování osobních údajů řeší [plán GDPR](plans/gdpr_plan.md) (etapy A–G hotové); provozní postupy jsou v [gdpr.md](gdpr.md).
+
+**Provozní režim (etapa G)** se ZÁMĚRNĚ neukládá jako přepínač — jeden boolean by GDPR-relevantní chování měnil jedním kliknutím v adminu a starým řádkům by nešlo doložit, pod jakým titulem vznikly. Místo toho tři oddělené vrstvy: hranice „smí se ptát anonym" je env `PUBLIC_CHAT` vyhodnocovaná v [`proxy.ts`](../src/proxy.ts) (fail-closed — `config.matcher` je build-time konstanta, takže chatové cesty jsou v něm vždy a rozhoduje runtime kód); chování jsou nezávislé parametry (`lead_capture_enabled`, `default_document_visibility`, retenční lhůty); a samotný režim se jen **odvozuje** komponentou [`DeploymentMode`](../src/components/DeploymentMode.tsx), která navíc hlásí nesourodé kombinace. Právní titul se ukládá k řádku (`processing_basis`) podle tabulky, ne podle přihlášení: poptávka vždy `souhlas` (jediné místo se souhlasem), hodnocení vždy `opravneny_zajem`. Kde osobní údaje vznikají: `leads` (jméno, kontakt, poznámka, LLM shrnutí konverzace), `feedback` (**doslovný text hodnoceného dotazu**) a `users` (zaměstnanecké účty).
 
 - **Retence** ([`src/lib/privacy/retention.ts`](../src/lib/privacy/retention.ts)) — jedna implementace pro cron i ruční spuštění z `/admin/privacy`. Poptávky se mažou podle `updated_at` (ne `created_at`: deduplikace řádek aktualizuje, takže lhůta má běžet od poslední interakce), zpětná vazba podle `created_at`. Při `retention_enabled = false` funkce nemaže nic a vrací `{ skipped: true }` — výchozí stav po migraci, aby nasazení nikdy nesmazalo data dřív, než správce lhůty potvrdí.
 - **Práva subjektu** ([`src/lib/privacy/subject.ts`](../src/lib/privacy/subject.ts)) — vyhledání podle kontaktu, JSON export (čl. 15/20) a trvalý výmaz (čl. 17) v `/admin/privacy`. Výmaz jde v pořadí `feedback` → `leads`, protože `session_id` z poptávky je jediná cesta ke zpětné vazbě; opačné pořadí by osiřelé řádky s textem dotazu nechalo v DB navždy. Totožnost žadatele ověřuje obsluha, ne aplikace.
