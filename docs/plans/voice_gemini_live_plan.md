@@ -1,5 +1,7 @@
 # Plán: Hlasové ovládání Kecala přes Gemini Live API
 
+**Stav:** **odloženo na neurčito** (rozhodnuto 4. 9. 2026). Návrh je hotový a použitelný, ale nepracuje se na něm a není na něj naplánovaný termín. Než se k němu někdo vrátí, je potřeba znovu ověřit fakta o Live API — kapitola „Ověřená fakta" je z 2. 9. 2026 a API se vyvíjí.
+
 ## Kontext a cíl
 
 Umožnit uživateli **mluvit na Kecala a slyšet odpověď** — místo psaní do
