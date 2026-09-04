@@ -13,7 +13,7 @@ Cílem je uvést aplikaci do stavu, kdy zpracování osobních údajů odpovíd�
 | Oblast | Skutečnost |
 |---|---|
 | `leads` | Jméno, e-mail, telefon, poznámka, `summary` (shrnutí konverzace od Mistralu), `session_id`, `consent`. **Mazání záměrně neexistuje** — [`src/app/api/leads/[id]/route.ts`](../../src/app/api/leads/[id]/route.ts) ř. 9, uzavření jen nastaví `closed` |
-| `feedback` | Ukládá **doslovný text dotazu** do `query` (2000 zn.) — [`src/app/api/feedback/route.ts`](../../src/app/api/feedback/route.ts) ř. 191–200. Bez mazání. Dokumentace tvrdí opak (`IMPLEMENTATION_PLAN.md` ř. 365: „neukládáme obsah zpráv") |
+| `feedback` | Ukládá **doslovný text dotazu** do `query` (2000 zn.) — upsert v [`src/app/api/feedback/route.ts`](../../src/app/api/feedback/route.ts) ř. 43–52. Bez mazání. Dokumentace tvrdí opak (`IMPLEMENTATION_PLAN.md` ř. 365: „neukládáme obsah zpráv") |
 | `users` | Jméno, příjmení, e-mail; účty se jen deaktivují, nemažou |
 | Historie chatu | Jen v paměti klienta, na server ani do DB se neukládá. V `localStorage` je pouze `kecalo_session_id` — [`src/lib/use-kecalo-chat.ts`](../../src/lib/use-kecalo-chat.ts) ř. 54–62 |
 | `session_id` | **Propojuje anonymní chat s identifikovanou poptávkou** (`leads.session_id`, `feedback.session_id`) a odchází i do Langfuse jako `langfuse.session.id` a v ID skóre `thumbs:<sessionId>:<idx>` |
@@ -42,10 +42,10 @@ Cílem je uvést aplikaci do stavu, kdy zpracování osobních údajů odpovíd�
   `retention_enabled` je záměrně **false**: nasazení migrace nesmí nic smazat dřív, než správce lhůty vědomě potvrdí.
 - Nová tabulka `privacy_actions` — auditní stopa podle zásady odpovědnosti (čl. 5 odst. 2):
   `id uuid PK, kind text CHECK ('retention'|'erasure'), subject_hash text NULL, leads_deleted int, feedback_deleted int, performed_by uuid NULL FK→users, created_at timestamptz`.
-  **Neobsahuje osobní údaje** — místo kontaktu jen SHA-256 otisk normalizovaného kontaktu, aby šlo doložit „tento výmaz proběhl", aniž by evidence sama byla dalším zpracováním. RLS zapnutá bez policy pro anon, jako všude jinde.
+  **Neobsahuje osobní údaje v čitelné podobě** — místo kontaktu jen otisk normalizovaného kontaktu. Otisk je **HMAC-SHA256 se serverovým tajemstvím** (nová env `PRIVACY_HASH_SECRET`, nebo odvození z `SESSION_SECRET`), ne prostý SHA-256: prostor telefonních čísel i běžných e-mailů je slovníkově prolomitelný, takže čistý hash by byl pořád pseudonymizovaný osobní údaj. Auditní účel („tento výmaz proběhl") plní keyed hash stejně. RLS zapnutá bez policy pro anon, jako všude jinde.
 
 - [ ] **A.1** Migrace `019_gdpr_retention.sql`, `supabase db push`.
-- [ ] **A.2** [`src/lib/settings-meta.ts`](../../src/lib/settings-meta.ts): nová skupina `RETENTION_FIELDS` (dvě číselná pole) + přepínač `retentionEnabled`; zařadit do `ALL_NUMERIC_FIELDS` / `ALL_TOGGLE_FIELDS`, aby validace i ukládání fungovaly beze změny `saveSettings`. Rozsahy CHECK v migraci musí odpovídat min/max zde (konvence projektu).
+- [ ] **A.2** [`src/lib/settings-meta.ts`](../../src/lib/settings-meta.ts): nová skupina `RETENTION_FIELDS` (dvě číselná pole) + přepínač `retentionEnabled`; zařadit do `ALL_NUMERIC_FIELDS` / `ALL_TOGGLE_FIELDS`, aby validace i ukládání fungovaly beze změny `saveSettings`. Rozsahy CHECK v migraci musí odpovídat min/max zde (konvence projektu). **Pozor na „Obnovit výchozí" na `/admin/parameters`:** retenční pole spravuje `/admin/privacy` (C.4), takže reset RAG parametrů se jich **nesmí dotknout** — jinak by tiše vypnul retenci nebo přepsal lhůty (stejný vzor jako u prompt overridů, které reset také zachovává). Klient `/admin/parameters` retenční pole nevykresluje a do `POST /api/settings` je neposílá; ukládání musí být partial-safe (neposlaná pole se nemění).
 - [ ] **A.3** [`src/lib/settings.ts`](../../src/lib/settings.ts): doplnit sloupce do `SELECT_COLUMNS`, `SettingsRow`, `fromRow`.
 
 ---
@@ -73,11 +73,12 @@ Nová stránka **`/admin/privacy`** (položka „Soukromí" v [`AdminSidebar.tsx
 
 Vyhledání pracuje s kontaktem (e-mail nebo telefon) normalizovaným **stejnými funkcemi jako zápis poptávky** ([`src/app/api/leads/route.ts`](../../src/app/api/leads/route.ts) ř. 50–59 — vytáhnout je do `src/lib/privacy/contact.ts` a importovat na obou místech, ať se normalizace nerozejde). Postup: kontakt → poptávky → jejich `session_id` → navázané řádky `feedback`. `session_id` je jediný most mezi kontaktem a zpětnou vazbou; bez něj by výmaz nechal text dotazu v DB.
 
-- [ ] **C.1** `src/lib/privacy/contact.ts` — `normalizeEmail`/`normalizePhone` (přesun z leads route, ta je začne importovat), `hashContact()`.
+- [ ] **C.1** `src/lib/privacy/contact.ts` — `normalizeEmail`/`normalizePhone` (přesun z leads route, ta je začne importovat), `hashContact()` (HMAC, viz etapa A).
 - [ ] **C.2** `src/lib/privacy/subject.ts` — `findSubjectData(contact)` → poptávky + navázaná zpětná vazba; `eraseSubject(contact, performedBy)` → smaže obojí v pořadí feedback → leads a zapíše `privacy_actions`.
-- [ ] **C.3** `src/app/api/privacy/subject/route.ts` — `GET ?contact=` (náhled + podklad pro export, admin) a `DELETE` (výmaz, admin). Rate limit není potřeba — routa je za session.
-- [ ] **C.4** `/admin/privacy` (`page.tsx` server + `client.tsx`) — formulář kontaktu, tabulka nálezů, tlačítko **Stáhnout JSON** (export podle čl. 15/20 se skládá na klientu z odpovědi GET, žádná další routa), tlačítko **Trvale smazat** s potvrzovacím dialogem, karty retenčních parametrů a tlačítko **Spustit úklid teď**.
+- [ ] **C.3** `src/app/api/privacy/subject/route.ts` — vyhledání i výmaz jako **`POST` s kontaktem v těle** (akce rozlišená polem `action: 'find' | 'erase'`, obojí admin). Záměrně ne `GET ?contact=`: e-mail/telefon v query stringu by skončil ve Vercel logách, které jsou mimo naši kontrolu (viz Rizika). Rate limit není potřeba — routa je za session.
+- [ ] **C.4** `/admin/privacy` (`page.tsx` server + `client.tsx`) — formulář kontaktu, tabulka nálezů, tlačítko **Stáhnout JSON** (export podle čl. 15/20 se skládá na klientu z odpovědi vyhledání, žádná další routa), tlačítko **Trvale smazat** s potvrzovacím dialogem, karty retenčních parametrů a tlačítko **Spustit úklid teď**. Historii akcí z `privacy_actions` načítá přímo server komponenta `page.tsx` (service-role klient) — žádná API routa pro ni nevzniká.
 - [ ] **C.5** Export a výmaz **nezahrnují `users`** — zaměstnanecké účty se řeší přes `/admin/users` a jejich mazání je jiný právní titul (plnění smlouvy, ne souhlas). Uvést to jako poznámku v UI, ať obsluha neplete agendy.
+- [ ] **C.6** Do `docs/gdpr.md` (F.1) zapsat **známé omezení dohledatelnosti**: cesta kontakt → `leads.session_id` → `feedback` najde jen hlasy ze session, ve které subjekt zanechal kontakt. Hlasy z jiného prohlížeče/zařízení (jiné `session_id`) nebo od subjektu, který poptávku nikdy neposlal, dohledat nejdou — inherentní limit pseudonymního designu (bez účtů a serverové historie víc nejde). Obsluha to musí vědět při vyřizování žádosti podle čl. 15.
 
 ---
 
@@ -94,7 +95,7 @@ Vyhledání pracuje s kontaktem (e-mail nebo telefon) normalizovaným **stejným
 
 - [ ] **E.1** V produkci vypnout `record_content` v `/admin/parameters` (běhová změna, ne kód). Ověřit v Langfuse, že u nových traces je Input `null`.
 - [ ] **E.2** Rozšířit varování u přepínače v [`src/lib/settings-meta.ts`](../../src/lib/settings-meta.ts) ř. 204–205 o zmínku, že jde o osobní údaje a zapnutí je zpracování navíc.
-- [ ] **E.3** Zvážit ukládání `feedback.query` **jen při hodnocení „down"** (u palce nahoru nemá text dotazu analytickou hodnotu, kterou by nenesla dvojice `session_id`/`message_index`). Minimalizace údajů, čl. 5 odst. 1 písm. c. Rozhodnutí zůstává na uživateli — pokud se přijme, je to jednořádková podmínka ve `feedback/route.ts` ř. 196. V interním nasazení (etapa G) přestává být volitelné: za přihlášením je text dotazu jmenovitým záznamem o tom, na co se konkrétní zaměstnanec ptal.
+- [ ] **E.3** Zvážit ukládání `feedback.query` **jen při hodnocení „down"** (u palce nahoru nemá text dotazu analytickou hodnotu, kterou by nenesla dvojice `session_id`/`message_index`). Minimalizace údajů, čl. 5 odst. 1 písm. c. Rozhodnutí zůstává na uživateli — pokud se přijme, je to jednořádková podmínka v upsertu ve `feedback/route.ts` ř. 48–49. V interním nasazení (etapa G) přestává být volitelné: za přihlášením je text dotazu jmenovitým záznamem o tom, na co se konkrétní zaměstnanec ptal.
 - [ ] **E.4** Provozní kroky mimo kód, zapsat do `docs/gdpr.md` jako checklist před ostrým provozem: nastavit retenci v projektu Langfuse, uzavřít zpracovatelské smlouvy (Anthropic, Voyage, Mistral, Supabase, Langfuse, Vercel), ověřit lokalitu Supabase regionu.
 
 ---
@@ -105,7 +106,7 @@ Vyhledání pracuje s kontaktem (e-mail nebo telefon) normalizovaným **stejným
 - [ ] **F.2** [`docs/IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md): zaškrtnout položku GDPR na ř. 931 a **opravit nepravdivou poznámku na ř. 365** („neukládáme obsah zpráv" — `feedback.query` ho ukládá).
 - [ ] **F.3** [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md): nová sekce „Osobní údaje a retence", doplnit nové routy a tabulku `privacy_actions` do datového modelu.
 - [ ] **F.4** [`CLAUDE.md`](../../CLAUDE.md): routy, migrace `019`, adresář `src/lib/privacy/`, stránky `/admin/privacy` a `/privacy`, nové parametry v `app_settings`, `CRON_SECRET` v tabulce env; upravit větu o chybějících GDPR procesech ve Stavu projektu.
-- [ ] **F.5** [`.env.example`](../../.env.example): `CRON_SECRET`.
+- [ ] **F.5** [`.env.example`](../../.env.example): `CRON_SECRET` (+ `PRIVACY_HASH_SECRET`, pokud se otisk kontaktu neodvodí ze `SESSION_SECRET` — viz etapa A); totéž do tabulky env v `CLAUDE.md` (F.4).
 
 ---
 
@@ -120,7 +121,7 @@ Kecalo může běžet jako veřejný chat pro klienty nebo jako interní nástro
 Jestli smí do chatu anonym, je bezpečnostní rozhodnutí, ne preference — špatné přepnutí zpřístupní interní bázi internetu. Patří do env, ne do admin UI.
 
 - [ ] **G.1.1** Env `PUBLIC_CHAT` ([`.env.example`](../../.env.example) + [`src/lib/config.ts`](../../src/lib/config.ts)). Bez výslovného povolení se `/api/chat`, `/api/feedback` a `POST /api/leads` chovají jako admin routy.
-- [ ] **G.1.2** [`src/proxy.ts`](../../src/proxy.ts): když `PUBLIC_CHAT` není zapnutý, přidat tyto cesty do chráněných a zrušit výjimku pro `POST /api/leads` (ř. 34–37). Vzor „chybějící konfigurace = zamítnout" už proxy používá u `SESSION_SECRET` (ř. 56–60) — držet se ho.
+- [ ] **G.1.2** [`src/proxy.ts`](../../src/proxy.ts): `config.matcher` je v Next.js **build-time konstanta** — nejde podmínit env proměnnou. Cesty `/`, `/demo`, `/api/chat`, `/api/feedback` se do matcheru přidají **vždy** a o propuštění rozhodne runtime kód uvnitř `proxy()` podle `PUBLIC_CHAT` (při zapnutém veřejném chatu rovnou `NextResponse.next()`; proxy pak poběží na každém requestu chatu i ve veřejném režimu — neškodné, jen podpisová kontrola se přeskočí). Při vypnutém `PUBLIC_CHAT` navíc neplatí výjimka pro `POST /api/leads` (ř. 34–37). Vzor „chybějící konfigurace = zamítnout" už proxy používá u `SESSION_SECRET` (ř. 56–60) — držet se ho.
 - [ ] **G.1.3** Kořenová stránka `/` a `/demo` při vypnutém veřejném chatu vyžadují session (`/demo` je dnes veřejná mimo matcher).
 
 ### G.2 Nezávislé parametry místo režimu
@@ -136,14 +137,14 @@ Chování spolu koreluje, ale není to táž věc; splácnutí do jednoho přep�
 | Retenční lhůty | etapa A |
 
 - [ ] **G.2.1** Migrace `020`: `app_settings` += `lead_capture_enabled boolean DEFAULT true`; pole do [`settings-meta.ts`](../../src/lib/settings-meta.ts) a [`settings.ts`](../../src/lib/settings.ts) stejným vzorem jako A.2/A.3.
-- [ ] **G.2.2** Gate na obou koncích: instrukci o tokenu `[[NABIDKA]]` nevkládat do efektivního systémového promptu ([`prompts.ts`](../../src/lib/rag/prompts.ts)) a `POST /api/leads` při vypnutém sběru vracet 403. Samotné vypuštění z promptu nestačí — routa je veřejná.
+- [ ] **G.2.2** Gate na obou koncích: instrukci o tokenu `[[NABIDKA]]` nevkládat do efektivního systémového promptu ([`prompts.ts`](../../src/lib/rag/prompts.ts)) a `POST /api/leads` při vypnutém sběru vracet 403. Samotné vypuštění z promptu nestačí — routa je veřejná. **Limit u prompt overridu (Fáze 17):** má-li admin v `app_settings.system_prompt` vlastní text, instrukce tokenu je uvnitř něj a kód ji odstranit neumí — pak se vědomě spoléhá na zbývající vrstvy (klient token stripuje, `LeadForm` se nevykreslí dle G.2.3, routa vrací 403). Zapsat do varování u karty promptu v `/admin/parameters/prompts`.
 - [ ] **G.2.3** `LeadForm` se nevykresluje ani po palci dolů ([`MessageBubble.tsx`](../../src/components/MessageBubble.tsx) ř. 64–115); hlas se ukládá dál.
 
 ### G.3 Právní titul u sběru
 
 Řeší nedoložitelnost po změně konfigurace — proto se ukládá k řádku, ne do nastavení.
 
-- [ ] **G.3.1** Migrace `020` také: `leads` a `feedback` += `processing_basis text CHECK ('souhlas'|'opravneny_zajem')`, doplněný při zápisu podle toho, zda je volající přihlášený (`chat.authenticated` už se odvozuje v [`audience-access.ts`](../../src/lib/audience-access.ts)). Pokud se A a G nasazují spolu, sloupce lze složit do migrace `019` a `020` vynechat.
+- [ ] **G.3.1** Migrace `020` také: `leads` a `feedback` += `processing_basis text CHECK ('souhlas'|'opravneny_zajem')`. Pravidlo se váže k **tabulce, ne k přihlášení**: `leads` = vždy `souhlas` (jediné místo, kde se souhlas checkboxem skutečně sbírá), `feedback` = vždy `opravneny_zajem` (u palce se žádný souhlas nesbírá — anonymnímu hlasu nesmí spadnout titul `souhlas`, který nikdy nebyl udělen; konzistentní s D.1). Přihlášenost titul nemění, mění jen variantu textů na `/privacy` (G.5). Pozn. k implementaci: atribut `chat.authenticated` se odvozuje v [`chat/route.ts`](../../src/app/api/chat/route.ts) ř. 174, ne v `audience-access.ts`; na `POST /api/leads` a `/api/feedback` se dnes session vůbec nezjišťuje — bude-li potřeba (interní varianta textů, budoucí rozlišení), doplnit tam `getSessionUser()`. Pokud se A a G nasazují spolu, sloupce lze složit do migrace `019` a `020` vynechat.
 - [ ] **G.3.2** Sloupec zobrazit v `/admin/privacy` u nalezených záznamů — obsluha musí vidět, pod jakým titulem záznam vznikl, než ho vydá nebo smaže.
 
 ### G.4 Odvozený stav místo uloženého
@@ -192,5 +193,5 @@ Chování spolu koreluje, ale není to táž věc; splácnutí do jednoho přep�
 10. **Regrese:** `npm run build`, `npm run lint`, `npx tsc --noEmit`; odeslání poptávky a hlasování v chatu fungují beze změny.
 11. **Hranice nasazení (G.1):** bez `PUBLIC_CHAT` vrací `POST /api/chat` i `POST /api/leads` bez cookie 401 a `/` i `/demo` přesměrují na login; se zapnutým `PUBLIC_CHAT` je vše veřejné jako dnes.
 12. **Sběr poptávek (G.2):** po vypnutí `lead_capture_enabled` se v odpovědích neobjeví token `[[NABIDKA]]`, karta se nevykreslí ani po palci dolů a přímé volání `POST /api/leads` vrátí 403; palec dolů se dál ukládá do `feedback`.
-13. **Právní titul (G.3):** poptávka od anonyma dostane `souhlas`, hlas od přihlášeného `opravneny_zajem`; obojí je vidět v `/admin/privacy`.
+13. **Právní titul (G.3):** poptávka dostane `souhlas` a hlas `opravneny_zajem` — nezávisle na tom, zda je volající přihlášený (hlas od anonyma i od přihlášeného shodně `opravneny_zajem`); obojí je vidět v `/admin/privacy`.
 14. **Odvozený stav (G.4):** kombinace `PUBLIC_CHAT` zapnutý + `default_document_visibility = restricted` vypíše varování o nesourodé konfiguraci.
