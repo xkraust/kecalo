@@ -224,7 +224,7 @@ export const TELEMETRY_FIELDS: readonly ToggleField<RagToggleKey>[] = [
       "Posílá do Langfuse plný text dotazu, kontext z dokumentů a odpověď modelu.",
     default: false,
     warning:
-      "Obsahuje reálná data dokumentů i dotazy uživatelů — zapínat jen pro ladění.",
+      "Dotazy uživatelů jsou osobní údaje — zapnutí je zpracování navíc a předání obsahu dalšímu zpracovateli (Langfuse). Zapínat jen dočasně pro ladění a zase vypnout; na obsah v Langfuse nedosáhne výmaz na žádost z /admin/privacy.",
     dependsOn: "telemetryEnabled",
   },
 ];

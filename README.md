@@ -65,7 +65,7 @@ Jakmile chatbot sbírá kontakty a hodnocení, pracuje s osobními údaji — be
 - **Vyřízení žádosti subjektu na jednom místě** — vyhledání podle e-mailu nebo telefonu, export do JSON (právo na přístup a přenositelnost) a trvalý výmaz včetně hodnocení navázaného přes session konverzace. Telefon se najde i v jiném zápisu, než v jakém byl uložen.
 - **Doložitelnost** — každý úklid i výmaz zapíše řádek do auditní tabulky. Místo kontaktu nese jen klíčovaný otisk, aby evidence o výmazech sama nebyla dalším zpracováním osobních údajů.
 - **Transparence, která nemůže zastarat** — veřejné zásady na `/privacy` čtou doby uchování z nastavení aplikace, ne z ručně opsaného textu. Odkaz je v patičce chatu i widgetu, souhlas u poptávky nese účel, správce i poučení o odvolatelnosti.
-- **Minimalizace** — konverzace se neukládá na server, obsah dotazů se do telemetrie ve výchozím stavu neposílá, aplikace nepoužívá cookies ani analytiku.
+- **Minimalizace** — konverzace se neukládá na server, obsah dotazů se do telemetrie neposílá, text hodnoceného dotazu se ukládá jen u záporného hodnocení (u kladného nenese nic navíc) a aplikace nepoužívá cookies ani analytiku.
 - **Řízení přístupu k obsahu** — štítky dokumentů omezují, kdo uvidí které pasáže. Podstatné ve chvíli, kdy znalostní báze obsahuje údaje klientů.
 
 **Co se ukládá**
@@ -74,7 +74,7 @@ Jakmile chatbot sbírá kontakty a hodnocení, pracuje s osobními údaji — be
 |---|---|---|
 | Poptávka (jméno, e-mail, telefon, poznámka) | souhlas | dle nastavení, výchozí 24 měsíců od poslední interakce |
 | Shrnutí konverzace u poptávky | souhlas | spolu s poptávkou |
-| Hodnocení odpovědi včetně textu dotazu | oprávněný zájem | dle nastavení, výchozí 6 měsíců |
+| Hodnocení odpovědi; text dotazu **jen u záporného** | oprávněný zájem | dle nastavení, výchozí 6 měsíců |
 | Konverzace v chatu | — | neukládá se na server |
 | Provozní telemetrie (latence, počty tokenů) | oprávněný zájem | dle nastavení projektu v Langfuse |
 
@@ -86,7 +86,7 @@ Aplikace dodává nástroje, soulad s GDPR je ale vždy závěr o konkrétním n
 - nechat texty zásad a souhlasu zkontrolovat právníkem; jde o funkční draft, ne o právní stanovisko
 - uzavřít zpracovatelské smlouvy (Anthropic, Voyage, Mistral, Supabase, Langfuse, Vercel) a nastavit retenci v projektu Langfuse
 - nastavit `CRON_SECRET` v prostředí a zapnout retenci v `/admin/privacy`
-- dokončit zbývající etapy E–G plánu: minimalizace toku dat ven, provozní dokumentace a rozlišení veřejného a interního režimu
+- projít [checklist před ostrým provozem](docs/gdpr.md#8-checklist-před-ostrým-provozem) a dokončit etapu G plánu (rozlišení veřejného a interního režimu)
 
 Technické detaily: [ARCHITECTURE.md, sekce 6.1](docs/ARCHITECTURE.md#61-osobní-údaje-a-retence) · postup a rozhodnutí: [docs/plans/gdpr_plan.md](docs/plans/gdpr_plan.md)
 
@@ -179,6 +179,7 @@ Aplikace zatím není určená pro ostrý provoz — několik vědomých komprom
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — technický popis: architektura, RAG pipeline, datový model, API, bezpečnost
 - [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) — prováděcí checklist projektu (fáze 0–17 + průběžný stav)
+- [docs/gdpr.md](docs/gdpr.md) — provozní příručka: mapa osobních údajů, vyřízení žádostí subjektů, checklist před ostrým provozem
 - [docs/sso-setup.md](docs/sso-setup.md) — návod na zapnutí SSO ve firemní síti
 - [docs/PRD_pojistovaci_RAG_chatbot.md](docs/PRD_pojistovaci_RAG_chatbot.md) — zadání/PRD
 - [docs/plans/](docs/plans/) — feature a experimentální plány (Langfuse, poptávky, Mistral, widget, demo, role a přístup k dokumentům, GDPR)

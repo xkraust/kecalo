@@ -1,6 +1,6 @@
 # Plán: Příprava Kecala na GDPR
 
-**Stav:** etapy A–D hotové a ověřené (4. 9. 2026), E–G zbývají. Mimo číslované fáze; uzavírá položku „GDPR: retence konverzací, mazání dat" z produkčního dluhu ([`docs/IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md)) a navazuje na dluh evidovaný v [PRD kap. 15](../PRD_pojistovaci_RAG_chatbot.md) a [`LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
+**Stav:** etapy A–F hotové a ověřené (4. 9. 2026), zbývá etapa G (provozní režim veřejný vs. interní). Mimo číslované fáze; uzavírá položku „GDPR: retence konverzací, mazání dat" z produkčního dluhu ([`docs/IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md)) a navazuje na dluh evidovaný v [PRD kap. 15](../PRD_pojistovaci_RAG_chatbot.md) a [`LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
 
 ## Kontext a cíl
 
@@ -97,20 +97,20 @@ Vyhledání pracuje s kontaktem (e-mail nebo telefon) normalizovaným **stejným
 
 ## Etapa E — minimalizace toku dat ven
 
-- [ ] **E.1** V produkci vypnout `record_content` v `/admin/parameters` (běhová změna, ne kód). Ověřit v Langfuse, že u nových traces je Input `null`.
-- [ ] **E.2** Rozšířit varování u přepínače v [`src/lib/settings-meta.ts`](../../src/lib/settings-meta.ts) ř. 204–205 o zmínku, že jde o osobní údaje a zapnutí je zpracování navíc.
-- [ ] **E.3** Zvážit ukládání `feedback.query` **jen při hodnocení „down"** (u palce nahoru nemá text dotazu analytickou hodnotu, kterou by nenesla dvojice `session_id`/`message_index`). Minimalizace údajů, čl. 5 odst. 1 písm. c. Rozhodnutí zůstává na uživateli — pokud se přijme, je to jednořádková podmínka v upsertu ve `feedback/route.ts` ř. 48–49. V interním nasazení (etapa G) přestává být volitelné: za přihlášením je text dotazu jmenovitým záznamem o tom, na co se konkrétní zaměstnanec ptal.
-- [ ] **E.4** Provozní kroky mimo kód, zapsat do `docs/gdpr.md` jako checklist před ostrým provozem: nastavit retenci v projektu Langfuse, uzavřít zpracovatelské smlouvy (Anthropic, Voyage, Mistral, Supabase, Langfuse, Vercel), ověřit lokalitu Supabase regionu.
+- [x] **E.1** `record_content` je v produkci **vypnutý** (`app_settings.record_content = false`). Ověřeno na reálných trace přes Langfuse API: `chat-pipeline` i generation span `chat-rag:ai.streamText.doStream` mají `input` i `output` `null`.
+- [x] **E.2** Varování u přepínače `recordContent` v [`settings-meta.ts`](../../src/lib/settings-meta.ts) nově říká, že dotazy jsou osobní údaje, zapnutí je zpracování navíc a předání dalšímu zpracovateli — a že na obsah v Langfuse **nedosáhne výmaz na žádost** z `/admin/privacy`.
+- [x] **E.3** *(rozhodnuto uživatelem 4. 9. 2026: ukládat jen u „down")* `feedback.query` se ukládá **jen při hodnocení „down"** (u palce nahoru nemá text dotazu analytickou hodnotu, kterou by nenesla dvojice `session_id`/`message_index`). Minimalizace údajů, čl. 5 odst. 1 písm. c. Implementováno podmínkou v upsertu ve `feedback/route.ts`; ověřeno reálným požadavkem (up → `NULL`, down → text uložen). Existující řádky se nečistí — doběhnou retenční lhůtou. V interním nasazení (etapa G) by to stejně přestalo být volitelné: za přihlášením je text dotazu jmenovitým záznamem o tom, na co se konkrétní zaměstnanec ptal.
+- [x] **E.4** Provozní kroky jsou v `docs/gdpr.md` jako checklist před ostrým provozem (kap. 8) — vč. retence v Langfuse, zpracovatelských smluv a ověření regionu Supabase.
 
 ---
 
 ## Etapa F — dokumentace
 
-- [ ] **F.1** `docs/gdpr.md` (nový) — mapa osobních údajů (tabulka z Výchozího stavu), retenční lhůty, postup vyřízení žádosti o výmaz i o přístup, seznam zpracovatelů, checklist z E.4.
-- [ ] **F.2** [`docs/IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md): zaškrtnout položku GDPR na ř. 931 a **opravit nepravdivou poznámku na ř. 365** („neukládáme obsah zpráv" — `feedback.query` ho ukládá).
-- [ ] **F.3** [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md): nová sekce „Osobní údaje a retence", doplnit nové routy a tabulku `privacy_actions` do datového modelu.
-- [ ] **F.4** [`CLAUDE.md`](../../CLAUDE.md): routy, migrace `019`, adresář `src/lib/privacy/`, stránky `/admin/privacy` a `/privacy`, nové parametry v `app_settings`, `CRON_SECRET` v tabulce env; upravit větu o chybějících GDPR procesech ve Stavu projektu.
-- [ ] **F.5** [`.env.example`](../../.env.example): `CRON_SECRET` (+ `PRIVACY_HASH_SECRET`, pokud se otisk kontaktu neodvodí ze `SESSION_SECRET` — viz etapa A); totéž do tabulky env v `CLAUDE.md` (F.4).
+- [x] **F.1** [`docs/gdpr.md`](../gdpr.md) — mapa osobních údajů, retenční úklid, postup pro žádost o přístup i o výmaz, známé omezení dohledatelnosti (C.6), zaměstnanecké účty (G.6.1), zpracovatelé a checklist před ostrým provozem.
+- [x] **F.2** (provedeno při etapě A–C: položka dluhu zaškrtnuta, nepravdivá poznámka o neukládání obsahu opravena) — [`docs/IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md): zaškrtnout položku GDPR na ř. 931 a **opravit nepravdivou poznámku na ř. 365** („neukládáme obsah zpráv" — `feedback.query` ho ukládá).
+- [x] **F.3** (provedeno při etapě A–D: sekce 6.1 „Osobní údaje a retence", 5.1 „Retenční cron", routy i `privacy_actions` v datovém modelu) — [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md): nová sekce „Osobní údaje a retence", doplnit nové routy a tabulku `privacy_actions` do datového modelu.
+- [x] **F.4** (provedeno průběžně při etapách A–D) — [`CLAUDE.md`](../../CLAUDE.md): routy, migrace `019`, adresář `src/lib/privacy/`, stránky `/admin/privacy` a `/privacy`, nové parametry v `app_settings`, `CRON_SECRET` v tabulce env; upravit větu o chybějících GDPR procesech ve Stavu projektu.
+- [x] **F.5** (provedeno při etapě B; `PRIVACY_HASH_SECRET` doplněn jako volitelný) — [`.env.example`](../../.env.example): `CRON_SECRET` (+ `PRIVACY_HASH_SECRET`, pokud se otisk kontaktu neodvodí ze `SESSION_SECRET` — viz etapa A); totéž do tabulky env v `CLAUDE.md` (F.4).
 
 ---
 
@@ -163,7 +163,7 @@ Chování spolu koreluje, ale není to táž věc; splácnutí do jednoho přep�
 
 ### G.6 Retence účtů
 
-- [ ] **G.6.1** Do `docs/gdpr.md` (F.1) doplnit postup pro ukončený pracovní poměr: dnes je v [`users/[id]/route.ts`](../../src/app/api/users/[id]/route.ts) jen deaktivace, skutečný výmaz po uplynutí retence zůstává ruční úkon obsluhy.
+- [x] **G.6.1** *(splněno spolu s F.1)* `docs/gdpr.md` kap. 6 popisuje postup pro ukončený pracovní poměr: dnes je v [`users/[id]/route.ts`](../../src/app/api/users/[id]/route.ts) jen deaktivace, skutečný výmaz po uplynutí retence zůstává ruční úkon obsluhy.
 
 ---
 

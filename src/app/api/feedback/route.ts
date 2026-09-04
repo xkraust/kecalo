@@ -40,13 +40,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Neplatný vstup" }, { status: 400 });
   }
 
+  // Text dotazu ukládáme JEN u záporného hodnocení (minimalizace údajů,
+  // čl. 5 odst. 1 písm. c — GDPR etapa E.3). U palce nahoru nenese nic, co by
+  // už neneslo `session_id` + `message_index`: odpověď fungovala, není co
+  // dohledávat. U palce dolů je naopak jediná stopa toho, na čem bot selhal —
+  // trace v Langfuse obsah nemá, pokud není zapnutý `record_content`.
+  const storedQuery =
+    rating === "down" && typeof query === "string"
+      ? query.slice(0, MAX_QUERY_LENGTH)
+      : null;
+
   const { error } = await supabase.from("feedback").upsert(
     {
       session_id: sessionId,
       message_index: messageIndex,
       rating,
-      query:
-        typeof query === "string" ? query.slice(0, MAX_QUERY_LENGTH) : null,
+      query: storedQuery,
     },
     { onConflict: "session_id,message_index" }
   );
