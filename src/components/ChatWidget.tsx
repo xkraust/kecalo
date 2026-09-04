@@ -134,7 +134,15 @@ export function ChatWidget() {
             </Button>
           </div>
           <p className="px-3 pb-2 text-center text-[10px] text-muted-foreground">
-            Odpovědi generuje AI z dostupných dokumentů.
+            Odpovědi generuje AI z dostupných dokumentů.{" "}
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              Osobní údaje
+            </a>
           </p>
         </div>
       </div>

@@ -221,6 +221,27 @@ export function PrivacyClient({ initial, actions }: Props) {
         description="Po uplynutí lhůty se záznamy trvale smažou. Úklid běží denně ve 3:00 a jde spustit i ručně."
       >
         <div className="space-y-4">
+          {/* Veřejné zásady na /privacy vypisují lhůty z těchto hodnot, takže
+              při vypnutém úklidu slibují mazání, které se neděje. Vazbu mezi
+              slibem a mechanismem je lepší hlídat tady než ji objevit až při
+              kontrole. Vychází z ULOŽENÉHO stavu, ne z rozpracovaného. */}
+          {!initial.retentionEnabled && (
+            <div className="rounded-md bg-[#FAEEDA] px-3 py-2 text-xs text-[#854F0B]">
+              Zásady zpracování na{" "}
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2"
+              >
+                /privacy
+              </a>{" "}
+              uvádějí, že poptávky mažeme po{" "}
+              {initial.retentionLeadsMonths} měsících a hodnocení po{" "}
+              {initial.retentionFeedbackMonths} měsících. Automatický úklid je
+              ale vypnutý, takže se ta doba nedodržuje.
+            </div>
+          )}
           {RETENTION_TOGGLE_FIELDS.map((field) => (
             <div
               key={field.key}

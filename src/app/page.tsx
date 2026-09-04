@@ -79,7 +79,17 @@ export default function ChatPage() {
         </div>
         <p className="text-center text-[11px] text-muted-foreground px-4">
           Odpovědi jsou generovány na základě dostupných dokumentů. Pro závazné
-          informace kontaktujte pojišťovnu.
+          informace kontaktujte pojišťovnu.{" "}
+          {/* Odkaz patří sem, ne až ke kartě poptávky: subjekt musí být
+              informován PŘED odesláním údajů, ne až ve chvíli, kdy je vyplňuje. */}
+          <a
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            Zpracování osobních údajů
+          </a>
         </p>
         <DemoCredit className="text-center pb-2 px-4 pt-1" />
       </div>

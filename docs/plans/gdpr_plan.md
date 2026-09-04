@@ -1,6 +1,6 @@
 # Plán: Příprava Kecala na GDPR
 
-**Stav:** etapy A–C hotové a ověřené (4. 9. 2026), D–G zbývají. Mimo číslované fáze; uzavírá položku „GDPR: retence konverzací, mazání dat" z produkčního dluhu ([`docs/IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md)) a navazuje na dluh evidovaný v [PRD kap. 15](../PRD_pojistovaci_RAG_chatbot.md) a [`LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
+**Stav:** etapy A–D hotové a ověřené (4. 9. 2026), E–G zbývají. Mimo číslované fáze; uzavírá položku „GDPR: retence konverzací, mazání dat" z produkčního dluhu ([`docs/IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md)) a navazuje na dluh evidovaný v [PRD kap. 15](../PRD_pojistovaci_RAG_chatbot.md) a [`LANGFUSE_PLAN.md`](LANGFUSE_PLAN.md).
 
 ## Kontext a cíl
 
@@ -86,10 +86,12 @@ Vyhledání pracuje s kontaktem (e-mail nebo telefon) normalizovaným **stejným
 
 ## Etapa D — transparence: zásady zpracování a souhlas
 
-- [ ] **D.1** `src/app/privacy/page.tsx` — veřejná statická stránka „Zásady zpracování osobních údajů", **mimo** proxy matcher. Obsah (draft k právní kontrole): správce a kontakt, účely a právní tituly (souhlas u poptávky, oprávněný zájem u zpětné vazby a provozní telemetrie), rozsah údajů, **doba uchování shodná s nastavenými lhůtami**, kategorie příjemců včetně jmenovitého seznamu zpracovatelů a informace o předání mimo EU (Anthropic, Voyage, Langfuse), práva subjektu a způsob jejich uplatnění, poučení o odvolatelnosti souhlasu, informace o `localStorage` (`kecalo_session_id`).
-- [ ] **D.2** [`src/components/LeadForm.tsx`](../../src/components/LeadForm.tsx) ř. 184–186 — přepsat souhlas: účel, správce, doba uchování a odkaz na `/privacy` (`target="_blank"`). Text musí zůstat krátký — karta poptávky je v úzkém widgetu, detail patří na `/privacy`.
-- [ ] **D.3** Odkaz na `/privacy` do patičky chatu (`src/app/page.tsx`, vedle [`DemoCredit`](../../src/components/DemoCredit.tsx)) a do patičky panelu widgetu ([`ChatWidget.tsx`](../../src/components/ChatWidget.tsx)) — subjekt musí být informován **před** předáním údajů, ne až u formuláře.
-- [ ] **D.4** Cookie banner se **nezavádí** a je to vědomé rozhodnutí: chat nepoužívá cookies ani analytiku, `kecalo_session_id` v `localStorage` je nezbytný pro funkci (deduplikace hlasů, návaznost poptávky) a spadá pod výjimku. Zapsat do `/privacy` i do dokumentace, aby to nevypadalo jako opomenutí.
+- [x] **D.1** `src/app/privacy/page.tsx` — veřejná statická stránka „Zásady zpracování osobních údajů", **mimo** proxy matcher. Obsah (draft k právní kontrole): správce a kontakt, účely a právní tituly (souhlas u poptávky, oprávněný zájem u zpětné vazby a provozní telemetrie), rozsah údajů, **doba uchování shodná s nastavenými lhůtami**, kategorie příjemců včetně jmenovitého seznamu zpracovatelů a informace o předání mimo EU (Anthropic, Voyage, Langfuse), práva subjektu a způsob jejich uplatnění, poučení o odvolatelnosti souhlasu, informace o `localStorage` (`kecalo_session_id`).
+- [x] **D.2** [`src/components/LeadForm.tsx`](../../src/components/LeadForm.tsx) — souhlas nese účel, správce, odvolatelnost a odkaz na `/privacy` (`target="_blank"`).
+  **Odchylka:** doba uchování v textu souhlasu ZÁMĚRNĚ není. Číslo se řídí `app_settings`, takže opsané do věty u formuláře by se po změně lhůty tiše rozešlo se skutečností — a nepravdivý souhlas je horší vada než jedno kliknutí navíc. Autoritativní údaj je na odkazovaných zásadách, které ho čtou z téhož zdroje.
+- [x] **D.3** Odkaz na `/privacy` do patičky chatu (`src/app/page.tsx`, vedle [`DemoCredit`](../../src/components/DemoCredit.tsx)) a do patičky panelu widgetu ([`ChatWidget.tsx`](../../src/components/ChatWidget.tsx)) — subjekt musí být informován **před** předáním údajů, ne až u formuláře.
+- [x] **D.5** *(nad rámec plánu)* Veřejné zásady vypisují lhůty z `app_settings`, takže při vypnutém úklidu slibují mazání, které se neděje. `/admin/privacy` proto při `retention_enabled = false` zobrazí varování, že zásady na `/privacy` uvádějí lhůty, které se nedodržují — vazba mezi slibem a mechanismem se hlídá v aplikaci, ne až při kontrole.
+- [x] **D.4** Cookie banner se **nezavádí** a je to vědomé rozhodnutí: chat nepoužívá cookies ani analytiku, `kecalo_session_id` v `localStorage` je nezbytný pro funkci (deduplikace hlasů, návaznost poptávky) a spadá pod výjimku. Zapsat do `/privacy` i do dokumentace, aby to nevypadalo jako opomenutí.
 
 ---
 

@@ -173,6 +173,11 @@ export function LeadForm({
         aria-label="Poznámka"
       />
 
+      {/* Souhlas nese účel, správce a odvolatelnost; doba uchování je ZÁMĚRNĚ
+          jen v odkazovaných zásadách. Číslo se řídí retenčním nastavením
+          (app_settings), takže opsané do téhle věty by se po změně lhůty tiše
+          rozešlo se skutečností — a nepravdivý souhlas je horší než jedno
+          kliknutí navíc. Karta je navíc v úzkém widgetu, kde je každý řádek znát. */}
       <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
         <input
           type="checkbox"
@@ -182,7 +187,17 @@ export function LeadForm({
           className="mt-0.5 accent-primary"
         />
         <span>
-          Souhlasím se zpracováním osobních údajů za účelem kontaktování.
+          Souhlasím, aby Pojišťovna Jistota zpracovala mé kontaktní údaje za
+          účelem odpovědi na tento dotaz. Souhlas mohu kdykoli odvolat.{" "}
+          <a
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            Zásady zpracování osobních údajů
+          </a>
         </span>
       </label>
 
