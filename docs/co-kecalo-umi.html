@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  Prezentacni podoba prehledu schopnosti (stejny obsah jako co-kecalo-umi.md).
+  ZDROJ PRAVDY je markdown: ten se udrzuje, tenhle soubor se z nej prepisuje.
+  Otevira se primo v prohlizeci, nepotrebuje server ani build.
+-->
+<style>
+  /* Reset odpovidajici prostredi, ve kterem stranka vznikla. */
+  html { color-scheme: light dark; }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<title>Co Kecalo umí</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --ground: #faf9f5;
+    --surface: #ffffff;
+    --ink: #1a1a18;
+    --muted: #6b6a63;
+    --faint: #8d8b82;
+    --line: rgba(0, 0, 0, 0.10);
+    --line-strong: rgba(0, 0, 0, 0.18);
+    --accent: #d85a30;
+    --accent-deep: #b8461f;
+    --accent-soft: #faece7;
+    --good-ink: #0f6e56;
+    --good-bg: #e1f5ee;
+    --warn-ink: #854f0b;
+    --warn-bg: #faeeda;
+
+    --display: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --body: "Inter", "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #17150f;
+      --surface: #201d17;
+      --ink: #f2eee5;
+      --muted: #a8a196;
+      --faint: #8b857b;
+      --line: rgba(255, 255, 255, 0.11);
+      --line-strong: rgba(255, 255, 255, 0.2);
+      --accent: #ec7d52;
+      --accent-deep: #f59872;
+      --accent-soft: #33201a;
+      --good-ink: #6fd3b3;
+      --good-bg: #14312a;
+      --warn-ink: #e0b06a;
+      --warn-bg: #33270f;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #17150f;
+    --surface: #201d17;
+    --ink: #f2eee5;
+    --muted: #a8a196;
+    --faint: #8b857b;
+    --line: rgba(255, 255, 255, 0.11);
+    --line-strong: rgba(255, 255, 255, 0.2);
+    --accent: #ec7d52;
+    --accent-deep: #f59872;
+    --accent-soft: #33201a;
+    --good-ink: #6fd3b3;
+    --good-bg: #14312a;
+    --warn-ink: #e0b06a;
+    --warn-bg: #33270f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 56px 28px 96px;
+  }
+
+  /* ---------- masthead ---------- */
+
+  .masthead { display: flex; flex-direction: column; gap: 18px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(34px, 6vw, 52px);
+    line-height: 1.05;
+    letter-spacing: -0.022em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .lede {
+    max-width: 62ch;
+    font-size: 17px;
+    line-height: 1.62;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .lede strong { color: var(--ink); font-weight: 500; }
+
+  /* ---------- facts ---------- */
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    margin-top: 14px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .fact {
+    background: var(--surface);
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .fact-value {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 26px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fact-label {
+    font-size: 12.5px;
+    line-height: 1.35;
+    color: var(--muted);
+  }
+
+  /* ---------- index ---------- */
+
+  .index {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    align-items: baseline;
+  }
+
+  .index-label {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-right: 6px;
+  }
+
+  .index a {
+    font-size: 13.5px;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    padding-bottom: 1px;
+  }
+
+  .index a:hover,
+  .index a:focus-visible { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .index .sep { color: var(--line-strong); font-size: 13px; }
+
+  /* ---------- sections ---------- */
+
+  .sections { margin-top: 44px; display: flex; flex-direction: column; }
+
+  section {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 32px;
+    padding: 34px 0;
+    border-top: 1px solid var(--line);
+    scroll-margin-top: 20px;
+  }
+
+  .sec-id { display: flex; flex-direction: column; gap: 8px; }
+
+  .route {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: -0.01em;
+  }
+
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+    margin: 0;
+  }
+
+  .who {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .sec-body { display: flex; flex-direction: column; gap: 14px; }
+
+  .claim {
+    font-family: var(--display);
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.4;
+    letter-spacing: -0.011em;
+    color: var(--ink);
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  ul.caps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+
+  ul.caps li {
+    position: relative;
+    padding-left: 18px;
+    font-size: 14.5px;
+    line-height: 1.55;
+    color: var(--muted);
+    max-width: 64ch;
+  }
+
+  ul.caps li::before {
+    content: "";
+    position: absolute;
+    left: 2px;
+    top: 10px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.55;
+  }
+
+  ul.caps b { color: var(--ink); font-weight: 500; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    color: var(--ink);
+    background: var(--accent-soft);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  .note {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--faint);
+    max-width: 62ch;
+    margin: 0;
+    padding-top: 2px;
+  }
+
+  /* ---------- role matrix ---------- */
+
+  .block { padding: 40px 0 0; border-top: 1px solid var(--line-strong); margin-top: 20px; }
+
+  .block h2 { font-size: 24px; }
+
+  .block-lede { color: var(--muted); max-width: 62ch; margin: 8px 0 0; font-size: 15px; }
+
+  .table-wrap {
+    margin-top: 22px;
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  table { border-collapse: collapse; width: 100%; min-width: 560px; }
+
+  th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--line); }
+
+  tbody tr:last-child td { border-bottom: 0; }
+
+  thead th {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  td { font-size: 14px; color: var(--muted); }
+
+  td:first-child { color: var(--ink); }
+
+  th.mark, td.mark { text-align: center; width: 96px; }
+
+  .yes { color: var(--good-ink); font-weight: 500; }
+
+  .no { color: var(--faint); }
+
+  /* ---------- beyond / roadmap ---------- */
+
+  .grid-two {
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .tile {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .tile h3 {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.008em;
+  }
+
+  .tile p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.55; }
+
+  .pill {
+    align-self: flex-start;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--good-bg);
+    color: var(--good-ink);
+  }
+
+  .pill.soon { background: var(--warn-bg); color: var(--warn-ink); }
+
+  footer {
+    margin-top: 52px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--faint);
+    max-width: 66ch;
+  }
+
+  footer strong { color: var(--muted); font-weight: 500; }
+
+  a { color: var(--accent); }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+  @media (max-width: 860px) {
+    .page { padding: 40px 20px 72px; }
+    .facts { grid-template-columns: repeat(2, 1fr); }
+    section { grid-template-columns: 1fr; gap: 16px; }
+    .grid-two { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <span class="eyebrow">Přehled schopností · administrace</span>
+    <h1>Co Kecalo umí</h1>
+    <p class="lede">
+      Kecalo je chatbot, který odpovídá <strong>výhradně z vašich dokumentů</strong> a u každé
+      odpovědi řekne, odkud ji má. Tahle stránka není o modelu — je o tom, co si v něm
+      <strong>nastavíte sami, bez vývojáře a bez nasazení</strong>. Znalostní báze, chování bota,
+      oprávnění, poptávky i agenda osobních údajů se ovládají z administrace.
+    </p>
+
+    <div class="facts">
+      <div class="fact">
+        <span class="fact-value">10</span>
+        <span class="fact-label">sekcí administrace</span>
+      </div>
+      <div class="fact">
+        <span class="fact-value">15</span>
+        <span class="fact-label">parametrů laditelných za běhu</span>
+      </div>
+      <div class="fact">
+        <span class="fact-value">3</span>
+        <span class="fact-label">úrovně oprávnění</span>
+      </div>
+      <div class="fact">
+        <span class="fact-value">0</span>
+        <span class="fact-label">nasazení potřebných ke změně chování bota</span>
+      </div>
+    </div>
+
+    <nav class="index">
+      <span class="index-label">Sekce</span>
+      <a href="#prehled">Přehled</a><span class="sep">·</span>
+      <a href="#dokumenty">Dokumenty</a><span class="sep">·</span>
+      <a href="#poptavky">Poptávky</a><span class="sep">·</span>
+      <a href="#retrieval">Test retrievalu</a><span class="sep">·</span>
+      <a href="#parametry">RAG parametry</a><span class="sep">·</span>
+      <a href="#prompty">Prompty</a><span class="sep">·</span>
+      <a href="#uzivatele">Uživatelé</a><span class="sep">·</span>
+      <a href="#role">Pracovní role</a><span class="sep">·</span>
+      <a href="#stitky">Štítky dokumentů</a><span class="sep">·</span>
+      <a href="#soukromi">Soukromí</a><span class="sep">·</span>
+      <a href="#prihlaseni">Přihlášení a SSO</a>
+    </nav>
+  </header>
+
+  <div class="sections">
+
+    <section id="prehled">
+      <div class="sec-id">
+        <span class="route">/admin</span>
+        <h2>Přehled</h2>
+        <span class="who">Čtenář a výše</span>
+      </div>
+      <div class="sec-body">
+        <p class="claim">Stav znalostní báze na jeden pohled — bez SQL a bez dotazu na dodavatele.</p>
+        <ul class="caps">
+          <li><b>Metriky báze:</b> počet dokumentů, chunků, zaindexovaných stran a kolik dokumentů je připraveno odpovídat.</li>
+          <li><b>Spokojenost uživatelů</b> spočítaná z palců nahoru a dolů přímo v chatu — poměr i procento.</li>
+          <li><b>Nevyřízené poptávky</b> jako číslo, které říká, jestli se někdo má čemu věnovat.</li>
+          <li><b>Graf chunků podle dokumentu</b> — hned je vidět, který podklad bázi váhově ovládá.</li>
+          <li><b>Rozpad stavů</b> dokumentů: připraveno · zpracovává se · nahráno · chyba.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="dokumenty">
+      <div class="sec-id">
+        <span class="route">/admin/documents</span>
+        <h2>Dokumenty</h2>
+        <span class="who">Editor a výše</span>
+      </div>
+      <div class="sec-body">
+        <p class="claim">Znalostní bázi mění byznys, ne vývojář. Nahrání souboru je celá integrace.</p>
+        <ul class="caps">
+          <li><b>Nahrání přetažením</b> — PDF, TXT a MD do 20 MB.</li>
+          <li><b>Automatické zpracování</b> na pozadí: extrakce textu → odstranění záhlaví a patiček → strukturní rozdělení podle částí a článků → výpočet embeddingů → uložení. Uživatel jen sleduje stav.</li>
+          <li><b>Chyba se vysvětlí</b> — u neúspěšného dokumentu je vidět důvod, ne jen červený štítek.</li>
+          <li><b>Reindexace jedním kliknutím</b>, bez opětovného nahrávání souboru.</li>
+          <li><b>Upozornění na zastaralou konfiguraci:</b> změníte-li parametry rozdělování, systém sám označí dokumenty, které je potřeba přeindexovat.</li>
+          <li><b>Viditelnost dokumentu:</b> veřejný, nebo omezený na vybrané štítky — jedna báze obsloužila veřejnost i interní útvary.</li>
+          <li><b>Smazání</b> odstraní dokument, jeho pasáže i originál v úložišti.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="poptavky">
+      <div class="sec-id">
+        <span class="route">/admin/leads</span>
+        <h2>Poptávky</h2>
+        <span class="who">Editor a výše</span>
+      </div>
+      <div class="sec-body">
+        <p class="claim">Z konverzace vypadne kvalifikovaný kontakt, ne přepis chatu.</p>
+        <ul class="caps">
+          <li><b>Kontakt s kontextem:</b> jméno, e-mail nebo telefon a k tomu <b>automatické shrnutí konverzace</b> — obchodník čte, co člověk chtěl, ne surový dotaz.</li>
+          <li><b>Dva typy záznamu:</b> zájem o produkt (bot ho pozná sám z povahy dotazu) a kontakt zanechaný po záporném hodnocení odpovědi.</li>
+          <li><b>Workflow:</b> nová → převzatá → uzavřená, se jménem zpracovatele.</li>
+          <li><b>Deduplikace podle kontaktu</b> — druhý dotaz téhož člověka rozšíří existující záznam místo zakládání dubletu.</li>
+          <li><b>Poptávky se nemažou</b>, jen uzavírají — historie zůstává průkazná.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="retrieval">
+      <div class="sec-id">
+        <span class="route">/admin/retrieval-test</span>
+        <h2>Test retrievalu</h2>
+        <span class="who">Čtenář a výše</span>
+      </div>
+      <div class="sec-body">
+        <p class="claim">Než se zeptá klient, zeptáte se vy — a vidíte přesně, z čeho by bot odpovídal.</p>
+        <ul class="caps">
+          <li><b>Libovolný dotaz</b> vrátí pasáže, které by šly modelu do kontextu.</li>
+          <li><b>Skóre podobnosti v procentech</b> u každé pasáže — poznáte rozdíl mezi jistým a nataženým zásahem.</li>
+          <li><b>Přesná adresa nálezu:</b> soubor, strana a cesta v dokumentu (část › článek › odstavec).</li>
+          <li><b>Rozbalení celého textu</b> pasáže, když je potřeba ověřit znění.</li>
+        </ul>
+        <p class="note">
+          Tohle je nástroj, který v konkurenčních demech obvykle chybí. Umožňuje reklamaci
+          odpovědi vyřešit za minutu — buď je chyba v datech, nebo v nastavení, a je to vidět.
+        </p>
+      </div>
+    </section>
+
+    <section id="parametry">
+      <div class="sec-id">
+        <span class="route">/admin/parameters</span>
+        <h2>RAG parametry</h2>
+        <span class="who">Čtení všichni · změna správce</span>
+      </div>
+      <div class="sec-body">
+        <p class="claim">Chování vyhledávání se ladí posuvníkem, ne nasazením nové verze.</p>
+        <ul class="caps">
+          <li><b>Počet pasáží v kontextu</b> (1–20) — širší záběr proti většímu šumu.</li>
+          <li><b>Práh podobnosti</b> (0–100 %) — čím výš, tím dřív bot přizná, že odpověď nemá.</li>
+          <li><b>Teplota modelu</b> (0–1) — věcnost proti volnosti formulace.</li>
+          <li><b>Velikost pasáží</b> (1 500–6 000 znaků) a dva přepínače kvality indexace: hlavička s cestou v dokumentu, odstraňování opakovaných záhlaví.</li>
+          <li><b>Výchozí viditelnost</b> nově nahraných dokumentů — veřejná, nebo omezená báze.</li>
+          <li><b>Telemetrie</b> a samostatně <b>záznam obsahu dotazů</b> — zapnout jen na ladění, s varováním, že jde o osobní údaje.</li>
+          <li><b>Obnovení výchozích hodnot</b> jedním tlačítkem.</li>
+        </ul>
+        <p class="note">
+          Administrace sama rozlišuje, co se projeví okamžitě (parametry dotazu) a co až po
+          reindexaci (parametry rozdělování) — a u druhé skupiny na to upozorní.
+        </p>
+      </div>
+    </section>
+
+    <section id="prompty">
+      <div class="sec-id">
+        <span class="route">/admin/parameters/prompts</span>
+        <h2>Prompty</h2>
+        <span class="who">Správce</span>
+      </div>
+      <div class="sec-body">
+        <p class="claim">Tón bota, jeho mantinely i formu citací přepíšete v textovém poli. Změna platí okamžitě.</p>
+        <ul class="caps">
+          <li><b>Systémový prompt chatu</b> (do 8 000 znaků) — jak bot mluví, co smí, jak cituje zdroje.</li>
+          <li><b>Prompt pro shrnutí poptávek</b> (do 4 000 znaků) — co má obchodník v záznamu vidět.</li>
+          <li><b>Vidíte, co je vlastní a co výchozí:</b> každá karta nese štítek a jde jedním kliknutím vrátit na dodávané znění.</li>
+          <li><b>Ochrana proti překlepu:</b> karta je zamčená, editaci je nutné vědomě zapnout — přepsané prompty nemají historii verzí.</li>
+          <li><b>Varování u kritických instrukcí</b> — systém řekne, které pasáže nesmíte smazat, protože by vypnuly sběr poptávek nebo oslabily ochranu proti podvržení instrukcí.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="uzivatele">
+      <div class="sec-id">
+        <span class="route">/admin/users</span>
+        <h2>Uživatelé</h2>
+        <span class="who">Správce</span>
+      </div>
+      <div class="sec-body">
+        <p class="claim">Účty zakládá správce — ale hesla si nevymýšlí a nikdy je nevidí uložená.</p>
+        <ul class="caps">
+          <li><b>Založení účtu:</b> jméno, příjmení, e-mail (slouží i jako přihlašovací údaj) a role.</li>
+          <li><b>Heslo generuje aplikace</b> a ukáže ho právě jednou; v databázi je od začátku jen otisk.</li>
+          <li><b>Vynucená změna při prvním přihlášení</b> — dokud si uživatel heslo nezmění, nesmí dělat nic jiného.</li>
+          <li><b>Reset hesla</b> a <b>deaktivace</b> účtu; účty se nemažou, aby zůstala dohledatelná historie.</li>
+          <li><b>Přiřazení pracovních rolí</b>, které rozhodují o přístupu k dokumentům.</li>
+          <li><b>Pojistky proti zamčení:</b> posledního správce nelze degradovat ani vypnout a nikdo si nemění vlastní roli.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="role">
+      <div class="sec-id">
+        <span class="route">/admin/users/job-roles</span>
+        <h2>Pracovní role</h2>
+        <span class="who">Správce</span>
+      </div>
+      <div class="sec-body">
+        <p class="claim">Oprávnění se popisují slovy z organizace — „Vedoucí účtárny“, ne technický štítek.</p>
+        <ul class="caps">
+          <li><b>Vlastní číselník rolí</b> podle struktury zákazníka.</li>
+          <li><b>Role sdružuje štítky dokumentů</b> — přidáte štítek k roli a všichni její nositelé okamžitě vidí odpovídající obsah.</li>
+          <li><b>Mapování na skupinu ve firemním adresáři</b> — kdo je v IdP ve skupině „Obchod“, dostane roli automaticky při přihlášení.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="stitky">
+      <div class="sec-id">
+        <span class="route">/admin/users/audiences</span>
+        <h2>Štítky dokumentů</h2>
+        <span class="who">Správce</span>
+      </div>
+      <div class="sec-body">
+        <p class="claim">Jedna instance, jedna báze, různé publikum. Vyhledávání filtruje už v databázi.</p>
+        <ul class="caps">
+          <li><b>Zakládání, přejmenování a mazání</b> štítků (např. Právní oddělení, Interní metodika).</li>
+          <li><b>Počet dokumentů</b> u každého štítku — víte, co byste smazáním rozpojili.</li>
+          <li><b>Štítek nikdy nedostane uživatel přímo</b>, vždy jen přes pracovní roli. Odebrání role odebere přístup naráz a bez výjimek.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="soukromi">
+      <div class="sec-id">
+        <span class="route">/admin/privacy</span>
+        <h2>Soukromí a osobní údaje</h2>
+        <span class="who">Správce</span>
+      </div>
+      <div class="sec-body">
+        <p class="claim">Žádost podle GDPR vyřídíte na obrazovce, ne e-mailem vývojáři.</p>
+        <ul class="caps">
+          <li><b>Retenční lhůty</b> zvlášť pro poptávky a zpětnou vazbu (1–120 měsíců).</li>
+          <li><b>Automatický denní úklid</b> — přepínač plus tlačítko „spustit teď“, když nechcete čekat.</li>
+          <li><b>Sběr kontaktů v chatu</b> jde vypnout — u interního nasazení nedává smysl.</li>
+          <li><b>Vyhledání subjektu</b> podle e-mailu nebo telefonu; funguje bez ohledu na velikost písmen a formát čísla.</li>
+          <li><b>Export do JSON</b> pro právo na přístup a přenositelnost (čl. 15 a 20).</li>
+          <li><b>Trvalý výmaz</b> na žádost (čl. 17) — poptávky i navázaná hodnocení naráz.</li>
+          <li><b>Auditní historie úkonů</b> s otiskem subjektu místo jeho kontaktu — evidence sama nesmí být další databází osobních údajů.</li>
+          <li><b>Právní titul u každého záznamu</b>, uložený v okamžiku sběru — doložitelný i po pozdější změně konfigurace.</li>
+        </ul>
+        <p class="note">
+          Veřejné zásady zpracování údajů si lhůty <b>čtou z nastavení</b>, místo aby je opisovaly.
+          Změna lhůty v administraci proto nemůže udělat ze zveřejněného dokumentu nepravdu.
+        </p>
+      </div>
+    </section>
+
+    <section id="prihlaseni">
+      <div class="sec-id">
+        <span class="route">/admin/login</span>
+        <h2>Přihlášení a SSO</h2>
+        <span class="who">Všichni</span>
+      </div>
+      <div class="sec-body">
+        <p class="claim">Heslo, nebo firemní účet — podle toho, co zákazník provozuje.</p>
+        <ul class="caps">
+          <li><b>Klasické přihlášení</b> e-mailem a heslem.</li>
+          <li><b>Přihlášení firemním účtem</b> (OIDC) — účet vznikne sám při prvním přihlášení, není potřeba ho předem zakládat.</li>
+          <li><b>Skupiny z firemního adresáře</b> se překlápějí na pracovní role při každém přihlášení; zdrojem pravdy zůstává adresář, ne Kecalo.</li>
+          <li><b>Indikátor konfigurace SSO</b> v administraci — pojmenuje chybějící nastavení, aby zapomenutá položka nevypadala jako vypnuté SSO.</li>
+          <li><b>Odhlášení platí okamžitě</b> na straně serveru; deaktivace účtu ukončí i běžící relaci.</li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="block">
+    <h2>Kdo co smí</h2>
+    <p class="block-lede">
+      Tři aplikační role. Vodicí pravidlo: <b>editor spravuje obsah a agendu, ne systém</b> —
+      chování bota a přístupy zůstávají správci.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Činnost</th>
+            <th class="mark">Čtenář</th>
+            <th class="mark">Editor</th>
+            <th class="mark">Správce</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Prohlížet dokumenty, testovat retrieval, číst parametry</td>
+            <td class="mark yes">ano</td><td class="mark yes">ano</td><td class="mark yes">ano</td>
+          </tr>
+          <tr>
+            <td>Nahrávat, reindexovat a mazat dokumenty</td>
+            <td class="mark no">—</td><td class="mark yes">ano</td><td class="mark yes">ano</td>
+          </tr>
+          <tr>
+            <td>Zpracovávat poptávky</td>
+            <td class="mark no">—</td><td class="mark yes">ano</td><td class="mark yes">ano</td>
+          </tr>
+          <tr>
+            <td>Měnit RAG parametry a prompty</td>
+            <td class="mark no">—</td><td class="mark no">—</td><td class="mark yes">ano</td>
+          </tr>
+          <tr>
+            <td>Spravovat uživatele, pracovní role a štítky</td>
+            <td class="mark no">—</td><td class="mark no">—</td><td class="mark yes">ano</td>
+          </tr>
+          <tr>
+            <td>Retence, výmazy a žádosti subjektů</td>
+            <td class="mark no">—</td><td class="mark no">—</td><td class="mark yes">ano</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note" style="margin-top:12px">
+      Oprávnění se čte z databáze při každém požadavku, ne z přihlašovací cookie — odebrání práv
+      platí okamžitě, ne až po odhlášení. Skrytí položky v menu je jen kosmetika; kontrola drží
+      na každé serverové operaci zvlášť.
+    </p>
+  </div>
+
+  <div class="block">
+    <h2>Mimo administraci</h2>
+    <p class="block-lede">
+      Co ještě patří do dodávky, i když se to nenastavuje kliknutím.
+    </p>
+    <div class="grid-two">
+      <div class="tile">
+        <span class="pill">v provozu</span>
+        <h3>Dvě podoby chatu</h3>
+        <p>Chat přes celou stránku a vysouvací widget v rohu. Obojí běží nad stejným kódem, takže úprava se propíše do obou.</p>
+      </div>
+      <div class="tile">
+        <span class="pill">v provozu</span>
+        <h3>Provozní režim veřejný / interní</h3>
+        <p>Veřejný chat pro zákazníky, nebo interní báze vyžadující přihlášení. Přepíná se konfigurací a administrace odvozený režim ukazuje.</p>
+      </div>
+      <div class="tile">
+        <span class="pill">v provozu</span>
+        <h3>Vždy uvedený zdroj</h3>
+        <p>Pod každou odpovědí stojí dokument, článek a strana. Odpověď bez opory bot nevymyslí — místo ní nasměruje na kontakt.</p>
+      </div>
+      <div class="tile">
+        <span class="pill">v provozu</span>
+        <h3>Měřitelná kvalita</h3>
+        <p>Každý dotaz má záznam s latencí a spotřebou; palce z chatu se ukládají jako skóre. Nad testovacími sadami běží automatické vyhodnocení.</p>
+      </div>
+      <div class="tile">
+        <span class="pill soon">v přípravě</span>
+        <h3>Widget na cizí web</h3>
+        <p>Vložení bubliny na existující web zákazníka jedním řádkem <code>&lt;script&gt;</code>. Dnes widget běží jen na stránkách Kecala.</p>
+      </div>
+      <div class="tile">
+        <span class="pill soon">v přípravě</span>
+        <h3>Strop provozních nákladů</h3>
+        <p>Denní limit útraty a sdílené omezení počtu dotazů pro veřejné nasazení, aby náklady nešly vyhnat cizí zátěží.</p>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <strong>Poznámka k této ukázce.</strong> Demo instance vystupuje pod názvem Kecalo
+    a odpovídá nad pojistnými podmínkami fiktivní pojišťovny. Obor není v aplikaci nikde
+    zadrátovaný — bázi tvoří nahrané dokumenty, ať jde o pojišťovnu, výrobní firmu nebo úřad.
+    Název, podtitul i logo se mění na jednom místě.
+  </footer>
+
+</div>
+</body>
+</html>

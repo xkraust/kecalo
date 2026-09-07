@@ -3,6 +3,10 @@
 Přehled schopností administrace — podklad pro prezentaci a pro rychlé zorientování
 nového člověka v tom, co se v aplikaci dá nastavit bez zásahu do kódu.
 
+> **Prezentační podoba.** Týž obsah jako nastylovaná stránka je v `co-kecalo-umi.html` —
+> otevře se přímo v prohlížeči, bez serveru a bez buildu. Zdrojem pravdy je **tenhle
+> markdown**; HTML se z něj přepisuje, ne naopak.
+
 > **Rozsah dokumentu.** Popisuje **stav administrace**, ne roadmapu. Sekce jsou v pořadí,
 > v jakém stojí v levém menu. Co je rozpracované nebo odložené, je vypsané na konci
 > v části „Mimo administraci"; podrobnosti drží `IMPLEMENTATION_PLAN.md` a `plans/`.

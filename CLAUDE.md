@@ -333,7 +333,8 @@ scripts/
 └── scan-brand-leaks.mjs              # kontrola, že v DB nezůstala identita reálného pojistitele (exit 1 při nálezu)
 docs/
 ├── ARCHITECTURE.md                   # technický popis architektury pro vývojáře (aktuální stav)
-├── co-kecalo-umi.md                  # přehled schopností administrace (podklad pro prezentaci)
+├── co-kecalo-umi.md                  # přehled schopností administrace (zdroj pravdy)
+├── co-kecalo-umi.html                # tentýž přehled nastylovaný pro prezentaci (generováno z .md)
 ├── sso-setup.md                      # návod na zapnutí SSO (registrace u IdP, env, mapování skupin)
 ├── IMPLEMENTATION_PLAN.md            # hlavní prováděcí checklist projektu (fáze + průběžný stav)
 ├── PRD_pojistovaci_RAG_chatbot.md    # zadání/PRD
