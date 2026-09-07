@@ -1,6 +1,23 @@
 # Plán: Ochrana veřejného chatu — sdílený rate limit, denní strop útraty, allowlist originů
 
-**Stav:** **návrh — neimplementováno.** Mimo číslované fáze. Vznikl z otázek k nasazení widgetu na veřejný web (embed skript, vlastní znalostní báze, náklady a limity); tenhle plán řeší **jen třetí okruh — náklady a zneužití**. Embeddovatelný widget zůstává odloženou fází 2 v [`widget_mini_kecalo_plan.md`](widget_mini_kecalo_plan.md).
+**Stav:** **návrh — neimplementováno.** Mimo číslované fáze. Vznikl z otázek k nasazení widgetu na veřejný web (embed skript, vlastní znalostní báze, náklady a limity); tenhle plán řeší **jen třetí okruh — náklady a zneužití**.
+
+## Návaznost na plán widgetu
+
+Přebírá provozní podmínky, které byly původně odrážkou ve „Výhledu fáze 2" v [`widget_mini_kecalo_plan.md`](widget_mini_kecalo_plan.md) („rate limity pro cizí provoz, CORS"). Osamostatnily se ze dvou důvodů:
+
+- **Platí i bez embedu.** `/api/chat` je veřejná už dnes a jde ji volat curlem, takže chybějící strop není budoucí problém embedu, ale současný problém provozu.
+- **Fáze 2 možná nikdy nepřijde.** Držet ochranu nákladů jako její podčást by znamenalo, že se neudělá, dokud se nerozhodne o embeddovatelném widgetu.
+
+| Etapa zde | Odpovídá bodu z fáze 2 widgetu |
+|---|---|
+| A — sdílený rate limit | „rate limity pro cizí provoz" |
+| B — denní strop útraty | (nebylo ve výhledu; u veřejného embedu podstatnější než rate limit) |
+| C — allowlist originů | „CORS pro API volání z iframe" — tentýž seznam poslouží jako CORS allowlist |
+
+**Ve fázi 2 widgetu naopak zůstává** a tenhle plán se toho nedotýká: route `/widget`, `public/embed.js`, uvolnění `frame-ancestors` pro `/widget` (dnes globální `DENY` z opravy SEC-10) a tenant identifikace.
+
+Pořadí je proto takové, že tenhle plán dává smysl udělat **dřív** než fázi 2 — embed bez stropu útraty by veřejnou instanci vystavil přesně tomu, před čím strop chrání.
 
 ## Kontext a cíl
 

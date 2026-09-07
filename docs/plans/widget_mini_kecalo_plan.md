@@ -200,14 +200,35 @@ pollingem DOM během streamu (`maxEmptyBubbles: 0` po celou dobu).
 
 ## Výhled fáze 2 — embeddovatelný widget (neimplementuje se teď)
 
+### Co z původního výhledu převzal jiný plán
+
+Provozní podmínky pro cizí provoz — původně jen odrážka „rate limity pro cizí
+provoz, CORS" — se osamostatnily do
+[`public_chat_protection_plan.md`](public_chat_protection_plan.md). Důvod: platí
+i **bez** embedu, protože `/api/chat` je veřejná už dnes a dá se volat curlem.
+Nemá smysl je držet jako podmínku fáze, která možná nikdy nepřijde.
+
+| Původní bod | Kde se řeší |
+|---|---|
+| rate limity pro cizí provoz | etapa A — sdílený rate limit napříč instancemi |
+| (nebylo v původním výhledu) | etapa B — denní strop útraty; u veřejného embedu je to podstatnější než rate limit |
+| CORS pro API volání | etapa C — allowlist originů; tentýž seznam poslouží jako CORS allowlist |
+
+### Co ve fázi 2 zbývá
+
 - Route `/widget` — kompaktní chat renderovaný samostatně (bez demo stránky),
   určený do iframe.
 - `public/embed.js` — skript vložitelný jedním `<script>` tagem na cizí web:
   vykreslí bublinu, po kliknutí vytvoří iframe na `/widget`, řeší
   otvírání/zavírání a rozměry přes `postMessage`.
-- K vyřešení: CSP/`frame-ancestors` (dnes Next config posílá bezpečnostní
-  hlavičky), CORS pro API volání z iframe (stejný origin iframe → není
-  potřeba), rate limity pro cizí provoz, případně tenant identifikace.
+- **Uvolnění `frame-ancestors` pro `/widget`.** Upřesnění původní formulace:
+  [`next.config.ts`](../../next.config.ts) ř. 7–12 posílá `X-Frame-Options: DENY`
+  a `Content-Security-Policy: frame-ancestors 'none'` na **všechny** routy
+  (oprava SEC-10). Dnes tedy nefunguje ani prosté vložení iframem — fáze 2 musí
+  hlavičky zúžit na allowlist domén zákazníků, ne je plošně vypnout.
+- Tenant identifikace — dnes je instance single-tenant (jedna tabulka
+  `documents`, jeden řádek `app_settings`), takže druhá značka znamená druhé
+  nasazení. Sdílená instance pro víc zákazníků je samostatný problém.
 
 ## Stav
 
@@ -220,4 +241,7 @@ pollingem DOM během streamu (`maxEmptyBubbles: 0` po celou dobu).
   Jedna doplňková oprava nad rámec plánu: dvojitá bublina po odeslání
   dotazu (viz poznámka u milníku 4).
 - Fáze 2 (embeddovatelný widget `/widget` + `public/embed.js`) zůstává
-  neimplementovaná — viz „Výhled fáze 2" výše.
+  neimplementovaná — viz „Výhled fáze 2" výše. Její provozní podmínky (rate
+  limity, strop útraty, allowlist originů) se osamostatnily do
+  [`public_chat_protection_plan.md`](public_chat_protection_plan.md), protože
+  platí i bez embedu.
