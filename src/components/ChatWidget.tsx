@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ChatMessages } from "@/components/ChatMessages";
 import { useKecaloChat } from "@/lib/use-kecalo-chat";
+import { BRAND } from "@/lib/brand";
 
 const WIDGET_EMPTY_DESCRIPTION =
   "Zeptejte se na pojistné podmínky. Odpovídáme z dokumentů a vždy uvádíme zdroj.";
@@ -56,7 +57,7 @@ export function ChatWidget() {
           přežijí minimalizaci. Skrývání je čistě CSS + inert/aria-hidden. */}
       <div
         role="dialog"
-        aria-label="Chat — Pojišťovna Jistota"
+        aria-label={`Chat — ${BRAND.name}`}
         aria-hidden={!open}
         inert={!open}
         className={cn(
@@ -72,12 +73,14 @@ export function ChatWidget() {
         <header className="flex shrink-0 items-center justify-between bg-primary px-4 py-3 text-primary-foreground">
           <div className="flex items-center gap-2.5">
             <div className="flex size-8 items-center justify-center rounded-lg bg-primary-foreground/15 text-sm font-medium">
-              J
+              {BRAND.initial}
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-medium">Pojišťovna Jistota</span>
-              <span className="text-xs text-primary-foreground/80">
-                Virtuální asistent
+              <span className="text-sm font-medium">{BRAND.name}</span>
+              {/* Podtitul nahrazuje dřívější „Virtuální asistent“ — v úzkém
+                  panelu se zalomí na dva řádky, hlavička je flex a povyroste. */}
+              <span className="text-[11px] text-primary-foreground/80">
+                {BRAND.tagline}
               </span>
             </div>
           </div>

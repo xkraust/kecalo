@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { ShieldCheck, Building2, Umbrella, Phone } from "lucide-react";
 import { ChatWidget } from "@/components/ChatWidget";
 import { DemoCredit } from "@/components/DemoCredit";
+import { BRAND } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "Pojišťovna Jistota — pojištění bez starostí",
+  title: `${BRAND.name} — ${BRAND.tagline}`,
 };
 
 const PRODUCTS = [
@@ -33,9 +34,14 @@ export default function DemoPage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2.5">
             <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-medium">
-              J
+              {BRAND.initial}
             </div>
-            <span className="text-[15px] font-medium">Pojišťovna Jistota</span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-[15px] font-medium">{BRAND.name}</span>
+              <span className="text-[11px] text-muted-foreground">
+                {BRAND.tagline}
+              </span>
+            </div>
           </div>
           <nav className="hidden items-center gap-6 text-sm text-muted-foreground sm:flex">
             <span className="cursor-default hover:text-foreground">Produkty</span>
@@ -85,7 +91,7 @@ export default function DemoPage() {
       {/* Patička */}
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-3 px-6 py-8 text-sm text-muted-foreground sm:flex-row">
-          <span>© 2026 Pojišťovna Jistota — demo</span>
+          <span>© 2026 {BRAND.name} — demo</span>
           <span className="flex items-center gap-1.5">
             <Phone size={14} />
             Infolinka 800 123 456

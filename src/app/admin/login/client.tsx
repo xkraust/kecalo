@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { BRAND } from "@/lib/brand";
 
 const SSO_ERRORS: Record<string, string> = {
   sso_disabled: "Přihlášení přes firemní účet není nastavené.",
@@ -69,7 +70,7 @@ export function LoginForm({
           <div className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-medium mb-2">
             K
           </div>
-          <CardTitle className="text-xl">Administrace Kecalo</CardTitle>
+          <CardTitle className="text-xl">Administrace {BRAND.name}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">

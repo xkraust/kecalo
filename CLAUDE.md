@@ -16,7 +16,7 @@ Zbývá z ladění RAG: `Informace pro klienta.pdf` není v DB nahraná (uživat
 
 **Probíhající experiment (mimo číslované fáze):** shrnutí poptávek přepnuto z Claude Haiku na Mistral model (`mistral-small-latest` přes `@ai-sdk/mistral`) — prototypový test levnějšího modelu, Varianta B dle `docs/plans/mistral_summary_experiment_plan.md`. **Hotové a E2E ověřené** (13. 7. 2026): happy-path vrací věcné české shrnutí, SEC-9 injection drží, v Langfuse zachován generation span s modelem `mistral-small-latest` a tokeny (cena = 0, dokud se model nedefinuje v Langfuse — stejné jako `voyage-3.5`). Telemetrie beze změny (generation span dál z AI SDK, protože `@ai-sdk/mistral` je provider Vercel AI SDK). Chat, RAG i retrieval zůstávají na Claude/Anthropicu. `MISTRAL_API_KEY` je nasazený i na Vercel Project env. Volitelně zbývá jen definovat `mistral-small-latest` v Langfuse Settings → Models kvůli výpočtu ceny.
 
-**Widget mini Kecalo (mimo číslované fáze):** vysouvací chat widget v rohu obrazovky (bublina → panel) na nové demo stránce `/demo`, která simuluje web „Pojišťovny Jistota" — dle `docs/plans/widget_mini_kecalo_plan.md`. **Hotové a E2E ověřené** (14. 7. 2026): chatová logika vytažena do sdíleného hooku `useKecaloChat()` a komponenty `ChatMessages` (fullscreen `/` beze změny chování), nová komponenta `ChatWidget` (panel vždy namountovaný — konverzace i běžící stream přežijí minimalizaci). Ověřeno stream/zdroje/karta poptávky (obě varianty)/persistence/mobilní šířka/konzole bez chyb. Žádná nová API routa ani útočná plocha — widget používá jen existující veřejné routy. Fáze 2 (embeddovatelný widget na cizí web přes `/widget` + `public/embed.js`) zůstává vědomě neimplementovaná.
+**Widget mini Kecalo (mimo číslované fáze):** vysouvací chat widget v rohu obrazovky (bublina → panel) na nové demo stránce `/demo`, která simuluje web pojišťovny s nasazeným widgetem — dle `docs/plans/widget_mini_kecalo_plan.md`. **Hotové a E2E ověřené** (14. 7. 2026): chatová logika vytažena do sdíleného hooku `useKecaloChat()` a komponenty `ChatMessages` (fullscreen `/` beze změny chování), nová komponenta `ChatWidget` (panel vždy namountovaný — konverzace i běžící stream přežijí minimalizaci). Ověřeno stream/zdroje/karta poptávky (obě varianty)/persistence/mobilní šířka/konzole bez chyb. Žádná nová API routa ani útočná plocha — widget používá jen existující veřejné routy. Fáze 2 (embeddovatelný widget na cizí web přes `/widget` + `public/embed.js`) zůstává vědomě neimplementovaná.
 
 **Headless Langfuse (mimo číslované fáze):** ovládání Langfuse z coding agenta (agent skill + CLI) místo z UI, plus doplnění dat, bez kterých je taková smyčka slepá. **Etapy 1–4 hotové a ověřené** (4. 8. 2026): skill nainstalován globálně (mimo repo), traces dostaly jméno `chat-rag` a `langfuse.session.id`, `/api/chat` vrací `X-Trace-Id`, palec nahoru/dolů se ukládá jako skóre `user-thumbs` (`BOOLEAN`, idempotentní, fail-open) a trace nese `prompt_hash`/`prompt_source`. Tím jsou poprvé v Langfuse **produkční skóre** — kvalita jde měřit i mimo eval datasety. Migrace promptů do Langfuse Prompt Managementu **vědomě zamítnuta** (třetí zdroj pravdy vedle `prompts.ts` a `app_settings`, runtime závislost, kolize s Fází 17) — nahrazena otiskem verze promptu. Zbývá **etapa 5** (dataset z reálných traces s palcem dolů) — čeká na nasbíraný provoz a na rozhodnutí, zda `record_content` v produkci zůstane zapnutý (GDPR). Detaily: `docs/IMPLEMENTATION_PLAN.md`, dluh v `docs/plans/LANGFUSE_PLAN.md`.
 
@@ -30,7 +30,7 @@ Podrobná historie fází, měření a průběžný stav: `docs/IMPLEMENTATION_P
 
 ## Projekt
 
-**Kecalo** je RAG chatbot nad vlastní znalostní bází — obor není nikde zadrátovaný, bázi tvoří nahrané dokumenty (pojišťovna, výrobní firma, úřad). Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je v **předprodukční fázi**: funkční aplikace s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí, které do ostrého provozu chybí především dokončení autentizace (etapy A a B plánu rolí zavedly víc identit s aplikačními rolemi a správu uživatelů; zbývá SSO a řízení viditelnosti dokumentů), automatizované testy (žádné — ověřuje se manuálně) a dokončení GDPR (retence a mazání hotové, chybí minimalizace toku dat ven a provozní režim — etapy E–G plánu). Ukázková instalace vystupuje jako „Pojišťovna Jistota" a její bázi tvoří reálné pojistné podmínky ze složky `docs/seed-docs/` — znalostní báze i chování bota se mění za běhu (nahrané dokumenty + systémový prompt); název a logo značky jsou ale zatím napevno v komponentách. Uživatelé kladou otázky česky; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
+**Kecalo** je RAG chatbot nad vlastní znalostní bází — obor není nikde zadrátovaný, bázi tvoří nahrané dokumenty (pojišťovna, výrobní firma, úřad). Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je v **předprodukční fázi**: funkční aplikace s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí, které do ostrého provozu chybí především dokončení autentizace (etapy A a B plánu rolí zavedly víc identit s aplikačními rolemi a správu uživatelů; zbývá SSO a řízení viditelnosti dokumentů), automatizované testy (žádné — ověřuje se manuálně) a dokončení GDPR (retence a mazání hotové, chybí minimalizace toku dat ven a provozní režim — etapy E–G plánu). Ukázková instalace vystupuje pod vlastním názvem **Kecalo** s podtitulem „Příklad aplikace na datech fiktivní pojišťovny" a její bázi tvoří reálné pojistné podmínky ze složky `docs/seed-docs/` — znalostní báze i chování bota se mění za běhu (nahrané dokumenty + systémový prompt); název, podtitul a iniciála loga mají jediný zdroj pravdy v `src/lib/brand.ts`. Uživatelé kladou otázky česky; bot odpovídá výhradně z indexovaných dokumentů a vždy uvádí zdroj.
 
 ## Technologický stack
 
@@ -47,7 +47,7 @@ Podrobná historie fází, měření a průběžný stav: `docs/IMPLEMENTATION_P
 UI vychází vizuálně z Anthropic Console (`platform.claude.com`). Výchozí režim je **světlý**, bez tmavého přepínače.
 
 - **Admin (`/admin`)** — přesně ve stylu Console: levý sidebar (Přehled · Dokumenty · Poptávky · Test retrievalu · Parametry · Uživatelé* · Chat · Odhlásit; * jen pro aplikační roli admin), krémové pozadí, korálový akcent, čisté white karty. Úvodní strana `/admin` je dashboard s přehledem znalostní báze (metrické karty + grafy).
-- **Chat (`/`)** — odvozený vzhled: stejná paleta a typografie, ale s vlastním logem a brandem „Pojišťovna Jistota".
+- **Chat (`/`)** — odvozený vzhled: stejná paleta a typografie, ale s vlastním logem a brandem Kecalo. Pod názvem stojí všude podtitul „Příklad aplikace na datech fiktivní pojišťovny" — návštěvník musí poznat, že odpovědi stojí na smyšlených datech, dřív než je vezme za informace o skutečném produktu.
 
 Dashboard zobrazuje statistiky znalostní báze (počet dokumentů, chunků, zaindexovaných stran, rozpad stavů, chunky podle dokumentu) počítané přímo z tabulek `documents`/`chunks`. Metriky využití (dotazy, míra fallbacku, prům. skóre, latence) jsou odložené — vyžadují logování dotazů (viz produkční dluh).
 
@@ -146,7 +146,7 @@ Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabas
 
 ```
 /                       → Chat UI (hook useKecaloChat, streamování, blok zdrojů, disclaimer)
-/demo                   → Demo stránka „Pojišťovny Jistota" s vysouvacím widgetem ChatWidget
+/demo                   → Demo stránka (web pojišťovny) s vysouvacím widgetem ChatWidget
 /privacy                → Zásady zpracování osobních údajů (veřejné, mimo proxy; lhůty čte z app_settings)
 /admin                  → Dashboard (přehled znalostní báze — metrické karty + grafy)
 /admin/documents        → Upload + tabulka dokumentů
@@ -203,7 +203,7 @@ src/
 ├── instrumentation.ts                # registrace OTel provideru + Langfuse processoru (Node.js runtime)
 ├── app/
 │   ├── page.tsx                      # Chat UI (fullscreen)
-│   ├── demo/page.tsx                 # Demo stránka „Pojišťovny Jistota" s <ChatWidget />
+│   ├── demo/page.tsx                 # Demo stránka (web pojišťovny) s <ChatWidget />
 │   ├── privacy/page.tsx              # Zásady zpracování OÚ (veřejné; lhůty z app_settings, veřejná/interní varianta)
 │   ├── admin/
 │   │   ├── login/page.tsx            # Login (mimo route group — nechráněno)
@@ -269,6 +269,7 @@ src/
 │   └── ui/                           # shadcn/ui primitiva
 └── lib/
     ├── use-kecalo-chat.ts             # hook useKecaloChat() — sdílená chat logika (/ i ChatWidget)
+    ├── brand.ts                      # BRAND: název, podtitul, iniciála loga (jediný zdroj pravdy značky)
     ├── config.ts                     # konstanty z env, default hodnoty
     ├── telemetry.ts                  # OTel: singleton span processoru + withSpan/getTracer/flushTelemetry
     ├── langfuse-score.ts             # zápis skóre user-thumbs do Langfuse (REST klient, líný singleton, fail-open)
@@ -295,6 +296,7 @@ src/
     └── rag/
         ├── extract.ts
         ├── clean.ts                  # čištění textu (záhlaví/patičky, slepení řádků)
+        ├── redact.ts                 # redakce identity pojistitele ze zdrojových dokumentů
         ├── chunk.ts                  # strukturní chunkování (parser + skladač)
         ├── embed.ts
         ├── retrieve.ts
@@ -327,7 +329,8 @@ scripts/
 ├── langfuse-sync-metadata.mjs        # sync metadat items (expects_offer) do Langfuse — upsert podle id
 ├── seed-admin-user.mjs               # založení prvního admin uživatele (etapa A plánu rolí)
 ├── mock-idp.mjs                      # minimální OIDC provider pro test SSO bez tenantu (etapa D)
-└── verify-rate-limit.mjs             # ověření SEC-1 rate-limitu na Vercelu
+├── verify-rate-limit.mjs             # ověření SEC-1 rate-limitu na Vercelu
+└── scan-brand-leaks.mjs              # kontrola, že v DB nezůstala identita reálného pojistitele (exit 1 při nálezu)
 docs/
 ├── ARCHITECTURE.md                   # technický popis architektury pro vývojáře (aktuální stav)
 ├── sso-setup.md                      # návod na zapnutí SSO (registrace u IdP, env, mapování skupin)
@@ -346,7 +349,7 @@ docs/
 **Pozor na rozdělení odpovědností:** `src/lib/rag/pipeline.ts` NENÍ dotazovací (chat) pipeline — je to **indexační (ingestion) pipeline**. Chat pipeline žije v `src/app/api/chat/route.ts` ve spojení s `prompts.ts`.
 
 #### Indexace dokumentu — `pipeline.ts` (`processDocument`)
-Spouští se z `POST /api/documents` po uploadu a z `POST /api/documents/[id]/reprocess` (reindexace). Načte runtime parametry chunkování (`getSettings()`) → stáhne soubor ze Storage → `extract.ts` → `clean.ts` → `chunk.ts` (s `docTitle` = název souboru bez přípony) → `embed.ts` → **vloží nové chunky** po dávkách 100 s novým `batch_id` → **pak smaže staré** (`batch_id != nový`, atomický příkaz) → nastaví `status = ready` a uloží otisk konfigurace do `documents.chunking_config`. Selhání před výměnou → úklid nového batche, původní chunky přežijí (oprava C1); chyby se uloží do `documents.error_message`.
+Spouští se z `POST /api/documents` po uploadu a z `POST /api/documents/[id]/reprocess` (reindexace). Načte runtime parametry chunkování (`getSettings()`) → stáhne soubor ze Storage → `extract.ts` → `clean.ts` → `redact.ts` → `chunk.ts` (s `docTitle` = název souboru bez přípony) → `embed.ts` → **vloží nové chunky** po dávkách 100 s novým `batch_id` → **pak smaže staré** (`batch_id != nový`, atomický příkaz) → nastaví `status = ready` a uloží otisk konfigurace do `documents.chunking_config`. Selhání před výměnou → úklid nového batche, původní chunky přežijí (oprava C1); chyby se uloží do `documents.error_message`.
 
 #### Dotaz / chat — `api/chat/route.ts` + `prompts.ts`
 Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4 000 znaků, max 50 zpráv; jinak 400) a routa má rate limit 20 požadavků/min na IP (sdílený helper `lib/rate-limit.ts`; 429). Pak `retrieve(query)` → pokud `chunks.length === 0` fallback (viz níže), jinak `buildContextBlock` vloží chunky do system promptu (atribut `source` = dokument, `section_path`, strana → citace typu „(VPP M-100/23, čl. 29 odst. 8, strana 11)"). Metadata zdrojů (filename, page, section, zaokrouhlené `similarity`) jdou na klienta v hlavičce odpovědi `X-Sources` (URL-encoded JSON; `buildSourcesHeader` ořezává section na 100 a filename na 80 znaků, při překročení 8 000 znaků se sekce vynechají — ochrana proti limitu velikosti hlaviček). Historie se ořezává na posledních 8 zpráv (`MAX_HISTORY`).
@@ -359,6 +362,7 @@ Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4
 |---|---|
 | `extract.ts` | PDF → text po stránkách přes `unpdf`; prostý text pro `.txt`/`.md` |
 | `clean.ts` | Čištění mezi extrakcí a chunkováním: frekvenční odstranění opakovaných záhlaví/patiček stránek (normalizace čísel, práh 60 % stránek, min. 3 — bez hardcoded vzorů) + slepení řádků rozdělených sazbou PDF (interpunkce, zkratky, spojovníky). Čistí po stránkách, mapování na strany zůstává. Exportuje strukturní vzory řádků `STRUCT` a `isStructuralStart` (sdílí s parserem v `chunk.ts`) |
+| `redact.ts` | Redakce identity pojistitele: zdrojová PDF jsou reálné pojistné podmínky, ale aplikace o sobě tvrdí, že běží „na datech fiktivní pojišťovny". Odstraňuje obchodní firmu ve všech tvarech, web, e-maily, telefon, skupinu, IČO i sídlo. Pořadí pravidel je součástí návrhu (kolapsní před obecnými, jinak vznikne „pojišťovny pojišťovna"); velikost písmen se opravuje jen tam, kam redakce sáhla. Běží **před** chunkováním — `section_path` se odvozuje až z těchto stránek a jde přes `X-Sources` do UI |
 | `chunk.ts` | Strukturní chunkování: parser hierarchie (část → článek → `▶` odstavec, krátké podnadpisy; písmena výčtů `a)` hranici netvoří; řádky přehledu článků se demotují na obsah) + greedy skladač celých sekcí do chunků cílové velikosti dle runtime parametru (default 3 500 znaků, strop 1,3×, bez překryvu) s volitelnou breadcrumb hlavičkou `[docTitle › část › článek › odst.]`, která se embeduje s textem (`ChunkOptions`). `ChunkInput` nese `section_path`. Nestrukturované dokumenty (< 30 % obsahu v sekcích) → dělení po odstavcích |
 | `embed.ts` | Embeddingy přes Voyage AI (`voyage-3.5`): `embedQuery` pro jeden dotaz, `embedBatch` pro indexaci. 429 kvůli chybějící platební metodě (limit free tieru) neopakuje a mapuje na srozumitelnou hlášku do `error_message` |
 | `retrieve.ts` | `embedQuery` → volá Postgres RPC `match_chunks` (viz `002_match_chunks.sql`, rozšířeno v `007`) → vrátí chunky se skóre `similarity`, `filename` a `section_path` |
@@ -369,7 +373,7 @@ Vstup se validuje (`parseMessages`: role jen user/assistant, content string do 4
 
 **Fallback:** pokud `retrieve` vrátí 0 chunků, route vrací `FALLBACK_MESSAGE` („nenacházím odpověď, kontaktujte infolinku 800 123 456") jako statickou `text/plain` odpověď s prázdným `X-Sources` — Claude se nevolá (oprava B3; dřív se volal jen kvůli doslovnému opsání hlášky).
 
-**Systémový prompt** (`prompts.ts`; od Fáze 17 **runtime editovatelný** v `/admin/parameters/prompts` — chat používá `settings.systemPrompt ?? SYSTEM_PROMPT`, NULL = výchozí z kódu): bot odpovídá výhradně z poskytnutých chunků, česky, neposkytuje poradenství nad rámec citovaných podmínek a nesjednává produkty. **Tón** (upraveno mimo číslované fáze, 24. 7. 2026): persona, sekce `# Tón a forma` a `# Když odpověď v kontextu chybí` přeformulovány z úřednějšího rázu na **profesionálně příjemný a lehce vřelý** — asistent zní jako někdo, kdo oboru rozumí, rád poradí a koho zájem klienta těší; explicitní mantinel proti žovialitě i strohosti, přesnost a opora v podmínkách mají přednost před tónem. Odkaz na infolinku zní jako vstřícné nasměrování, ne odbytí. Funkční pravidla (grounding, vykání, citace, `[[NABIDKA]]`, meze, anti-injection) beze změny. **Citace** (upraveno mimo číslované fáze, 23. 7. 2026): do textu odpovědi se už neopisuje technický název souboru z atributu `source` — jen zkrácený odkaz na článek/odstavec/stranu (např. „čl. 29 odst. 8, strana 11"); plný název zdrojového dokumentu nese samostatně `SourcesBlock` v UI (z `X-Sources` hlavičky). Důvod: surový filename (s příponou a kódem) v prose textu působil na zákazníka technicky a rušivě. U dotazů na konkrétní pojistný produkt — včetně procedurálně formulovaných dotazů na krytí/limity/výluky a dotazů na cenu či sjednání (ty i při nenalezené informaci) — přidá na úplný konec odpovědi samostatný řádek s tokenem `[[NABIDKA]]`; u administrativních dotazů a ostatních odpovědí bez nalezené informace nikdy — klient token z textu odstraní a místo něj vykreslí kartu poptávky (`LeadForm` varianta `produkt`); viz Fáze 14 / `docs/plans/lead_generation_plan.md`.
+**Systémový prompt** (`prompts.ts`; od Fáze 17 **runtime editovatelný** v `/admin/parameters/prompts` — chat používá `settings.systemPrompt ?? SYSTEM_PROMPT`, NULL = výchozí z kódu): bot odpovídá výhradně z poskytnutých chunků, česky, neposkytuje poradenství nad rámec citovaných podmínek a nesjednává produkty. **Tón** (upraveno mimo číslované fáze, 24. 7. 2026): persona, sekce `# Tón a forma` a `# Když odpověď v kontextu chybí` přeformulovány z úřednějšího rázu na **profesionálně příjemný a lehce vřelý** — asistent zní jako někdo, kdo oboru rozumí, rád poradí a koho zájem klienta těší; explicitní mantinel proti žovialitě i strohosti, přesnost a opora v podmínkách mají přednost před tónem. Odkaz na infolinku zní jako vstřícné nasměrování, ne odbytí. Funkční pravidla (grounding, vykání, citace, `[[NABIDKA]]`, meze, anti-injection) beze změny. **Odbrandování** (mimo číslované fáze, 7. 9. 2026): persona zní „Jsi asistent pro pojistné podmínky" — jméno značky v promptu ZÁMĚRNĚ není žádné (ani Kecalo), aby nasazení pro jiného zákazníka neznamenalo přepis textu bota; brand nese UI, ne prompt. Sekce `# Meze` navíc nese pravidlo **neuvádět obchodní název konkrétní pojišťovny ani její identifikační údaje** — je to jen záchranná síť pro případ, že název napíše sám uživatel; hlavní obranou je redakce při indexaci (`redact.ts`), protože prompt na obsah kontextu nedosáhne. Pozor: `SYSTEM_PROMPT` je jen výchozí hodnota — běží-li override v `app_settings.system_prompt`, změna v kódu se neprojeví (ověřit badge v `/admin/parameters/prompts`). **Citace** (upraveno mimo číslované fáze, 23. 7. 2026): do textu odpovědi se už neopisuje technický název souboru z atributu `source` — jen zkrácený odkaz na článek/odstavec/stranu (např. „čl. 29 odst. 8, strana 11"); plný název zdrojového dokumentu nese samostatně `SourcesBlock` v UI (z `X-Sources` hlavičky). Důvod: surový filename (s příponou a kódem) v prose textu působil na zákazníka technicky a rušivě. U dotazů na konkrétní pojistný produkt — včetně procedurálně formulovaných dotazů na krytí/limity/výluky a dotazů na cenu či sjednání (ty i při nenalezené informaci) — přidá na úplný konec odpovědi samostatný řádek s tokenem `[[NABIDKA]]`; u administrativních dotazů a ostatních odpovědí bez nalezené informace nikdy — klient token z textu odstraní a místo něj vykreslí kartu poptávky (`LeadForm` varianta `produkt`); viz Fáze 14 / `docs/plans/lead_generation_plan.md`.
 
 **Zpětná vazba u odpovědi** (`MessageBubble.tsx`, Fáze 16): palec nahoru → inline poděkování; palec dolů → karta `LeadForm` varianta `hodnoceni` (vlídnější text, lead typu `hodnoceni`). Když je u zprávy už produktová karta (token `[[NABIDKA]]`), palec dolů druhou kartu nevykresluje — jen krátké poděkování (kontakt sbírá produktová). Hlas se vždy ukládá do `/api/feedback` beze změny. Viz `docs/plans/lead_generation_plan.md` (Fáze 2 / Fáze 16).
 
@@ -381,7 +385,7 @@ Chatová logika je sdílená mezi fullscreen stránkou a vysouvacím widgetem p�
 - `src/components/ChatMessages.tsx` — scrollovatelná oblast zpráv (prázdný stav, vzorové otázky, mapování na `MessageBubble`); prop `compact` pro menší widget layout.
 - `src/app/page.tsx` (`/`) — skelet nad hookem + `<ChatMessages />`, beze změny chování oproti stavu před refactorem.
 - `src/components/ChatWidget.tsx` — vysouvací widget: bublina 56 px v rohu (`fixed bottom-4 right-4`) → panel `380×600px` s korálovou hlavičkou. Panel je **vždy namountovaný**, přepínání čistě CSS (`opacity/translate/scale` + `inert`/`aria-hidden`) — konverzace i běžící stream přežijí minimalizaci (na rozdíl od „Nová konverzace", která stream abortuje).
-- `src/app/demo/page.tsx` (`/demo`) — statická demo stránka „Pojišťovny Jistota" s `<ChatWidget />`, simuluje nasazení na reálném webu pojišťovny; veřejná stránka mimo proxy vrstvu.
+- `src/app/demo/page.tsx` (`/demo`) — statická demo stránka s `<ChatWidget />`, simuluje nasazení widgetu na reálném webu pojišťovny; veřejná stránka mimo proxy vrstvu.
 - `MessageBubble.tsx` vrací `null` pro prázdný `content` — jinak by se u asistentské zprávy těsně po odeslání (než dorazí první token streamu) zobrazila prázdná bublina zároveň s „píšícími" tečkami z `ChatMessages`.
 
 Widget nepřidává žádnou API routu ani útočnou plochu — používá výhradně existující veřejné routy (`/api/chat`, `/api/feedback`, `POST /api/leads`) se stávajícími rate limity. Fáze 2 (embeddovatelný widget na cizí web přes `/widget` + `public/embed.js`) je vědomě odložená — viz „Výhled fáze 2" v plánu.
@@ -592,3 +596,5 @@ Reálné pojistné podmínky ve složce `docs/seed-docs/` slouží jako obsah de
 - `IPID` — informační dokument o pojistném produktu (2 s., rychlá indexace)
 - `Informace pro klienta` — předsmluvní informace (11 s.)
 - `docs/evaluation/testovaci_otazky*.md` — sady testovacích otázek včetně záměrných otázek mimo bázi pro ověření fallbacku
+
+**Pozor:** jde o **reálné** pojistné podmínky konkrétní pojišťovny. Do znalostní báze se ale indexují **redigované** — `src/lib/rag/redact.ts` odstraňuje obchodní firmu, web, e-maily, telefon, skupinu, IČO i sídlo, protože aplikace o sobě tvrdí, že běží na datech fiktivní pojišťovny. Originály v `docs/seed-docs/` a ve Storage zůstávají nedotčené (jsou potřeba k reindexaci a aplikace k nim nikde nenabízí cestu). Po **každé** změně redakčních pravidel je nutné dokumenty přeindexovat a ověřit skriptem `node scripts/scan-brand-leaks.mjs` (exit 1 při nálezu).

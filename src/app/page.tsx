@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ChatMessages } from "@/components/ChatMessages";
 import { useKecaloChat } from "@/lib/use-kecalo-chat";
 import { DemoCredit } from "@/components/DemoCredit";
+import { BRAND } from "@/lib/brand";
 
 export default function ChatPage() {
   const {
@@ -31,9 +32,14 @@ export default function ChatPage() {
       <header className="flex items-center justify-between border-b border-border px-4 py-3 shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-medium">
-            J
+            {BRAND.initial}
           </div>
-          <span className="text-[15px] font-medium">Pojišťovna Jistota</span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-[15px] font-medium">{BRAND.name}</span>
+            <span className="text-[11px] text-muted-foreground">
+              {BRAND.tagline}
+            </span>
+          </div>
         </div>
         {messages.length > 0 && (
           <Button

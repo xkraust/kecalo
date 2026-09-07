@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { BRAND } from "@/lib/brand";
 import {
   LayoutDashboard,
   FileText,
@@ -103,10 +104,10 @@ export function AdminSidebar({
     <aside className="sticky top-0 flex h-screen w-52 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
       <div className="flex items-center gap-2 px-4 py-5">
         <div className="flex size-7 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground text-sm font-medium">
-          K
+          {BRAND.initial}
         </div>
         <span className="text-[15px] font-medium text-sidebar-foreground">
-          Kecalo
+          {BRAND.name}
         </span>
       </div>
 

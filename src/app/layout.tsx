@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { BRAND } from "@/lib/brand";
 import "./globals.css";
 
 const inter = Inter({
@@ -8,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Pojišťovna Jistota",
-  description: "Chatbot znalostní báze pojišťovny — odpovědi z pojistných podmínek se zdroji.",
+  title: BRAND.name,
+  description: `${BRAND.tagline} — chatbot odpovídá z nahraných pojistných podmínek a vždy uvádí zdroj.`,
 };
 
 export default function RootLayout({

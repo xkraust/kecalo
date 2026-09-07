@@ -5,10 +5,11 @@ Sada slouží k ověření funkčnosti chatbota po naindexování reálných see
 U každé otázky je uvedena očekávaná odpověď a zdroj, ze kterého má chatbot čerpat —
 díky tomu poznáte, zda retrieval našel správný dokument a zda odpověď nehalucinuje.
 
-> **Pozn. k brandingu:** Bot vystupuje jako fiktivní „Pojišťovna Jistota" (dle systémového
-> promptu), znalostní bázi ale tvoří reálné pojistné podmínky. Konkrétní kontakty
-> uvedené v odpovědích (např. infolinka 957 105 105) jsou citovány z dokumentů; ve fallbacku
-> bot odkazuje na vlastní infolinku dle systémového promptu.
+> **Pozn. k brandingu:** aplikace vystupuje jako **Kecalo** s podtitulem „Příklad aplikace
+> na datech fiktivní pojišťovny". Znalostní bázi tvoří reálné pojistné podmínky, ale identita
+> pojistitele se z nich při indexaci odstraňuje (`src/lib/rag/redact.ts`) — název, web,
+> e-maily, IČO i sídlo. Kontakty v očekávaných odpovědích proto uvádějí redigované hodnoty
+> (infolinka 800 123 456, web www.pojistovna.example), ne ty z původních PDF.
 
 Seed dokumenty (původní báze, na které sada původně vznikla):
 - `VPP M-100_23 pro pojištění majetku a odpovědnosti občanů.pdf`
@@ -81,8 +82,8 @@ na území ČR.)
 Zdroj: VPP M-100_23, čl. 37 odst. 7 (a čl. 38 odst. 5).
 
 **10. Jak a kde nahlásím pojišťovně pojistnou událost?**
-Očekáváno: Telefonicky na infolince 957 105 105, online formulářem na www.koop.cz, osobně
-na pobočce nebo písemně. Při podezření na trestný čin (krádež) volat policii 158, při požáru
+Očekáváno: Telefonicky na infolince 800 123 456, online formulářem na
+www.pojistovna.example, osobně na pobočce nebo písemně. Při podezření na trestný čin (krádež) volat policii 158, při požáru
 hasiče 150.
 Zdroj: Informace pro klienta, kap. 5 — obdobný postup hlášení popisují i ostatní produkty;
 otázka proto v CSV datasetu nemá pevně připnutý `document` (viz pozn. u otázky 6).
@@ -92,7 +93,7 @@ Očekáváno: Ano — v bázi jsou dva produkty životního pojištění: RENTA 
 pojištění pro případ smrti nebo dožití) a FLEXI (komplexní životní pojištění s investiční
 složkou a řadou zdravotních/úrazových připojištění — invalidita, vážná onemocnění,
 pracovní neschopnost, hospitalizace). Chatbot má rozlišit oba produkty, ne je směšovat.
-Zdroj: RENTA_PROFIT a FLEXI (obě dokumentace „VÍTEJTE V KOOPERATIVĚ" / úvodní části).
+Zdroj: RENTA_PROFIT a FLEXI (obě dokumentace „VÍTEJTE V POJIŠŤOVNĚ" / úvodní části).
 
 **12. Jaký je limit léčebných výloh u vašeho cestovního pojištění?**
 Očekáváno: Podle varianty — KLASIK 10 000 000 Kč, PLUS 100 000 000 Kč na každou pojištěnou

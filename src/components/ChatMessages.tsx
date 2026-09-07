@@ -4,6 +4,7 @@ import type { RefObject } from "react";
 import { cn } from "@/lib/utils";
 import { MessageBubble } from "@/components/MessageBubble";
 import { SAMPLE_QUESTIONS, type ChatMessage } from "@/lib/use-kecalo-chat";
+import { BRAND } from "@/lib/brand";
 
 const DEFAULT_EMPTY_DESCRIPTION =
   "Zeptejte se na cokoliv k pojistným podmínkám. Odpovídáme výhradně z dokumentů a vždy uvádíme zdroj.";
@@ -60,13 +61,20 @@ export function ChatMessages({
                   compact ? "size-10 text-lg" : "size-12 text-xl"
                 )}
               >
-                J
+                {BRAND.initial}
               </div>
               {compact ? (
-                <h2 className="text-lg font-medium">Pojišťovna Jistota</h2>
+                <h2 className="text-lg font-medium">{BRAND.name}</h2>
               ) : (
-                <h1 className="text-2xl font-medium">Pojišťovna Jistota</h1>
+                <h1 className="text-2xl font-medium">{BRAND.name}</h1>
               )}
+              {/* Podtitul patří přímo pod název: prázdný stav je první, co
+                  návštěvník vidí, a musí z něj poznat, že jde o ukázku nad
+                  smyšlenými daty. -mt-2 stahuje mezeru z gap-3 rodiče, aby
+                  podtitul držel u nadpisu a neplaval mezi ním a popisem. */}
+              <p className="-mt-2 text-xs text-muted-foreground">
+                {BRAND.tagline}
+              </p>
               <p
                 className={cn(
                   "text-muted-foreground",

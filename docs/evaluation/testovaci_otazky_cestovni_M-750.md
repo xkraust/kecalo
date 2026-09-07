@@ -4,7 +4,7 @@ Sada k ověření RAG chatbota nad dokumentem `PP-M-750-18…_cestovni_pojisteni
 (předsmluvní informace a pojistné podmínky M-750/23, 63 stran). U každé otázky je
 očekávaná odpověď a místo v dokumentu, ze kterého má chatbot čerpat.
 
-**Struktura dokumentu:** části VÍTEJTE V KOOPERATIVĚ · PŘEDSMLUVNÍ INFORMACE ·
+**Struktura dokumentu:** části VÍTEJTE V POJIŠŤOVNĚ · PŘEDSMLUVNÍ INFORMACE ·
 JEDNOTLIVÁ POJIŠTĚNÍ · OBECNÁ USTANOVENÍ · VÝKLAD POJMŮ. Nejvíc věcných otázek míří
 do části **JEDNOTLIVÁ POJIŠTĚNÍ**, která obsahuje samostatné kapitoly pro jednotlivá
 dílčí pojištění (léčebné výlohy, úrazové, zavazadla, zpoždění, odpovědnost, STORNO…).

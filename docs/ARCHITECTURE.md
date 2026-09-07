@@ -50,10 +50,11 @@ Pozn. k verzím: `@ai-sdk/*` providery jsou pinované na majory kompatibilní s 
 2. Stáhne originál ze Supabase Storage (`documents/{id}/file.{ext}`).
 3. `extract.ts` — PDF → text po stránkách (`unpdf`); `.txt`/`.md` prostý text.
 4. `clean.ts` — frekvenční odstranění opakovaných záhlaví/patiček (práh 60 % stránek, bez hardcoded vzorů) + slepení řádků rozdělených sazbou PDF. Mapování na strany zůstává.
-5. `chunk.ts` — strukturní chunkování: parser hierarchie dokumentu (část → článek → odstavec) + greedy skladač celých sekcí do chunků cílové velikosti (default 3 500 znaků, strop 1,3×, bez překryvu), volitelná breadcrumb hlavička `[docTitle › část › článek]` embedovaná s textem. Nestrukturované dokumenty (< 30 % obsahu v sekcích) se dělí po odstavcích.
-6. `embed.ts` — `embedBatch` přes Voyage AI.
-7. Vloží nové chunky po dávkách 100 s novým `batch_id`, **pak** smaže staré (`batch_id != nový`, jeden atomický DELETE). Selhání před výměnou → úklid nového batche, původní data přežijí.
-8. Nastaví `status = ready` a uloží otisk konfigurace do `documents.chunking_config` — UI podle něj detekuje zastaralé chunkování (`isChunkingStale` v [`src/lib/settings-meta.ts`](../src/lib/settings-meta.ts)).
+5. `redact.ts` — **redakce identity pojistitele**: zdrojová PDF jsou reálné pojistné podmínky, ale aplikace o sobě tvrdí, že běží „na datech fiktivní pojišťovny". Odstraňuje obchodní firmu ve všech tvarech, web, e-maily, telefon, skupinu, IČO i sídlo. Běží **před** chunkováním záměrně — parser struktury odvozuje `section_path` až z těchto stránek a ten jde přes `X-Sources` do bloku zdrojů v UI.
+6. `chunk.ts` — strukturní chunkování: parser hierarchie dokumentu (část → článek → odstavec) + greedy skladač celých sekcí do chunků cílové velikosti (default 3 500 znaků, strop 1,3×, bez překryvu), volitelná breadcrumb hlavička `[docTitle › část › článek]` embedovaná s textem. Nestrukturované dokumenty (< 30 % obsahu v sekcích) se dělí po odstavcích.
+7. `embed.ts` — `embedBatch` přes Voyage AI.
+8. Vloží nové chunky po dávkách 100 s novým `batch_id`, **pak** smaže staré (`batch_id != nový`, jeden atomický DELETE). Selhání před výměnou → úklid nového batche, původní data přežijí.
+9. Nastaví `status = ready` a uloží otisk konfigurace do `documents.chunking_config` — UI podle něj detekuje zastaralé chunkování (`isChunkingStale` v [`src/lib/settings-meta.ts`](../src/lib/settings-meta.ts)).
 
 Chyby se ukládají do `documents.error_message` a dokument končí ve stavu `error`; stavový diagram: `uploaded → processing → ready | error`.
 
@@ -75,6 +76,7 @@ Chyby se ukládají do `documents.error_message` a dokument končí ve stavu `er
 |---|---|
 | [`extract.ts`](../src/lib/rag/extract.ts) | PDF/TXT/MD → text po stránkách |
 | [`clean.ts`](../src/lib/rag/clean.ts) | čištění mezi extrakcí a chunkováním; exportuje strukturní vzory sdílené s parserem |
+| [`redact.ts`](../src/lib/rag/redact.ts) | redakce identity pojistitele; uspořádaná pravidla (kolapsní před obecnými), velká písmena se opravují jen na místech, kam redakce sáhla. Ověřuje `scripts/scan-brand-leaks.mjs` |
 | [`chunk.ts`](../src/lib/rag/chunk.ts) | strukturní chunkování (parser hierarchie + skladač sekcí) |
 | [`embed.ts`](../src/lib/rag/embed.ts) | `embedQuery` (dotaz) a `embedBatch` (indexace) přes Voyage AI |
 | [`retrieve.ts`](../src/lib/rag/retrieve.ts) | embedding dotazu → RPC `match_chunks` → chunky se skóre |
@@ -218,7 +220,8 @@ Chatová logika je sdílená mezi dvěma vstupními body přes jeden hook, aby s
 | [`src/components/ChatMessages.tsx`](../src/components/ChatMessages.tsx) | scrollovatelná oblast zpráv (prázdný stav, vzorové otázky, mapování na `MessageBubble`); prop `compact` pro menší widget layout |
 | [`src/app/page.tsx`](../src/app/page.tsx) | `/` — fullscreen chat, skelet nad `useKecaloChat()` + `<ChatMessages />` |
 | [`src/components/ChatWidget.tsx`](../src/components/ChatWidget.tsx) | vysouvací widget (bublina v rohu → panel `380×600px`, vždy namountovaný, minimalizace čistě CSS + `inert`); `useKecaloChat()` žije v komponentě, takže konverzace i běžící stream přežijí minimalizaci |
-| [`src/app/demo/page.tsx`](../src/app/demo/page.tsx) | `/demo` — statická demo stránka „Pojišťovny Jistota" s `<ChatWidget />`, simuluje nasazení na reálném webu; veřejná, mimo proxy vrstvu |
+| [`src/app/demo/page.tsx`](../src/app/demo/page.tsx) | `/demo` — statická demo stránka s `<ChatWidget />`, simuluje nasazení widgetu na webu; veřejná, mimo proxy vrstvu |
+| [`src/lib/brand.ts`](../src/lib/brand.ts) | `BRAND` — název, podtitul a iniciála loga; jediný zdroj pravdy značky pro chat, widget, demo, zásady i administraci |
 
 `MessageBubble.tsx` vrací `null` pro prázdný `content` (asistentská zpráva těsně po odeslání, než dorazí první token) — jinak by se zobrazila prázdná bublina zároveň s „píšícími" tečkami z `ChatMessages`.
 
@@ -226,6 +229,7 @@ Widget nepřidává žádnou útočnou plochu ani API — používá výhradně 
 
 ## 10. Známá omezení
 
+- **Značka jen částečně konfigurovatelná** — název, podtitul a iniciála loga žijí v [`src/lib/brand.ts`](../src/lib/brand.ts), takže přejmenování je změna jednoho souboru; obor ukázkových dat (pojišťovnictví) a grafické logo mimo iniciálu ale konfigurací nejsou.
 - **Bez automatizovaných testů** — v repozitáři není žádná test suite; ověřuje se manuálně (`npm run build`, `npm run lint`, E2E průchody v prohlížeči, `npm run eval` nad Langfuse datasety). Regrese se tedy zachytí až při ručním průchodu — před ostrým provozem první věc k doplnění.
 - **Autentizace** — identity, aplikační role i SSO existují, ale zbývá: napojení na **reálný IdP** (ověřeno jen proti `scripts/mock-idp.mjs`), obnova zapomenutého hesla bez zásahu admina a MFA u lokálních účtů.
 - **Koncoví tazatelé chatu se nepřihlašují** — štítky dokumentů proto chrání obsah hlavně před veřejností; uvnitř organizace se rozlišení projeví až tam, kde je uživatel přihlášený.

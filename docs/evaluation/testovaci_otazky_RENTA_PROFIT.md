@@ -5,7 +5,7 @@ Sada k ověření RAG chatbota nad dokumentem `A4_PP_zivotni_pojisteni_RENTA_PRO
 odpověď a místo v dokumentu, ze kterého má chatbot čerpat.
 
 **Struktura dokumentu:** na rozdíl od VPP M-100/M-200 není členěn na „články", ale na
-části (VÍTEJTE V KOOPERATIVĚ · OBSAH POJIŠTĚNÍ · OBECNÁ USTANOVENÍ · VÝKLAD POJMŮ)
+části (VÍTEJTE V POJIŠŤOVNĚ · OBSAH POJIŠTĚNÍ · OBECNÁ USTANOVENÍ · VÝKLAD POJMŮ)
 s číslovanými body. Citace proto odkazují na část + bod + odstavec.
 
 **Charakter produktu:** RENTA PROFIT je **obnosové** životní pojištění pro případ

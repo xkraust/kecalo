@@ -14,11 +14,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getSettings } from "@/lib/settings";
 import { config } from "@/lib/config";
+import { BRAND } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Zásady zpracování osobních údajů — Pojišťovna Jistota",
+  title: `Zásady zpracování osobních údajů — ${BRAND.name}`,
   description:
     "Jaké osobní údaje chatbot zpracovává, proč, jak dlouho a jaká máte práva.",
 };
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
  * přehlédnout (tichý placeholder by se do produkce protáhl snadno).
  */
 const CONTROLLER = {
-  name: "Pojišťovna Jistota",
+  name: BRAND.name,
   legal: "DOPLNIT: obchodní firma, IČO a sídlo správce",
   email: "DOPLNIT: kontaktní e-mail pro uplatnění práv",
   phone: "800 123 456",
@@ -108,7 +109,7 @@ export default async function PrivacyPage() {
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-medium">
-              J
+              {BRAND.initial}
             </div>
             <span className="text-[15px] font-medium">
               {CONTROLLER.name}

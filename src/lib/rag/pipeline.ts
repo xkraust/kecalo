@@ -5,6 +5,7 @@ import { chunkingConfigOf } from "@/lib/settings-meta";
 import { getTracer, withSpan, flushTelemetry } from "@/lib/telemetry";
 import { extractText } from "./extract";
 import { cleanPages } from "./clean";
+import { redactPages } from "./redact";
 import { chunkText } from "./chunk";
 import { embedBatch } from "./embed";
 
@@ -78,9 +79,18 @@ export async function processDocument(documentId: string): Promise<void> {
         return result;
       });
 
+      // Redakce identity pojistitele. ZÁMĚRNĚ před chunkováním: parser struktury
+      // odvozuje section_path až z těchto stránek, a ten jde přes X-Sources do
+      // bloku zdrojů v UI — po chunkování by nadpisy zůstaly neredigované.
+      const redacted = await withSpan("document.redact", async (s) => {
+        const r = redactPages(cleaned);
+        s.setAttribute("redact.replacements", r.count);
+        return r.pages;
+      });
+
       const docTitle = doc.filename.replace(/\.[^.]+$/, "");
       const chunks = await withSpan("document.chunk", async (s) => {
-        const c = chunkText(cleaned, documentId, docTitle, {
+        const c = chunkText(redacted, documentId, docTitle, {
           targetSize: settings.chunkTargetSize,
           breadcrumb: settings.chunkBreadcrumb,
         });

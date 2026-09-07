@@ -2,7 +2,7 @@
 
 **Referenční implementace RAG chatbota** nad vlastní znalostní bází — předvedená na příkladu pojišťovny.
 
-Obor není součástí architektury: znalostní bázi tvoří dokumenty, které nahrajete, a chování řídí systémový prompt editovatelný za běhu. Ukázková instalace běží nad reálnými pojistnými podmínkami z [docs/seed-docs/](docs/seed-docs/) a vystupuje jako „Pojišťovna Jistota"; název a logo značky jsou zatím napevno v komponentách (viz [Známá omezení](#známá-omezení)).
+Obor není součástí architektury: znalostní bázi tvoří dokumenty, které nahrajete, a chování řídí systémový prompt editovatelný za běhu. Ukázková instalace běží nad reálnými pojistnými podmínkami z [docs/seed-docs/](docs/seed-docs/) a vystupuje pod vlastním názvem **Kecalo** s podtitulem „Příklad aplikace na datech fiktivní pojišťovny"; název, podtitul i iniciála loga žijí v `src/lib/brand.ts` (viz [Známá omezení](#známá-omezení)).
 
 Vznikl jako projekt jednodenního kurzu vibecodingu, ale rozsahem ho dávno přerostl — dnes je to **funkční aplikace v předprodukční fázi**: s observabilitou, evaluační pipeline a prošlou bezpečnostní revizí. Do ostrého provozu jí chybí především automatizované testy; autentizace má identity, role i volitelné SSO, ale zatím jen proti mock IdP, a zpracování osobních údajů má hotové jádro — retenci, práva subjektu i zásady zpracování — se zbývajícími kroky popsanými níže (viz [Osobní údaje a GDPR](#osobní-údaje-a-gdpr)).
 
@@ -18,7 +18,7 @@ Návštěvník klade otázky česky; bot odpovídá výhradně z indexovaných d
 - Souhlas se zpracováním údajů u karty poptávky a odkaz na zásady zpracování (`/privacy`) v patičce chatu i widgetu
 
 **Vysouvací widget (`/demo`)**
-- Mini chat jako bublina v rohu obrazovky → panel `380×600px`; demo stránka simuluje nasazení na webu „Pojišťovny Jistota"
+- Mini chat jako bublina v rohu obrazovky → panel `380×600px`; demo stránka simuluje nasazení widgetu na webu pojišťovny
 - Chat logika sdílená s fullscreenem přes hook `useKecaloChat` — každá oprava se propíše do obou
 - Panel je vždy namountovaný (minimalizace čistě CSS) — konverzace i běžící stream přežijí zavření
 - Žádná nová API routa ani útočná plocha — používá jen existující veřejné routy
@@ -167,7 +167,7 @@ Aplikace zatím není určená pro ostrý provoz — několik vědomých komprom
 
 - **Bez automatizovaných testů** — ověřování je manuální (build, lint, E2E průchody, eval runner nad datasety). Před ostrým provozem je to první věc k doplnění.
 - **Autentizace** — vlastní tabulka uživatelů s aplikačními rolemi (admin/editor/čtenář), správa v `/admin/users`, podepsaná HMAC cookie a volitelné SSO přes OIDC. SSO je ověřené jen proti lokálnímu mock IdP — napojení na reálný tenant zbývá. Chybí obnova zapomenutého hesla bez admina. Dokumenty lze omezit štítky, ale koncoví tazatelé chatu se nepřihlašují, takže omezení chrání obsah hlavně před veřejností.
-- **Značka natvrdo v kódu** — obor ani obsah nejsou v architektuře nijak zadrátované, ale název „Pojišťovna Jistota" a logo žijí přímo v komponentách (`layout.tsx`, `page.tsx`, `ChatMessages.tsx`, `ChatWidget.tsx`, `demo/page.tsx`, `privacy/page.tsx`). Nasazení pro jiného zákazníka je tak zatím úprava kódu, ne konfigurace. Výchozí systémový prompt je navíc psaný pro pojišťovnictví — přepsat ho jde za běhu v `/admin/parameters/prompts`.
+- **Značka jen částečně konfigurovatelná** — název, podtitul a iniciála loga mají jediný zdroj pravdy v `src/lib/brand.ts`, takže přejmenování je změna jednoho souboru. Konfigurací (tj. bez zásahu do kódu) to ale pořád není, a grafické logo nad rámec iniciály chybí. Výchozí systémový prompt je odbrandovaný, ale psaný pro pojišťovnictví — přepsat ho jde za běhu v `/admin/parameters/prompts`.
 - **Osobní údaje** — retenční mazání je nasazené, ale po migraci **vypnuté**, a zásady zpracování mají nevyplněná místa `DOPLNIT` (identifikace správce). Obojí je vědomý stav, ne opomenutí — podrobnosti a zbývající kroky v sekci [Osobní údaje a GDPR](#osobní-údaje-a-gdpr).
 - **In-memory rate limity** — per-instance; na serverless škálování napříč instancemi nedrží globální stropy přesně.
 - **Vědomě odloženo (SEC-7 / SEC-8)** — serverová rekonstrukce historie chatu a explicitní CSRF token.
