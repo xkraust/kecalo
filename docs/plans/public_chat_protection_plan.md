@@ -15,9 +15,9 @@ Přebírá provozní podmínky, které byly původně odrážkou ve „Výhledu 
 | B — denní strop útraty | (nebylo ve výhledu; u veřejného embedu podstatnější než rate limit) |
 | C — allowlist originů | „CORS pro API volání z iframe" — tentýž seznam poslouží jako CORS allowlist |
 
-**Ve fázi 2 widgetu naopak zůstává** a tenhle plán se toho nedotýká: route `/widget`, `public/embed.js`, uvolnění `frame-ancestors` pro `/widget` (dnes globální `DENY` z opravy SEC-10) a tenant identifikace.
+**Ve fázi 2 widgetu naopak zůstává** a tenhle plán se toho nedotýká: route `/widget`, `public/embed.js`, uvolnění `frame-ancestors` pro `/widget` (dnes globální `DENY` z opravy SEC-10) a tenant identifikace. Fáze 2 má od 7. 9. 2026 vlastní plán — [`widget_embed_plan.md`](widget_embed_plan.md); jeho sekce „Vztah k ochrannému plánu" popisuje závislost z druhé strany. Pozn.: v tam navržené architektuře jde chat z iframu **same-origin**, takže etapa C embed neomezuje a CORS allowlist pro cizí originy nakonec potřeba není.
 
-Pořadí je proto takové, že tenhle plán dává smysl udělat **dřív** než fázi 2 — embed bez stropu útraty by veřejnou instanci vystavil přesně tomu, před čím strop chrání.
+Pořadí je proto takové, že tenhle plán dává smysl udělat **dřív** než fázi 2 — embed bez stropu útraty by veřejnou instanci vystavil přesně tomu, před čím strop chrání. Blokující je z toho jen **etapa B**; A a C jsou žádoucí, ne podmínka.
 
 ## Kontext a cíl
 

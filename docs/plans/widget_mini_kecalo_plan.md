@@ -216,6 +216,9 @@ Nemá smysl je držet jako podmínku fáze, která možná nikdy nepřijde.
 
 ### Co ve fázi 2 zbývá
 
+Rozpracováno do vlastního plánu: [`widget_embed_plan.md`](widget_embed_plan.md)
+(návrh, neimplementováno). Body níže jsou jeho zadání.
+
 - Route `/widget` — kompaktní chat renderovaný samostatně (bez demo stránky),
   určený do iframe.
 - `public/embed.js` — skript vložitelný jedním `<script>` tagem na cizí web:
@@ -241,7 +244,8 @@ Nemá smysl je držet jako podmínku fáze, která možná nikdy nepřijde.
   Jedna doplňková oprava nad rámec plánu: dvojitá bublina po odeslání
   dotazu (viz poznámka u milníku 4).
 - Fáze 2 (embeddovatelný widget `/widget` + `public/embed.js`) zůstává
-  neimplementovaná — viz „Výhled fáze 2" výše. Její provozní podmínky (rate
+  neimplementovaná — má vlastní plán
+  [`widget_embed_plan.md`](widget_embed_plan.md) (7. 9. 2026, návrh). Její provozní podmínky (rate
   limity, strop útraty, allowlist originů) se osamostatnily do
   [`public_chat_protection_plan.md`](public_chat_protection_plan.md), protože
   platí i bez embedu.
