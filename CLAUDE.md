@@ -339,7 +339,7 @@ docs/
 ├── IMPLEMENTATION_PLAN.md            # hlavní prováděcí checklist projektu (fáze + průběžný stav)
 ├── PRD_pojistovaci_RAG_chatbot.md    # zadání/PRD
 ├── seed-docs/                        # reálné PDF pojistné podmínky (obsah znalostní báze)
-├── plans/                            # feature/experimentální plány (Langfuse, lead-gen, Mistral, widget, demo, role a přístup k dokumentům, hlasové ovládání, ochrana veřejného chatu)
+├── plans/                            # feature/experimentální plány (Langfuse, lead-gen, Mistral, widget + embed, demo, role a přístup k dokumentům, hlasové ovládání, ochrana veřejného chatu, asistent pro e-shop)
 ├── reviews/                          # nálezy a opravné plány z code/security revizí
 └── evaluation/
     ├── testovaci_otazky*.md          # sady testovacích otázek (markdown)
