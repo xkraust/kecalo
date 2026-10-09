@@ -35,6 +35,9 @@ export async function runRetention({
   performedBy = null,
 }: { performedBy?: string | null } = {}): Promise<RetentionResult> {
   return withSpan("privacy.retention", async (span) => {
+    // Načtení NEPŘESKAKUJ ani při vypnuté retenci a neschovávej ho za cache:
+    // tenhle dotaz je jediná pravidelná aktivita, která drží Supabase free tier
+    // naživu (viz komentář v api/cron/retention/route.ts).
     const settings = await getSettings();
 
     if (!settings.retentionEnabled) {

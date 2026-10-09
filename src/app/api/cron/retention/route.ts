@@ -5,6 +5,19 @@
 // obrana je sdílený secret. Proto je autorizace jediná věc, která se tu dělá
 // dřív než cokoli jiného, a chybějící secret routu vypíná (503), místo aby ji
 // nechal otevřenou.
+//
+// NEŽ TUHLE ROUTU ZRUŠÍŠ NEBO PŘEPÍŠEŠ: visí na ní ještě druhá, nezjevná
+// funkce — udržuje naživu Supabase. Free-tier projekt se po 7 dnech nečinnosti
+// pozastaví a tenhle cron je jediná pravidelná aktivita, kterou aplikace má.
+// Stačí k tomu `getSettings()` v `runRetention()`, které běží PŘED branou
+// vypnuté retence, takže i „skipped" běh udělá dotaz do `app_settings`.
+// Rozbije to tedy nejen smazání routy, ale i zdánlivě nevinná optimalizace
+// („když je retence vypnutá, nenačítej nastavení") nebo zapomenutý redeploy
+// po rotaci CRON_SECRET — routa pak vrací 503 a k DB vůbec nedojde.
+// Selhání je tiché: zjistíš ho až za týden e-mailem o pozastaveném projektu
+// (stalo se 9. 10. 2026). Pozor i na to, že Hobby plán Vercelu povoluje jediný
+// cron, takže keepalive nejde prostě přidat vedle. Trvalé řešení je Supabase
+// Pro, kde se projekty nepozastavují.
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { runRetention } from "@/lib/privacy/retention";

@@ -132,7 +132,7 @@ Všechny změny DB schématu jdou výhradně přes migrační soubory v `supabas
 | `OIDC_GROUPS_CLAIM` | Název claimu se skupinami (default `groups`) |
 | `OIDC_REDIRECT_BASE_URL` | Základ redirect URI, když se origin liší od veřejné adresy (volitelné) |
 | `PUBLIC_CHAT` | `true` = chat je veřejný (dnešní režim). Cokoli jiného = interní režim, kdy `/`, `/demo`, `/api/chat`, `/api/feedback` i `POST /api/leads` vyžadují přihlášení. Fail-closed záměrně — zapomenutá proměnná nesmí interní bázi otevřít internetu |
-| `CRON_SECRET` | Secret retenčního cronu (`/api/cron/retention`); bez něj routa vrací 503 — raději vypnutý úklid než veřejná mazací routa |
+| `CRON_SECRET` | Secret retenčního cronu (`/api/cron/retention`); bez něj routa vrací 503 — raději vypnutý úklid než veřejná mazací routa. Nastavený ve Vercel Project env (9. 10. 2026); po rotaci je nutný **redeploy**, jinak cron tiše padá na 503 a s ním i keepalive Supabase (viz níže) |
 | `PRIVACY_HASH_SECRET` | Klíč HMAC otisku kontaktu v `privacy_actions` (volitelný — bez něj se odvodí ze `SESSION_SECRET`) |
 | `LANGFUSE_SECRET_KEY` | Langfuse server klíč (volitelný — bez něj app funguje, jen se neloguje) |
 | `LANGFUSE_PUBLIC_KEY` | Langfuse veřejný klíč (volitelný) |
@@ -190,6 +190,7 @@ POST   /api/privacy/settings    → retenční lhůty a přepínač úklidu (adm
 POST   /api/privacy/retention   → ruční spuštění úklidu (admin); vypnutá retence → { skipped: true }
 POST   /api/privacy/subject     → { action: 'find' | 'erase', contact } (admin) — vyhledání a trvalý výmaz dat subjektu; kontakt v TĚLE, ne v query stringu (nesmí skončit v provozních logách)
 GET    /api/cron/retention      → denní úklid (vercel.json, 0 3 * * *); autorizace jen Authorization: Bearer CRON_SECRET, bez secretu 503
+                                  POZOR: drží zároveň naživu Supabase free tier (7 dnů nečinnosti = pauza) — viz Provozní vazby
 POST   /api/auth/change-password → změna vlastního hesla (přihlášený); projde i účtu s must_change_password
 GET    /api/auth/oidc/start     → zahájení SSO (redirect na IdP; state + nonce + PKCE ve stavové cookie)
 GET    /api/auth/oidc/callback  → návrat od IdP: ověření tokenu, JIT provisioning, vydání session cookie
@@ -589,6 +590,17 @@ RAG pipeline je trasována přes OpenTelemetry s exportem do Langfuse Cloud. Pod
   - **Zaznamenávat obsah promptů a odpovědí** — řídí `recordInputs`/`recordOutputs` v chat route (per request). Default vypnuto (soukromí); zapnout jen pro ladění. Závisí na master vypínači (`ToggleField.dependsOn`): když je telemetrie vypnutá, přepínač se v adminu jen zašedne a nejde měnit — hodnotu nemění (zobrazuje skutečnou uloženou hodnotu, jen je disabled). Při opětovném zapnutí telemetrie se `recordContent` načte čerstvě z DB (`GET /api/settings`), aby se zahodila případná neuložená lokální změna schovaná pod disabled.
 - **Soukromí:** ve výchozím stavu do Langfuse nejde obsah dotazů ani dokumentů, jen metadata (tokeny, latence, topK/threshold/temperature, počty chunků). Obsah lze zapnout přepínačem výše.
 - **Voyage náklady:** posíláme `embed.total_tokens`; pro přesnou kalkulaci nákladů je nutné v Langfuse dashboardu nadefinovat custom model `voyage-3.5`.
+
+## Provozní vazby
+
+**Retenční cron drží naživu Supabase.** Free-tier projekt se po **7 dnech nečinnosti pozastaví** (stalo se 9. 10. 2026) a jediná pravidelná aktivita, kterou aplikace má, je denní `GET /api/cron/retention`. Stačí k tomu `getSettings()` v `runRetention()`, které běží **před** branou vypnuté retence — i běh vracející `{"skipped":true}` udělá dotaz do `app_settings`. Vazba je nezjevná a selhává tiše, proto:
+
+- Rušení cronu, odstranění řádku z `vercel.json`, cachování `getSettings()` ani zkratka „při vypnuté retenci nenačítej nastavení" **nejsou bezpečné úpravy** — každá z nich keepalive zabije, aniž by cokoli zčervenalo.
+- Rotace `CRON_SECRET` bez redeploye vrátí routu na 503 a k DB se vůbec nedojde.
+- Hobby plán Vercelu povoluje **jediný cron**, takže samostatnou keepalive routu nelze prostě přidat vedle.
+- Trvalé řešení je Supabase Pro (placené projekty se nepozastavují); do té doby varování drží komentáře v `api/cron/retention/route.ts` a `lib/privacy/retention.ts`.
+
+Pozor na jednu past při ověřování: `getSettings()` při nedostupné DB **tiše spadne** na env defaulty, takže 200 z cronu neprokazuje, že databáze žije — dostupnost Supabase se ověřuje zvlášť.
 
 ## Seed dokumenty
 
