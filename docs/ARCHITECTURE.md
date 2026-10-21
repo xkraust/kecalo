@@ -85,7 +85,7 @@ Chyby se ukládají do `documents.error_message` a dokument končí ve stavu `er
 
 ## 4. Datový model
 
-Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`020`), nikdy ručně v SQL editoru. Aplikace přistupuje service-role klíčem (obchází RLS); RLS je na tabulkách zapnuté bez policy pro anon — přímý anonymní přístup je tak zablokovaný.
+Schéma se mění **výhradně migracemi** v `supabase/migrations/` (`001`–`021`), nikdy ručně v SQL editoru. Od 30. 10. 2026 Supabase nedává novým tabulkám v `public` automaticky Data API oprávnění, proto `021` explicitně uděluje `service_role` přístup ke stávajícím tabulkám a **každá nová migrace s `create table` musí přidat vlastní `grant ... to service_role`** (`anon`/`authenticated` nic — přístup jde jen přes server). Aplikace přistupuje service-role klíčem (obchází RLS); RLS je na tabulkách zapnuté bez policy pro anon — přímý anonymní přístup je tak zablokovaný.
 
 | Tabulka | Účel |
 |---|---|

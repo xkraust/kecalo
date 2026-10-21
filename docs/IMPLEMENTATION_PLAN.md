@@ -936,3 +936,14 @@ celými etapami A–D plánu rolí. Aktuální strukturu drží **`CLAUDE.md`** 
 - Monitoring nákladů a latence — základ hotov ve Fázi 9 (Langfuse traces); zbývá custom Voyage model pro přesné náklady a dashboard metriky z Langfuse API
 - Eskalace na živého operátora
 - Dashboard — metriky využití (úroveň 2): logování dotazů → počet dotazů, míra fallbacku, prům. skóre podobnosti, latence; časové řady (zvážit `recharts`)
+
+---
+
+## Mimo číslované fáze — Supabase grants (změna z 30. 10. 2026)
+
+**Cíl:** čerstvá instalace (nový projekt, preview branch, `supabase db reset`) musí fungovat i poté, co Supabase přestane automaticky dávat Data API oprávnění novým tabulkám v `public`. Produkce se nemění (existující grants zůstávají). Aplikace používá jen `service_role`, proto grant dostává pouze ona; `anon`/`authenticated` zůstávají bez přístupu (RLS).
+
+- [x] Migrace `021_service_role_grants.sql` — idempotentní `GRANT` na 13 tabulek + view `user_effective_audiences`
+- [x] Pravidlo pro budoucí migrace zapsáno do `CLAUDE.md` a `docs/ARCHITECTURE.md`
+- [x] `supabase db push` na produkci (no-op) + kontrola chatu/adminu/cronu (21. 10. 2026, ověřeno)
+- [ ] Ověření na čerstvé DB (`supabase db reset` nebo dočasný projekt): seed admina, login, upload, dotaz v chatu, `has_table_privilege` pro všech 13 tabulek; `anon` = false
